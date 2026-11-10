@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "preview": "vite preview --host 0.0.0.0",
-    "format": "prettier --write src tests *.ts *.js *.json *.html .github docs README.md"
+    "format": "prettier --write src tests *.ts *.js *.json *.html .github docs README.md",
+    "setup:sql": "node scripts/create-setup.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.119.0",
