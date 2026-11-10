@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "tests/e2e",
   fullyParallel: true,
-  // Cold Vite compilation and WebKit startup can exceed the 30s default on CI.
+  // Give hosted WebKit runners time for navigation and finite motion transitions.
   timeout: 60_000,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
@@ -18,7 +18,9 @@ export default defineConfig({
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
   ],
   webServer: {
-    command: "npm run dev -- --port 5173",
+    // Production preview avoids cold dev compilation and verifies the built PWA.
+    // --mode test guarantees demo isolation even after public-config is populated.
+    command: "npm run build -- --mode test && npm run preview -- --port 5173",
     url: "http://127.0.0.1:5173",
     reuseExistingServer: false,
     env: {
