@@ -58,6 +58,9 @@ export default function App() {
     setEvent(null);
     setTab("home");
   }, [userId]);
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [tab]);
   const me = data.profiles.find((p) => p.id === userId);
   return (
     <MotionConfig reducedMotion="user">

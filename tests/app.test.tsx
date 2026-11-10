@@ -19,6 +19,7 @@ vi.mock("virtual:pwa-register/react", () => ({
 }));
 beforeEach(() => {
   localStorage.clear();
+  window.scrollTo = vi.fn();
   window.matchMedia = vi.fn().mockImplementation((query) => ({
     matches: false,
     media: query,

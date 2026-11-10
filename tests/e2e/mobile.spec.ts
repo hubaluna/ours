@@ -7,7 +7,7 @@ test("navigation, sheet, responsive layout and themes", async ({ page }) => {
     await page.waitForTimeout(400);
     await page.screenshot({
       path: `test-results/screenshots/${test.info().project.name}/${name}.png`,
-      fullPage: true,
+      fullPage: false,
     });
   };
   await page.goto("/");
@@ -18,6 +18,12 @@ test("navigation, sheet, responsive layout and themes", async ({ page }) => {
   await page.getByRole("button", { name: "Додати товар", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
+  await expect(page.locator(".sheet-backdrop")).toHaveCSS("opacity", "1");
+  const sheetBounds = await dialog.boundingBox();
+  expect(sheetBounds!.y).toBeGreaterThanOrEqual(0);
+  expect(sheetBounds!.y + sheetBounds!.height).toBeLessThanOrEqual(
+    page.viewportSize()!.height + 1,
+  );
   await snapshot("add-shopping");
   await dialog.getByLabel("Назва товару").fill("Авокадо");
   await dialog.getByRole("button", { name: "Додати до списку" }).click();
@@ -26,6 +32,8 @@ test("navigation, sheet, responsive layout and themes", async ({ page }) => {
   await expect(
     page.getByRole("checkbox", { name: "Повернути: Авокадо" }),
   ).toHaveAttribute("aria-checked", "true");
+  await expect(page.locator(".shopping-list .shopping-row")).toHaveCount(6);
+  await page.getByRole("button", { name: "Закрити повідомлення" }).click();
   await snapshot("shopping");
   await nav.getByText("Бажання").click();
   await expect(
@@ -36,10 +44,12 @@ test("navigation, sheet, responsive layout and themes", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Додати план" })).toBeVisible();
   await snapshot("plans");
   await page.getByRole("button", { name: "Відкрити налаштування" }).click();
+  await expect(page.locator(".sheet-backdrop")).toHaveCSS("opacity", "1");
   await snapshot("settings");
   await page.getByRole("button", { name: "Темна", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.getByRole("button", { name: "Закрити", exact: true }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
@@ -48,7 +58,7 @@ test("navigation, sheet, responsive layout and themes", async ({ page }) => {
   expect(errors).toEqual([]);
   await page.screenshot({
     path: `test-results/${test.info().project.name}-dark.png`,
-    fullPage: true,
+    fullPage: false,
   });
 });
 test("320px has no horizontal overflow", async ({ page }) => {

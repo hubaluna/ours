@@ -2567,3 +2567,18 @@ p {
   min-width: 44px;
   min-height: 44px;
 }
+
+/* Keep sheet text readable even when Safari cannot composite nested blur. */
+.sheet {
+  background: var(--card);
+  background: color-mix(in srgb, var(--card) 97%, transparent);
+}
+.bottom-nav {
+  background: color-mix(in srgb, var(--card) 94%, transparent);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .sheet,
+  .bottom-nav {
+    background: var(--card);
+  }
+}
