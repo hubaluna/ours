@@ -43,7 +43,7 @@ const nav = () =>
 const saved = () => JSON.parse(localStorage.getItem("ours-demo-v1")!);
 const closed = () =>
   waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-describe("Compact five-tab app", () => {
+describe("Compact six-tab app", () => {
   it("adds shopping, purchases and restores with separate compact filters", async () => {
     const user = userEvent.setup();
     await user.click(nav().getByText("Покупки"));

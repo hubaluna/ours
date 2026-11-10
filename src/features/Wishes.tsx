@@ -32,17 +32,17 @@ import {
 import { LinkImport } from "../components/LinkImportLoader";
 function WishImage({ wish }: { wish: Wish }) {
   const image = useImage(wish.image_path),
-    [failed, setFailed] = useState(false);
+    [failedUrl, setFailedUrl] = useState("");
   const url = image || publicUrl(wish.image_url || "");
   return (
     <span className="media-thumb">
-      {url && !failed ? (
+      {url && url !== failedUrl ? (
         <img
           src={url}
           alt={wish.name}
           referrerPolicy="no-referrer"
           loading="lazy"
-          onError={() => setFailed(true)}
+          onError={() => setFailedUrl(url)}
         />
       ) : (
         <BrandArt />

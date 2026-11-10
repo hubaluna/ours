@@ -28,6 +28,20 @@ async function fit(page: Page) {
     page.viewportSize()!.height + 1,
   );
   expect(main!.y + main!.height).toBeLessThanOrEqual(bounds!.y + 1);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const content = document.querySelector(".paged-content");
+        const rows = content?.querySelector(".paged-rows");
+        return (
+          !content ||
+          !rows ||
+          rows.getBoundingClientRect().bottom <=
+            content.getBoundingClientRect().bottom + 1
+        );
+      }),
+    )
+    .toBe(true);
 }
 async function seek(page: Page, locator: ReturnType<Page["getByRole"]>) {
   for (let i = 0; i < 12 && (await locator.count()) === 0; i++) {
@@ -38,6 +52,8 @@ async function seek(page: Page, locator: ReturnType<Page["getByRole"]>) {
   await expect(locator).toBeVisible();
 }
 async function shot(page: Page, name: string) {
+  const closeToast = page.getByRole("button", { name: "Закрити повідомлення" });
+  if (await closeToast.count()) await closeToast.click();
   await page.waitForTimeout(400);
   await page.screenshot({
     path: `test-results/screenshots/${test.info().project.name}/${name}.png`,

@@ -64,9 +64,13 @@ export function PagedList<T>({
   return (
     <div className="paged">
       <div className="paged-content" ref={ref}>
-        {items.length
-          ? items.slice(start, start + capacity).map(render)
-          : empty}
+        {items.length ? (
+          <div className="paged-rows">
+            {items.slice(start, start + capacity).map(render)}
+          </div>
+        ) : (
+          empty
+        )}
       </div>
       <div className="pager" aria-label="Сторінки списку">
         <span>

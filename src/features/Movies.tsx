@@ -21,16 +21,16 @@ import {
 import { MovieForm } from "../components/MovieForm";
 import { LinkImport } from "../components/LinkImportLoader";
 export function Poster({ url, title }: { url: string; title: string }) {
-  const [failed, setFailed] = useState(false);
+  const [failedUrl, setFailedUrl] = useState("");
   return (
     <span className="media-thumb">
-      {url && !failed && publicUrl(url) ? (
+      {url && url !== failedUrl && publicUrl(url) ? (
         <img
           src={url}
           alt={title}
           loading="lazy"
           referrerPolicy="no-referrer"
-          onError={() => setFailed(true)}
+          onError={() => setFailedUrl(url)}
         />
       ) : (
         <BrandArt />
@@ -111,11 +111,6 @@ export default function Movies() {
                 </span>
                 <h2>{movie.title}</h2>
                 <p>{movie.genres || "Жанр не вказаний"}</p>
-                <small>
-                  {movie.status === "watched"
-                    ? "Уже переглянули"
-                    : "Для наступного вечора"}
-                </small>
               </div>
               <ChevronRight size={17} />
             </button>
