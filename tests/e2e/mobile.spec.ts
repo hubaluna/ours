@@ -2,13 +2,23 @@ import { test, expect } from "@playwright/test";
 test("navigation, sheet, responsive layout and themes", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  const snapshot = async (name: string) => {
+    // Allow the page's finite spring transition to settle before visual review.
+    await page.waitForTimeout(400);
+    await page.screenshot({
+      path: `test-results/screenshots/${test.info().project.name}/${name}.png`,
+      fullPage: true,
+    });
+  };
   await page.goto("/");
   await expect(page.getByText("Усе наше.")).toBeVisible();
+  await snapshot("home");
   const nav = page.getByRole("navigation", { name: "Основна навігація" });
   await nav.getByText("Покупки").click();
   await page.getByRole("button", { name: "Додати товар", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
+  await snapshot("add-shopping");
   await dialog.getByLabel("Назва товару").fill("Авокадо");
   await dialog.getByRole("button", { name: "Додати до списку" }).click();
   await expect(dialog).not.toBeVisible();
@@ -16,13 +26,17 @@ test("navigation, sheet, responsive layout and themes", async ({ page }) => {
   await expect(
     page.getByRole("checkbox", { name: "Повернути: Авокадо" }),
   ).toHaveAttribute("aria-checked", "true");
+  await snapshot("shopping");
   await nav.getByText("Бажання").click();
   await expect(
     page.getByRole("button", { name: "Додати бажання" }),
   ).toBeVisible();
+  await snapshot("wishes");
   await nav.getByText("Плани").click();
   await expect(page.getByRole("button", { name: "Додати план" })).toBeVisible();
+  await snapshot("plans");
   await page.getByRole("button", { name: "Відкрити налаштування" }).click();
+  await snapshot("settings");
   await page.getByRole("button", { name: "Темна", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.getByRole("button", { name: "Закрити", exact: true }).click();
