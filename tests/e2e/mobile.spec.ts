@@ -14,16 +14,24 @@ test("navigation, sheet, responsive layout and themes", async ({ page }) => {
   await expect(page.getByText("Усе наше.")).toBeVisible();
   await snapshot("home");
   const nav = page.getByRole("navigation", { name: "Основна навігація" });
-  await nav.getByText("Покупки").click();
+  await nav.getByRole("button", { name: "Покупки", exact: true }).click();
   await page.getByRole("button", { name: "Додати товар", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
   await expect(page.locator(".sheet-backdrop")).toHaveCSS("opacity", "1");
-  const sheetBounds = await dialog.boundingBox();
-  expect(sheetBounds!.y).toBeGreaterThanOrEqual(0);
-  expect(sheetBounds!.y + sheetBounds!.height).toBeLessThanOrEqual(
-    page.viewportSize()!.height + 1,
-  );
+  // Geometry is asserted only after the finite spring reaches its destination.
+  await expect
+    .poll(async () => {
+      const bounds = await dialog.boundingBox();
+      return bounds ? bounds.y : -1;
+    })
+    .toBeGreaterThanOrEqual(0);
+  await expect
+    .poll(async () => {
+      const bounds = await dialog.boundingBox();
+      return bounds ? bounds.y + bounds.height : Infinity;
+    })
+    .toBeLessThanOrEqual(page.viewportSize()!.height + 1);
   await snapshot("add-shopping");
   await dialog.getByLabel("Назва товару").fill("Авокадо");
   await dialog.getByRole("button", { name: "Додати до списку" }).click();
@@ -35,12 +43,12 @@ test("navigation, sheet, responsive layout and themes", async ({ page }) => {
   await expect(page.locator(".shopping-list .shopping-row")).toHaveCount(6);
   await page.getByRole("button", { name: "Закрити повідомлення" }).click();
   await snapshot("shopping");
-  await nav.getByText("Бажання").click();
+  await nav.getByRole("button", { name: "Бажання", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Додати бажання" }),
   ).toBeVisible();
   await snapshot("wishes");
-  await nav.getByText("Плани").click();
+  await nav.getByRole("button", { name: "Плани", exact: true }).click();
   await expect(page.getByRole("button", { name: "Додати план" })).toBeVisible();
   await snapshot("plans");
   await page.getByRole("button", { name: "Відкрити налаштування" }).click();
