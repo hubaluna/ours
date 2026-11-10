@@ -30,7 +30,7 @@ export default function Shopping() {
   );
   const total = current.reduce((n, i) => n + (i.price ?? 0), 0);
   return (
-    <section className="screen">
+    <section className="screen shopping-screen">
       <ScreenHeader
         title="Покупки"
         subtitle={`${active.length} потрібно купити${total ? ` · ≈ ${money(total)}` : ""}`}
@@ -80,7 +80,7 @@ export default function Shopping() {
         <PagedList
           key={`${view}-${category}`}
           items={filtered}
-          rowHeight={68}
+          rowHeight={48}
           render={(item) => (
             <ShoppingRow
               key={item.id}

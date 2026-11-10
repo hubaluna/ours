@@ -1,20 +1,17 @@
 import { useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { Check, MoreHorizontal } from "lucide-react";
+import { Check } from "lucide-react";
 import type { ShoppingItem } from "../lib/types";
 import { spring } from "../lib/motion";
 import { useApp } from "../hooks/AppContext";
-import { money } from "../lib/utils";
 export function ShoppingRow({
   item,
-  compact = false,
   onEdit,
 }: {
   item: ShoppingItem;
-  compact?: boolean;
-  onEdit?: () => void;
+  onEdit: () => void;
 }) {
-  const { update, pending, data, notify } = useApp();
+  const { update, pending, notify } = useApp();
   const reduced = useReducedMotion();
   const [visual, setVisual] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
@@ -24,7 +21,7 @@ export function ShoppingRow({
   return (
     <motion.div
       layout
-      layoutId={`shopping-row-${compact ? "compact" : "full"}-${item.id}`}
+      layoutId={`shopping-row-${item.id}`}
       aria-busy={busy}
       transition={spring}
       initial={{ opacity: 0, y: 8 }}
@@ -72,27 +69,16 @@ export function ShoppingRow({
           </motion.span>
         )}
       </motion.button>
-      <button className="item-body" onClick={onEdit} disabled={!onEdit}>
+      <button
+        className="item-body"
+        aria-label={`Редагувати ${item.name}`}
+        onClick={onEdit}
+      >
         <span className="item-name">{item.name}</span>
-        {!compact && (
-          <span className="item-meta">
-            {data.profiles.find((p) => p.id === item.added_by)?.name ?? "Ми"}
-            {item.price !== null ? ` · ${money(item.price)}` : ""}
-          </span>
-        )}
+        <span className="item-quantity">
+          {item.quantity} {item.unit}
+        </span>
       </button>
-      <span className="item-quantity">
-        {item.quantity} {item.unit}
-      </span>
-      {onEdit && (
-        <button
-          className="row-more"
-          aria-label={`Редагувати ${item.name}`}
-          onClick={onEdit}
-        >
-          <MoreHorizontal size={18} />
-        </button>
-      )}
     </motion.div>
   );
 }

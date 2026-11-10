@@ -82,6 +82,12 @@ export function ShoppingForm({
       title={item ? "Трохи деталей" : "Що купуємо?"}
       onClose={onClose}
     >
+      {item && (
+        <p className="shopping-added-by">
+          Додано:{" "}
+          {data.profiles.find((p) => p.id === item.added_by)?.name ?? "ми"}
+        </p>
+      )}
       <form onSubmit={submit} className="form">
         <Field label="Назва товару">
           <input

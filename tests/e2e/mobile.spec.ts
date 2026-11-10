@@ -98,6 +98,7 @@ test("six tabs, unseen updates, shopping, movies, calendar and appearance", asyn
   await item.click();
   await page.getByRole("button", { name: "Потрібно · 6" }).click();
   await fit(page);
+  await expect(page.locator(".shopping-row")).toHaveCount(6);
   await shot(page, "shopping");
   await choose(page, "Меню");
   const dinner = await page.locator(".menu-course h2").allTextContents();
@@ -173,6 +174,8 @@ for (const viewport of [
     for (const tab of tabs) {
       await choose(page, tab);
       await fit(page);
+      if (tab === "Покупки")
+        await shot(page, `shopping-${viewport.width}x${viewport.height}`);
     }
     await shot(page, `viewport-${viewport.width}x${viewport.height}`);
   });
