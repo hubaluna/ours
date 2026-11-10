@@ -31,7 +31,7 @@
   --card: #fff;
   --surface: #ecefe9;
   --text: #26352d;
-  --muted: #68756c;
+  --muted: #59665d;
   --accent: #45694f;
   --accent-light: #dfe9df;
   --sage: #8da58f;
@@ -481,7 +481,7 @@ p {
   padding: 2px 16px;
   position: relative;
 }
-.shopping-screen {
+.screen.shopping-screen {
   gap: 8px;
 }
 .shopping-added-by {
