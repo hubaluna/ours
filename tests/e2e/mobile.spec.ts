@@ -113,6 +113,10 @@ test("six tabs, unseen updates, shopping, movies, calendar and appearance", asyn
   dialog = page.getByRole("dialog");
   await dialog.getByLabel("Назва", { exact: true }).fill("Наш фільм");
   await dialog.getByLabel("Рік", { exact: true }).fill("2025");
+  await expect(dialog.getByLabel("Назва", { exact: true })).toHaveValue(
+    "Наш фільм",
+  );
+  await expect(dialog.getByLabel("Рік", { exact: true })).toHaveValue("2025");
   await dialog.getByRole("button", { name: "Зберегти фільм" }).click();
   await expect(dialog).not.toBeVisible();
   const movie = page.getByRole("heading", { name: "Наш фільм", exact: true });

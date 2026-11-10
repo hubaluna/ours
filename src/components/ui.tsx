@@ -168,13 +168,6 @@ export function BottomSheet({
     [dirty, setDirty] = useState(false),
     [confirm, setConfirm] = useState(false);
   const titleId = useId();
-  useEffect(() => {
-    ref.current
-      ?.querySelector<HTMLElement>(
-        confirm ? ".discard button" : "[data-autofocus]",
-      )
-      ?.focus();
-  }, [confirm]);
   const requestClose = () => (dirty ? setConfirm(true) : onClose());
   const closeRef = useRef(requestClose);
   useEffect(() => {
@@ -184,12 +177,6 @@ export function BottomSheet({
     previous.current = document.activeElement as HTMLElement;
     const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const timer = setTimeout(() => {
-      const target =
-        ref.current?.querySelector<HTMLElement>("[data-autofocus]") ??
-        ref.current?.querySelector<HTMLElement>("input,button");
-      target?.focus();
-    }, 100);
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -216,11 +203,19 @@ export function BottomSheet({
     document.addEventListener("keydown", key);
     return () => {
       document.body.style.overflow = overflow;
-      clearTimeout(timer);
       document.removeEventListener("keydown", key);
       previous.current?.focus();
     };
   }, []);
+  useEffect(() => {
+    // Focus once when the sheet opens or its discard view changes. A delayed
+    // second focus can steal typing from another field on mobile WebKit.
+    const target = confirm
+      ? ref.current?.querySelector<HTMLElement>(".discard button")
+      : (ref.current?.querySelector<HTMLElement>("[data-autofocus]") ??
+        ref.current?.querySelector<HTMLElement>("input,button"));
+    target?.focus({ preventScroll: true });
+  }, [confirm]);
   useEffect(() => {
     const viewport = window.visualViewport;
     if (!viewport) return;
