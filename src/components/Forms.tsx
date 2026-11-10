@@ -8,6 +8,7 @@ import {
   eventCategories,
   type ShoppingItem,
   type Wish,
+  type NewWish,
   type Plan,
 } from "../lib/types";
 import { kyivDate } from "../lib/utils";
@@ -187,14 +188,17 @@ export function ShoppingForm({
 export function WishForm({
   onClose,
   wish,
+  initial,
 }: {
   onClose: () => void;
   wish?: Wish;
+  initial?: Partial<NewWish>;
 }) {
   const { addWish, update, remove, pending, userId, coupleId } = useApp();
+  const seed = wish ?? initial;
   const [error, setError] = useState(""),
     [uploading, setUploading] = useState(false),
-    [image, setImage] = useState(wish?.image_path ?? null);
+    [image, setImage] = useState(seed?.image_path ?? null);
   const file = useRef<HTMLInputElement>(null);
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -216,6 +220,7 @@ export function WishForm({
       priority: String(f.get("priority")),
       note: String(f.get("note")),
       image_path: image,
+      image_url: seed?.image_url ?? "",
     };
     const ok = wish
       ? await update("wishes", wish.id, value, "Бажання збережено")
@@ -232,7 +237,7 @@ export function WishForm({
           <input
             data-autofocus
             name="name"
-            defaultValue={wish?.name}
+            defaultValue={seed?.name}
             required
             maxLength={160}
             placeholder="Про що мрієте?"
@@ -277,14 +282,14 @@ export function WishForm({
               inputMode="decimal"
               min="0"
               step="0.01"
-              defaultValue={wish?.price ?? ""}
+              defaultValue={seed?.price ?? ""}
               placeholder="Необов’язково"
             />
           </Field>
           <Field label="Наскільки хочеться?">
             <select
               name="priority"
-              defaultValue={wish?.priority ?? "Просто хочу"}
+              defaultValue={seed?.priority ?? "Просто хочу"}
             >
               {["Просто хочу", "Дуже хочу", "Мрія"].map((p) => (
                 <option key={p}>{p}</option>
@@ -296,14 +301,14 @@ export function WishForm({
           <input
             name="url"
             type="url"
-            defaultValue={wish?.url}
+            defaultValue={seed?.url}
             placeholder="https://"
           />
         </Field>
         <Field label="Кілька слів">
           <textarea
             name="note"
-            defaultValue={wish?.note}
+            defaultValue={seed?.note}
             maxLength={2000}
             placeholder="Колір, розмір або маленька підказка…"
             rows={3}

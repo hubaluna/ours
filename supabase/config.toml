@@ -1,0 +1,4 @@
+[functions.link-preview]
+# The handler verifies user JWT through auth.getUser and checks couple membership.
+# Disable the legacy gateway check so modern asymmetric signing keys work too.
+verify_jwt = false

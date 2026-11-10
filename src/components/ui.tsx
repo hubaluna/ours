@@ -1,13 +1,7 @@
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion, type HTMLMotionProps } from "motion/react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import {
-  AlertCircle,
-  ArrowRight,
-  Check,
-  CheckCheck,
-  LoaderCircle,
-  X,
-} from "lucide-react";
+import { AlertCircle, ArrowRight, Check, LoaderCircle, X } from "lucide-react";
 import { spring, soft } from "../lib/motion";
 import { useImage } from "../hooks/useImage";
 import { useApp } from "../hooks/AppContext";
@@ -79,11 +73,12 @@ export function EmptyState({
 }) {
   return (
     <div className="empty-state">
-      <div className="empty-art">
-        <span />
-        <span />
-        <CheckCheck size={26} />
-      </div>
+      <img
+        className="empty-art-image"
+        src={`${import.meta.env.BASE_URL}art/ours-glass.png`}
+        alt=""
+        aria-hidden="true"
+      />
       <h3>{title}</h3>
       {description && <p>{description}</p>}
       {children}
@@ -248,7 +243,7 @@ export function BottomSheet({
       viewport.removeEventListener("scroll", resize);
     };
   }, []);
-  return (
+  return createPortal(
     <motion.div
       className="sheet-backdrop"
       initial={{ opacity: 0 }}
@@ -298,7 +293,8 @@ export function BottomSheet({
         )}
         <div hidden={confirm}>{children}</div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 }
 export function Toast() {

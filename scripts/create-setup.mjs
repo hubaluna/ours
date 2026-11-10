@@ -1,5 +1,9 @@
 import { readFileSync, writeFileSync } from "node:fs";
-const migrations = ["001_core.sql", "002_storage_realtime.sql"];
+const migrations = [
+  "001_core.sql",
+  "002_storage_realtime.sql",
+  "003_compact_movies_activity.sql",
+];
 const body = migrations
   .map(
     (name) =>

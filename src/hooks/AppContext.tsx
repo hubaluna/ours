@@ -14,6 +14,8 @@ import { errorMessage } from "../lib/utils";
 import type {
   Data,
   NewPlan,
+  NewMovie,
+  Activity,
   NewShopping,
   NewWish,
   Profile,
@@ -21,6 +23,9 @@ import type {
 } from "../lib/types";
 const empty: Data = {
   profiles: [],
+  movies: [],
+  activities: [],
+  reads: [],
   shopping: [],
   sessions: [],
   wishes: [],
@@ -127,6 +132,9 @@ function useStore() {
         reservations,
         events,
         history,
+        movies,
+        activities,
+        reads,
       ] = await Promise.all([
         readAll<Profile>("profiles"),
         readAll<Data["shopping"][number]>("shopping_items", {
@@ -155,6 +163,19 @@ function useStore() {
         readAll<Data["history"][number]>("shopping_product_history", {
           couple_id: couple,
         }),
+        readAll<Data["movies"][number]>(
+          "movies",
+          { couple_id: couple },
+          "created_at",
+          false,
+        ),
+        readAll<Data["activities"][number]>(
+          "activity_events",
+          { couple_id: couple },
+          "created_at",
+          false,
+        ),
+        readAll<Data["reads"][number]>("activity_reads", { user_id: userId }),
       ]);
       if (current !== revision.current) return;
       setCoupleId(couple);
@@ -166,6 +187,9 @@ function useStore() {
         reservations,
         events,
         history,
+        movies,
+        activities,
+        reads,
       });
       setFailure(false);
     } catch {
@@ -201,6 +225,8 @@ function useStore() {
       "wishes",
       "events",
       "couple_members",
+      "movies",
+      "activity_events",
     ]) {
       for (const event of ["INSERT", "UPDATE"] as const)
         channel.on(
@@ -224,6 +250,16 @@ function useStore() {
     channel.on(
       "postgres_changes",
       { event: "*", schema: "public", table: "profiles" },
+      () => void refresh(),
+    );
+    channel.on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "activity_reads",
+        filter: `user_id=eq.${userId}`,
+      },
       () => void refresh(),
     );
     // Secret gifts are intentionally absent from Realtime publication.
@@ -271,6 +307,30 @@ function useStore() {
       setPending([...busy.current]);
     }
   };
+  const demoActivity = (
+    d: Data,
+    table: Table,
+    row: Record<string, unknown>,
+    action: Activity["action"],
+  ): Data => {
+    if (table === "gift_reservations") return d;
+    return {
+      ...d,
+      activities: [
+        {
+          id: crypto.randomUUID(),
+          couple_id: DEMO_COUPLE,
+          actor_id: userId,
+          kind: table === "shopping_items" ? "shopping" : table,
+          action,
+          entity_id: typeof row.id === "string" ? row.id : null,
+          title: String(row.name || row.title || "Оновлення").slice(0, 160),
+          created_at: new Date().toISOString(),
+        },
+        ...d.activities,
+      ],
+    };
+  };
   const insert = async (
     table: Table,
     value: Record<string, unknown>,
@@ -294,9 +354,17 @@ function useStore() {
               wishes: "wishes",
               events: "events",
               gift_reservations: "reservations",
+              movies: "movies",
             } as const
           )[table];
-          setData((d) => ({ ...d, [field]: [...d[field], row] }));
+          setData((d) =>
+            demoActivity(
+              { ...d, [field]: [...d[field], row] },
+              table,
+              row,
+              "added",
+            ),
+          );
         }
       },
       message,
@@ -326,14 +394,22 @@ function useStore() {
               wishes: "wishes",
               events: "events",
               gift_reservations: "reservations",
+              movies: "movies",
             } as const
           )[table];
-          setData((d) => ({
-            ...d,
-            [field]: d[field].map((row) =>
-              row.id === id ? { ...row, ...patch } : row,
+          setData((d) =>
+            demoActivity(
+              {
+                ...d,
+                [field]: d[field].map((row) =>
+                  row.id === id ? { ...row, ...patch } : row,
+                ),
+              },
+              table,
+              { ...d[field].find((row) => row.id === id), ...patch },
+              patch.purchased === true ? "purchased" : "updated",
             ),
-          }));
+          );
         }
       },
       message,
@@ -353,15 +429,27 @@ function useStore() {
               wishes: "wishes",
               events: "events",
               gift_reservations: "reservations",
+              movies: "movies",
             } as const
           )[table];
-          setData((d) => ({
-            ...d,
-            [field]: d[field].filter((row) => row.id !== id),
-            ...(table === "wishes"
-              ? { reservations: d.reservations.filter((r) => r.wish_id !== id) }
-              : {}),
-          }));
+          setData((d) =>
+            demoActivity(
+              {
+                ...d,
+                [field]: d[field].filter((row) => row.id !== id),
+                ...(table === "wishes"
+                  ? {
+                      reservations: d.reservations.filter(
+                        (r) => r.wish_id !== id,
+                      ),
+                    }
+                  : {}),
+              },
+              table,
+              { ...d[field].find((row) => row.id === id) },
+              "deleted",
+            ),
+          );
         }
       },
       "Видалено",
@@ -392,6 +480,65 @@ function useStore() {
       { ...value, couple_id: coupleId, created_by: userId },
       "add-event",
       "План збережено",
+    );
+  const addMovie = (value: NewMovie) =>
+    insert(
+      "movies",
+      { ...value, couple_id: coupleId, added_by: userId },
+      "add-movie",
+      "Фільм збережено",
+    );
+  const markRead = (ids: string[]) =>
+    run("mark-read", async () => {
+      if (supabase) {
+        for (let offset = 0; offset < ids.length; offset += 500)
+          await checked(
+            supabase.rpc("mark_activity_read", {
+              p_ids: ids.slice(offset, offset + 500),
+            }),
+          );
+      } else
+        setData((d) => ({
+          ...d,
+          reads: [
+            ...d.reads,
+            ...ids
+              .filter((id) => !d.reads.some((r) => r.activity_id === id))
+              .map((activity_id) => ({
+                id: crypto.randomUUID(),
+                activity_id,
+                user_id: userId,
+                created_at: new Date().toISOString(),
+              })),
+          ],
+        }));
+    });
+  const addShoppingBatch = (items: NewShopping[]) =>
+    run(
+      "recipe",
+      async () => {
+        if (supabase)
+          await checked(supabase.rpc("add_shopping_batch", { p_items: items }));
+        else
+          setData((d) => {
+            const rows = items.map((value) => ({
+              ...value,
+              id: crypto.randomUUID(),
+              couple_id: DEMO_COUPLE,
+              added_by: userId,
+              purchased: false,
+              session_id: null,
+              created_at: new Date().toISOString(),
+            }));
+            return demoActivity(
+              { ...d, shopping: [...d.shopping, ...rows] },
+              "shopping_items",
+              { name: `Продукти з рецепта · ${items.length}` },
+              "added",
+            );
+          });
+      },
+      "Продукти додано до списку",
     );
   const archive = () =>
     run(
@@ -508,6 +655,9 @@ function useStore() {
     addShopping,
     addWish,
     addEvent,
+    addMovie,
+    markRead,
+    addShoppingBatch,
     update,
     remove,
     archive,

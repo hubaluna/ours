@@ -11,11 +11,14 @@
     "test:e2e": "playwright test",
     "preview": "vite preview --host 0.0.0.0",
     "format": "prettier --write src tests *.ts *.js *.json *.html .github docs README.md",
-    "setup:sql": "node scripts/create-setup.mjs"
+    "setup:sql": "node scripts/create-setup.mjs",
+    "setup:edge": "node scripts/create-edge-dashboard.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.119.0",
     "@tailwindcss/vite": "4.3.5",
+    "ipaddr.js": "2.5.0",
+    "linkedom": "0.18.15",
     "lucide-react": "1.71.0",
     "motion": "14.12.0",
     "react": "19.3.1",

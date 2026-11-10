@@ -1,179 +1,143 @@
+import { useState } from "react";
+import { AnimatePresence } from "motion/react";
 import {
-  ArrowRight,
   CalendarDays,
+  CheckCheck,
+  ChevronRight,
+  Film,
   Gift,
-  Plus,
-  Sparkles,
   ShoppingBag,
 } from "lucide-react";
 import { useApp } from "../hooks/AppContext";
-import { greeting, isUpcoming, longDate } from "../lib/utils";
-import type { Tab } from "../lib/types";
-import { ShoppingRow } from "../components/ShoppingRow";
-import { TogetherArt, WishArt } from "../components/Illustrations";
-import { Button, EmptyState, SectionHeading } from "../components/ui";
-export default function Home({
-  navigate,
-  onAdd,
-  onEvent,
-}: {
-  navigate: (tab: Tab) => void;
-  onAdd: () => void;
-  onEvent: (id: string) => void;
-}) {
-  const { data, userId } = useApp();
-  const me = data.profiles.find((p) => p.id === userId),
-    partner = data.profiles.find((p) => p.id !== userId);
-  const items = data.shopping.filter((i) => !i.session_id && !i.purchased);
-  const next = [...data.events]
-    .filter(isUpcoming)
-    .sort((a, b) =>
-      (a.date + (a.time ?? "00:00")).localeCompare(
-        b.date + (b.time ?? "00:00"),
-      ),
-    )[0];
+import type { Activity, Tab } from "../lib/types";
+import { greeting } from "../lib/utils";
+import { BottomSheet, Button, EmptyState } from "../components/ui";
+import { PagedList, ScreenHeader } from "../components/Compact";
+const icons = {
+  shopping: ShoppingBag,
+  wishes: Gift,
+  movies: Film,
+  events: CalendarDays,
+};
+const labels = {
+  shopping: "покупки",
+  wishes: "бажання",
+  movies: "кіно",
+  events: "календар",
+};
+const actions = {
+  added: "додає",
+  updated: "оновлює",
+  deleted: "прибирає",
+  purchased: "купує",
+};
+export default function Home({ navigate }: { navigate: (tab: Tab) => void }) {
+  const { data, userId, markRead, pending } = useApp();
+  const [detail, setDetail] = useState<Activity | null>(null);
+  const seen = new Set(data.reads.map((r) => r.activity_id));
+  const updates = data.activities.filter(
+    (a) => a.actor_id !== userId && !seen.has(a.id),
+  );
+  const name = data.profiles.find((p) => p.id === userId)?.name || "друже";
   return (
-    <>
-      <section className="welcome">
-        <div className="welcome-copy">
-          <div className="eyebrow">
-            <span className="tiny-sun" />
-            {greeting()}, {me?.name ?? "друже"}
-          </div>
-          <h1>
-            Усе наше.
-            <br />
-            <span>В одному місці.</span>
-          </h1>
-          <p>
-            Маленькі справи. Спільні плани.
-            <br className="mobile-break" /> Життя, яке ми ділимо.
-          </p>
-          <div className="couple-pill">
-            <span className="couple-dots">
-              <i>{me?.name.slice(0, 1)}</i>
-              <i>{partner?.name.slice(0, 1) ?? "+"}</i>
-            </span>
-            <span>
-              {partner
-                ? `${me?.name} та ${partner.name}`
-                : "Ваш простір для двох"}
-              <span className="couple-pill-dot">·</span>наш маленький світ
-            </span>
-          </div>
-        </div>
-        <TogetherArt />
-        <span className="hero-note">краще разом</span>
-      </section>
-      <div className="home-grid">
-        <section className="card shopping-preview">
-          <div className="card-heading">
-            <div>
-              <span className="card-eyebrow">
-                <ShoppingBag size={15} /> ЩОДЕННІ ДРІБНИЦІ
-              </span>
-              <h2>
-                Потрібно купити <span className="count">{items.length}</span>
-              </h2>
-            </div>
-            <Button
-              className="icon-button soft-button"
-              aria-label="Швидко додати товар"
-              onClick={onAdd}
-            >
-              <Plus size={21} />
-            </Button>
-          </div>
-          <div className="preview-list">
-            {items.slice(0, 4).map((item) => (
-              <ShoppingRow item={item} compact key={item.id} />
-            ))}
-            {items.length === 0 && (
-              <EmptyState title="Список порожній. Можна відпочити ✨" />
-            )}
-          </div>
-          <button className="card-footer" onClick={() => navigate("shopping")}>
-            <span>До списку покупок</span>
-            <ArrowRight size={18} />
-          </button>
-        </section>
-        <section className="card next-event">
-          <span className="card-eyebrow">
-            <CalendarDays size={15} /> НАСТУПНА МИТЬ РАЗОМ
-          </span>
-          {next ? (
-            <>
-              <div className="event-illustration" aria-hidden="true">
-                <div className="movie-ticket">
-                  <span>ours. кіно</span>
-                  <i />
-                  <b>дві найкращі ролі</b>
-                  <small>ти + я</small>
-                </div>
-                <span className="event-spark">✧</span>
-              </div>
-              <div className="event-date">
-                {longDate(next.date)}
-                {next.time ? ` · ${next.time.slice(0, 5)}` : ""}
-              </div>
-              <h2>{next.title}</h2>
-              <p>{next.location || "Час для вас двох"}</p>
-              <button
-                className="round-arrow"
-                aria-label="Переглянути найближчу подію"
-                onClick={() => onEvent(next.id)}
-              >
-                <ArrowRight size={21} />
-              </button>
-            </>
-          ) : (
-            <EmptyState
-              title="Поки без планів"
-              description="Можливо, час придумати щось цікаве?"
-            >
-              <Button className="ghost" onClick={() => navigate("plans")}>
-                Запланувати
-              </Button>
-            </EmptyState>
-          )}
-        </section>
-      </div>
-      <SectionHeading
-        title="Маленькі великі бажання"
-        action="Усі бажання"
-        onAction={() => navigate("wishes")}
-      />
-      <section
-        className="wishes-teaser card"
-        onClick={() => navigate("wishes")}
-      >
-        <div className="teaser-copy">
-          <span className="mini-icon">
-            <Gift size={21} />
-          </span>
-          <h3>Те, що змушує усміхатись.</h3>
-          <p>
-            {data.wishes.length
-              ? `${data.wishes.length} бажання й трішки натхнення для сюрпризів.`
-              : "Збережіть ідеї, які хочеться здійснити."}
-          </p>
-          <Button className="ghost" onClick={() => navigate("wishes")}>
-            Зазирнути у бажання <ArrowRight size={16} />
+    <section className="screen home-screen">
+      <ScreenHeader title="Нове для вас" subtitle={`${greeting()}, ${name}`}>
+        {updates.length > 0 && (
+          <Button
+            className="ghost read-all"
+            busy={pending.includes("mark-read")}
+            aria-label="Усе переглянуто"
+            onClick={() => void markRead(updates.map((a) => a.id))}
+          >
+            <CheckCheck size={20} />
           </Button>
-        </div>
-        <div className="teaser-art">
-          <div>
-            <WishArt kind="headphones" />
-          </div>
-          <div>
-            <WishArt kind="book" />
-          </div>
-        </div>
-      </section>
-      <div className="home-footnote">
-        <Sparkles size={13} />
-        <span>Не все потрібно встигнути. Головне — разом.</span>
+        )}
+      </ScreenHeader>
+      <div className="feed-caption">
+        <span className="status-dot" />
+        <span>
+          {updates.length
+            ? `${updates.length} непрочитаних оновлень`
+            : "Ви нічого не пропустили"}
+        </span>
       </div>
-    </>
+      <div className="screen-panel feed-panel">
+        <PagedList
+          items={updates}
+          rowHeight={84}
+          empty={
+            <EmptyState
+              title="Усе нове вже бачили"
+              description="Тут з’являтимуться тільки нові зміни партнера."
+            />
+          }
+          render={(a) => {
+            const Icon = icons[a.kind];
+            return (
+              <button
+                className="activity-row"
+                key={a.id}
+                onClick={() => {
+                  setDetail(a);
+                  void markRead([a.id]);
+                }}
+              >
+                <span className={`activity-icon ${a.kind}`}>
+                  <Icon size={20} />
+                </span>
+                <div>
+                  <span className="row-kicker">
+                    {data.profiles.find((p) => p.id === a.actor_id)?.name ||
+                      "Партнер"}{" "}
+                    {actions[a.action]}
+                  </span>
+                  <strong>{a.title}</strong>
+                  <small>
+                    {labels[a.kind]} ·{" "}
+                    {new Intl.DateTimeFormat("uk-UA", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      timeZone: "Europe/Kyiv",
+                    }).format(new Date(a.created_at))}
+                  </small>
+                </div>
+                <ChevronRight size={17} />
+              </button>
+            );
+          }}
+        />
+      </div>
+      <AnimatePresence>
+        {detail && (
+          <BottomSheet
+            title="Нове у вашому просторі"
+            onClose={() => setDetail(null)}
+          >
+            <div className="detail-copy">
+              <span className="row-kicker">
+                {data.profiles.find((p) => p.id === detail.actor_id)?.name} ·{" "}
+                {labels[detail.kind]}
+              </span>
+              <h3>{detail.title}</h3>
+              <p>
+                {detail.action === "deleted"
+                  ? "Цей запис видалено."
+                  : detail.action === "purchased"
+                    ? "Уже куплено. Однією справою менше."
+                    : "Зміни збережені у вашому спільному просторі."}
+              </p>
+              <Button
+                onClick={() => {
+                  navigate(detail.kind === "events" ? "plans" : detail.kind);
+                  setDetail(null);
+                }}
+              >
+                Відкрити {labels[detail.kind]}
+              </Button>
+            </div>
+          </BottomSheet>
+        )}
+      </AnimatePresence>
+    </section>
   );
 }

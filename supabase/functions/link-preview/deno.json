@@ -1,0 +1,9 @@
+{
+  "imports": {
+    "linkedom": "npm:linkedom@0.18.15",
+    "ipaddr.js": "npm:ipaddr.js@2.5.0"
+  },
+  "compilerOptions": {
+    "lib": ["deno.ns", "dom", "esnext"]
+  }
+}

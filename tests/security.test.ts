@@ -33,6 +33,9 @@ beforeAll(async () => {
   await db.exec(
     readFileSync("supabase/migrations/002_storage_realtime.sql", "utf8"),
   );
+  await db.exec(
+    readFileSync("supabase/migrations/003_compact_movies_activity.sql", "utf8"),
+  );
   await asUser(a);
 }, 60000);
 afterAll(async () => {
@@ -257,6 +260,117 @@ describe("Real PostgreSQL RLS and RPC, under authenticated roles", () => {
     );
     expect(tables.some((t) => t.tablename === "gift_reservations")).toBe(false);
     expect(tables.some((t) => t.tablename === "shopping_items")).toBe(true);
+  });
+  it("shares movies and activity within the couple, with receipts private to each user", async () => {
+    await asUser(b);
+    const movie = String(
+      (
+        await rows(
+          `insert into public.movies(couple_id,title,year,genres,added_by) values('${couple}','Наш фільм',2024,'Драма','${b}') returning id`,
+        )
+      )[0].id,
+    );
+    await asUser(a);
+    expect(
+      (await rows(`select title from public.movies where id='${movie}'`))[0]
+        .title,
+    ).toBe("Наш фільм");
+    const updates = await rows<{ id: string }>(
+      `select id from public.activity_events where entity_id='${movie}' and actor_id='${b}'`,
+    );
+    expect(updates).toHaveLength(1);
+    await rows(
+      `select public.mark_activity_read(array['${updates[0].id}']::uuid[])`,
+    );
+    expect(await rows("select * from public.activity_reads")).toHaveLength(1);
+    await rows(
+      `select public.mark_activity_read(array['${updates[0].id}']::uuid[])`,
+    );
+    expect(await rows("select * from public.activity_reads")).toHaveLength(1);
+    await rows(`update public.movies set status='watched' where id='${movie}'`);
+    await asUser(b);
+    expect(await rows("select * from public.activity_reads")).toHaveLength(0);
+    expect(
+      (await rows(`select status from public.movies where id='${movie}'`))[0]
+        .status,
+    ).toBe("watched");
+    await asUser(c);
+    expect(
+      await rows(`select * from public.movies where id='${movie}'`),
+    ).toHaveLength(0);
+    expect(
+      await rows(
+        `select * from public.activity_events where entity_id='${movie}'`,
+      ),
+    ).toHaveLength(0);
+  });
+  it("does not leak gift reservations into the activity feed", async () => {
+    await asUser(b);
+    const before = await rows("select id from public.activity_events");
+    await rows(
+      `update public.gift_reservations set status='planned' where wish_id='${wish}'`,
+    );
+    expect(await rows("select id from public.activity_events")).toHaveLength(
+      before.length,
+    );
+    await expect(
+      rows(
+        `insert into public.activity_events(couple_id,actor_id,kind,action,title) values('${couple}','${b}','wishes','added','Fake')`,
+      ),
+    ).rejects.toThrow(/permission denied/);
+  });
+  it("adds recipe ingredients atomically and emits one shared update", async () => {
+    await asUser(a);
+    const before = (await rows("select id from public.shopping_items")).length;
+    const items = JSON.stringify([
+      {
+        name: "Рис",
+        quantity: 200,
+        unit: "г",
+        category: "Бакалія",
+        price: null,
+      },
+      { name: "Вода", quantity: 1, unit: "л", category: "Напої", price: null },
+    ]);
+    expect(
+      (
+        await rows(
+          `select public.add_shopping_batch('${items}'::jsonb) as count`,
+        )
+      )[0].count,
+    ).toBe(2);
+    expect(await rows("select id from public.shopping_items")).toHaveLength(
+      before + 2,
+    );
+    expect(
+      await rows(
+        "select id from public.activity_events where title='Продукти з рецепта · 2'",
+      ),
+    ).toHaveLength(1);
+    const invalid = JSON.stringify([
+      { name: "Good", quantity: 1, unit: "шт.", category: "Інше", price: null },
+      { name: "Bad", quantity: 0, unit: "шт.", category: "Інше", price: null },
+    ]);
+    await expect(
+      rows(`select public.add_shopping_batch('${invalid}'::jsonb)`),
+    ).rejects.toThrow();
+    expect(await rows("select id from public.shopping_items")).toHaveLength(
+      before + 2,
+    );
+  });
+  it("limits link requests per authenticated member without table access", async () => {
+    await asUser(a);
+    for (let i = 0; i < 8; i++)
+      expect(
+        (await rows("select public.consume_link_import() as allowed"))[0]
+          .allowed,
+      ).toBe(true);
+    expect(
+      (await rows("select public.consume_link_import() as allowed"))[0].allowed,
+    ).toBe(false);
+    await expect(
+      rows("select * from public.link_import_limits"),
+    ).rejects.toThrow(/permission denied/);
   });
   it("denies anonymous RPC and table access", async () => {
     await db.exec("reset role;set role anon;");

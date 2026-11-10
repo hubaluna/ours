@@ -1,33 +1,37 @@
-import { lazy, Suspense, useState, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { AnimatePresence, motion, MotionConfig } from "motion/react";
 import {
   CalendarDays,
+  Utensils,
+  Film,
   Gift,
   House,
-  Plus,
+  RefreshCw,
   ShoppingBag,
   WifiOff,
-  RefreshCw,
   X,
 } from "lucide-react";
 import { useApp } from "./hooks/AppContext";
 import { useTheme } from "./hooks/useTheme";
 import { Auth, PairSetup } from "./features/Auth";
 import { Avatar, Button, Skeleton, Toast } from "./components/ui";
-import { ShoppingForm, EventForm } from "./components/Forms";
 import { spring, enter } from "./lib/motion";
-import type { Plan, Tab } from "./lib/types";
+import type { Tab } from "./lib/types";
 import { useRegisterSW } from "virtual:pwa-register/react";
 const Home = lazy(() => import("./features/Home")),
   Shopping = lazy(() => import("./features/Shopping")),
+  Menu = lazy(() => import("./features/Menu")),
+  Movies = lazy(() => import("./features/Movies")),
   Wishes = lazy(() => import("./features/Wishes")),
   Plans = lazy(() => import("./features/Plans")),
   Settings = lazy(() => import("./features/Settings"));
 const tabs = [
   { id: "home", label: "Головна", icon: House },
   { id: "shopping", label: "Покупки", icon: ShoppingBag },
+  { id: "menu", label: "Меню", icon: Utensils },
+  { id: "movies", label: "Кіно", icon: Film },
   { id: "wishes", label: "Бажання", icon: Gift },
-  { id: "plans", label: "Плани", icon: CalendarDays },
+  { id: "plans", label: "Календар", icon: CalendarDays },
 ] as const;
 export default function App() {
   const {
@@ -45,22 +49,22 @@ export default function App() {
   } = useApp();
   const { theme, setTheme } = useTheme();
   const [tab, setTab] = useState<Tab>("home"),
-    [settings, setSettings] = useState(false),
-    [quickAdd, setQuickAdd] = useState(false),
-    [event, setEvent] = useState<Plan | null>(null);
+    [settings, setSettings] = useState(false);
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW();
   useEffect(() => {
     setSettings(false);
-    setQuickAdd(false);
-    setEvent(null);
     setTab("home");
   }, [userId]);
   useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  }, [tab]);
+    document.body.classList.toggle(
+      "app-mode",
+      demo || Boolean(session && coupleId),
+    );
+    return () => document.body.classList.remove("app-mode");
+  }, [demo, session, coupleId]);
   const me = data.profiles.find((p) => p.id === userId);
   return (
     <MotionConfig reducedMotion="user">
@@ -76,8 +80,8 @@ export default function App() {
           <main className="pair-shell">
             <h1>Повернемо ваш простір</h1>
             <p>
-              Не вдалося завантажити дані. Перевірте інтернет або налаштування
-              Supabase.
+              Не вдалося завантажити дані. Перевірте з’єднання й налаштування
+              простору.
             </p>
             <Button onClick={() => void refresh()}>Спробувати ще раз</Button>
           </main>
@@ -95,24 +99,19 @@ export default function App() {
               ours<span>.</span>
             </button>
             <div className="header-right">
-              {demo ? (
-                <span className="demo-badge">
-                  ДЕМО <i /> лише на цьому пристрої
-                </span>
-              ) : (
-                <span
-                  className={`sync-badge ${online && sync === "live" && !failure ? "" : "muted"}`}
-                >
-                  <i />
-                  {!online
-                    ? "Без з’єднання"
-                    : failure
-                      ? "Дані не оновлено"
-                      : sync === "live"
-                        ? "Ваш приватний простір"
-                        : "Відновлюємо зв’язок"}
-                </span>
-              )}
+              <span
+                className={demo ? "demo-badge" : "sync-badge"}
+                title={
+                  demo
+                    ? "Деморежим · лише на цьому пристрої"
+                    : sync === "live"
+                      ? "Ваш приватний простір"
+                      : "Відновлюємо з’єднання"
+                }
+              >
+                <i />
+                {demo ? "Демо" : "Для двох"}
+              </span>
               <button
                 className="avatar-button"
                 onClick={() => setSettings(true)}
@@ -124,20 +123,20 @@ export default function App() {
           </header>
           {(!online || failure || (!demo && sync !== "live")) && (
             <div className="connection-banner" role="status">
-              <WifiOff size={15} />
+              <WifiOff size={14} />
               <span>
                 {!online
-                  ? "Без інтернету. Зміни тимчасово недоступні."
+                  ? "Без інтернету · зміни ще не збережені"
                   : failure
-                    ? "Дані можуть бути застарілими."
-                    : "Очікуємо живе з’єднання. Зміни оновлюються після збереження."}
+                    ? "Не вдалося оновити простір"
+                    : "Відновлюємо живе з’єднання"}
               </span>
               {online && (
                 <button
                   aria-label="Оновити дані"
                   onClick={() => void refresh()}
                 >
-                  <RefreshCw size={16} />
+                  <RefreshCw size={15} />
                 </button>
               )}
             </div>
@@ -148,17 +147,15 @@ export default function App() {
             ) : (
               <Suspense fallback={<Skeleton />}>
                 <AnimatePresence mode="wait">
-                  <motion.div key={tab} {...enter}>
+                  <motion.div className="tab-view" key={tab} {...enter}>
                     {tab === "home" ? (
-                      <Home
-                        navigate={setTab}
-                        onAdd={() => setQuickAdd(true)}
-                        onEvent={(id) =>
-                          setEvent(data.events.find((e) => e.id === id) ?? null)
-                        }
-                      />
+                      <Home navigate={setTab} />
                     ) : tab === "shopping" ? (
                       <Shopping />
+                    ) : tab === "menu" ? (
+                      <Menu />
+                    ) : tab === "movies" ? (
+                      <Movies />
                     ) : tab === "wishes" ? (
                       <Wishes />
                     ) : (
@@ -180,13 +177,13 @@ export default function App() {
               >
                 {tab === id && (
                   <motion.span
-                    layoutId="navigation-active"
                     className="navigation-active"
+                    layoutId="navigation-active"
                     transition={spring}
                   />
                 )}
                 <span className="nav-content">
-                  <Icon size={21} strokeWidth={tab === id ? 2 : 1.7} />
+                  <Icon size={20} strokeWidth={tab === id ? 2 : 1.7} />
                   <span>{label}</span>
                 </span>
               </motion.button>
@@ -202,19 +199,15 @@ export default function App() {
                 />
               </Suspense>
             )}
-            {quickAdd && <ShoppingForm onClose={() => setQuickAdd(false)} />}
-            {event && (
-              <EventForm event={event} onClose={() => setEvent(null)} />
-            )}
           </AnimatePresence>
-          {needRefresh && !settings && !quickAdd && !event && (
+          {needRefresh && !settings && (
             <div className="update-banner glass">
-              <span>Є свіжа версія ours.</span>
+              <span>Нова версія ours.</span>
               <Button
                 className="ghost"
                 onClick={() => void updateServiceWorker(true)}
               >
-                Оновити <Plus size={14} />
+                Оновити
               </Button>
               <button
                 aria-label="Оновити пізніше"

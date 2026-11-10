@@ -34,6 +34,68 @@ export function createDemo(): Data {
       session_id: null,
       created_at: now,
     })),
+    movies: [
+      {
+        id: "movie-1",
+        couple_id: DEMO_COUPLE,
+        title: "Інтерстеллар",
+        year: 2014,
+        genres: "Фантастика · Пригоди",
+        description:
+          "Подорож за межі знайомого світу — і нагадування про те, що нас поєднує.",
+        url: "https://www.youtube.com/watch?v=zSWdZVtXT7E",
+        poster_url: "",
+        status: "planned",
+        added_by: "demo-mark",
+        created_at: now,
+      },
+      {
+        id: "movie-2",
+        couple_id: DEMO_COUPLE,
+        title: "Душа",
+        year: 2020,
+        genres: "Анімація · Драма",
+        description: "Іноді найважливіше ховається у звичайному дні.",
+        url: "",
+        poster_url: "",
+        status: "planned",
+        added_by: DEMO_USER,
+        created_at: now,
+      },
+    ],
+    activities: [
+      {
+        id: "activity-1",
+        couple_id: DEMO_COUPLE,
+        actor_id: "demo-mark",
+        kind: "movies",
+        action: "added",
+        entity_id: "movie-1",
+        title: "Інтерстеллар",
+        created_at: now,
+      },
+      {
+        id: "activity-2",
+        couple_id: DEMO_COUPLE,
+        actor_id: "demo-mark",
+        kind: "shopping",
+        action: "added",
+        entity_id: "item-1",
+        title: "Яйця",
+        created_at: now,
+      },
+      {
+        id: "activity-3",
+        couple_id: DEMO_COUPLE,
+        actor_id: "demo-mark",
+        kind: "wishes",
+        action: "added",
+        entity_id: "wish-3",
+        title: "Кавові аксесуари",
+        created_at: now,
+      },
+    ],
+    reads: [],
     sessions: [],
     wishes: [
       {
@@ -45,6 +107,7 @@ export function createDemo(): Data {
         url: "",
         priority: "Мрія",
         note: "Бездротові навушники з шумозаглушенням. У теплому білому кольорі.",
+        image_url: "",
         image_path: "illustration:headphones",
         created_at: now,
       },
@@ -57,6 +120,7 @@ export function createDemo(): Data {
         url: "",
         priority: "Дуже хочу",
         note: "Щось про маленькі радощі щодня.",
+        image_url: "",
         image_path: "illustration:book",
         created_at: now,
       },
@@ -69,6 +133,7 @@ export function createDemo(): Data {
         url: "",
         priority: "Дуже хочу",
         note: "Кавові аксесуари для нашої кухні.",
+        image_url: "",
         image_path: "illustration:coffee",
         created_at: now,
       },
@@ -134,7 +199,20 @@ export function readDemo(): Data {
           "history",
         ].every((key) => Array.isArray(data[key as keyof Data]))
       )
-        return data;
+        return {
+          ...data,
+          movies: Array.isArray(data.movies)
+            ? data.movies
+            : createDemo().movies,
+          activities: Array.isArray(data.activities)
+            ? data.activities
+            : createDemo().activities,
+          reads: Array.isArray(data.reads) ? data.reads : [],
+          wishes: data.wishes.map((w) => ({
+            ...w,
+            image_url: w.image_url ?? "",
+          })),
+        };
     }
   } catch {
     /* reset invalid demo */

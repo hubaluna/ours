@@ -192,6 +192,7 @@ export default function Settings({
               shopping_sessions: data.sessions,
               wishes: data.wishes,
               events: data.events,
+              movies: data.movies,
             });
             notify("Експорт підготовлено");
           }}

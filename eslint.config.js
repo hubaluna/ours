@@ -15,5 +15,9 @@ export default tseslint.config(
       "react-hooks/set-state-in-effect": "off",
     },
   },
+  {
+    files: ["supabase/**/*.ts"],
+    languageOptions: { globals: { Deno: "readonly" } },
+  },
   { files: ["**/*.{js,mjs}"], languageOptions: { globals: globals.node } },
 );

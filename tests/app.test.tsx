@@ -17,62 +17,72 @@ vi.mock("virtual:pwa-register/react", () => ({
     updateServiceWorker: async () => {},
   }),
 }));
+const mount = () =>
+  render(
+    <AppProvider>
+      <App />
+    </AppProvider>,
+  );
 beforeEach(() => {
   localStorage.clear();
-  window.scrollTo = vi.fn();
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(420);
   window.matchMedia = vi.fn().mockImplementation((query) => ({
     matches: false,
     media: query,
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
   }));
-  render(
-    <AppProvider>
-      <App />
-    </AppProvider>,
-  );
+  mount();
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 const nav = () =>
   within(screen.getByRole("navigation", { name: "Основна навігація" }));
-describe("Working demo experience", () => {
-  it("adds shopping, marks purchased, restores, and survives reload storage", async () => {
+const saved = () => JSON.parse(localStorage.getItem("ours-demo-v1")!);
+const closed = () =>
+  waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+describe("Compact five-tab app", () => {
+  it("adds shopping, purchases and restores with separate compact filters", async () => {
     const user = userEvent.setup();
     await user.click(nav().getByText("Покупки"));
     await user.click(
       await screen.findByRole("button", { name: "Додати товар" }),
     );
-    const dialog = await screen.findByRole("dialog");
+    let dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Назва товару"), "Авокадо");
     await user.click(
       within(dialog).getByRole("button", { name: "Додати до списку" }),
     );
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
+    await closed();
     await user.click(
       screen.getByRole("checkbox", { name: "Куплено: Авокадо" }),
     );
     await waitFor(() =>
       expect(
-        screen.getByRole("checkbox", { name: "Повернути: Авокадо" }),
-      ).toHaveAttribute("aria-checked", "true"),
+        saved().shopping.find((i: { name: string }) => i.name === "Авокадо")
+          .purchased,
+      ).toBe(true),
     );
+    await user.click(screen.getByRole("button", { name: "Куплено · 1" }));
     await user.click(
-      screen.getByRole("checkbox", { name: "Повернути: Авокадо" }),
+      await screen.findByRole("checkbox", { name: "Повернути: Авокадо" }),
     );
     await waitFor(() =>
       expect(
-        screen.getByRole("checkbox", { name: "Куплено: Авокадо" }),
-      ).toHaveAttribute("aria-checked", "false"),
+        saved().shopping.find((i: { name: string }) => i.name === "Авокадо")
+          .purchased,
+      ).toBe(false),
     );
+    await user.click(screen.getByRole("button", { name: "Потрібно · 6" }));
     expect(
-      JSON.parse(localStorage.getItem("ours-demo-v1")!).shopping.some(
-        (i: { name: string }) => i.name === "Авокадо",
-      ),
-    ).toBe(true);
+      await screen.findByRole("checkbox", { name: "Куплено: Авокадо" }),
+    ).toBeInTheDocument();
+    dialog = screen.queryByRole("dialog")!;
+    expect(dialog).toBeNull();
   });
-  it("creates and edits a wish", async () => {
+  it("creates and edits a wish through expanded details", async () => {
     const user = userEvent.setup();
     await user.click(nav().getByText("Бажання"));
     await user.click(
@@ -84,20 +94,41 @@ describe("Working demo experience", () => {
     await user.click(
       within(dialog).getByRole("button", { name: "Зберегти бажання" }),
     );
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-    expect(
-      screen.getByRole("heading", { name: "Нова книга" }),
-    ).toBeInTheDocument();
+    await closed();
+    await user.click(screen.getByRole("heading", { name: "Нова книга" }));
     await user.click(
-      screen.getByRole("button", { name: "Редагувати Нова книга" }),
+      await screen.findByRole("button", { name: "Редагувати Нова книга" }),
     );
     expect(await screen.findByDisplayValue("Нова книга")).toBeInTheDocument();
   });
+  it("creates a movie, expands it and marks it watched", async () => {
+    const user = userEvent.setup();
+    await user.click(nav().getByText("Кіно"));
+    await user.click(
+      await screen.findByRole("button", { name: "Додати фільм" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Назва"), "Наш фільм");
+    await user.type(within(dialog).getByLabelText("Рік"), "2025");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Зберегти фільм" }),
+    );
+    await closed();
+    await user.click(screen.getByRole("heading", { name: "Наш фільм" }));
+    await user.click(await screen.findByRole("button", { name: "Подивились" }));
+    await closed();
+    await user.click(screen.getByRole("button", { name: "Переглянули" }));
+    expect(
+      await screen.findByRole("heading", { name: "Наш фільм" }),
+    ).toBeInTheDocument();
+    expect(
+      saved().movies.find((m: { title: string }) => m.title === "Наш фільм")
+        .status,
+    ).toBe("watched");
+  });
   it("creates an all-day calendar event", async () => {
     const user = userEvent.setup();
-    await user.click(nav().getByText("Плани"));
+    await user.click(nav().getByText("Календар"));
     await user.click(
       await screen.findByRole("button", { name: "Додати план" }),
     );
@@ -107,15 +138,74 @@ describe("Working demo experience", () => {
     await user.click(
       within(dialog).getByRole("button", { name: "Додати план" }),
     );
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-    expect(
-      await screen.findByRole("heading", { name: "Кава вдвох" }),
-    ).toBeInTheDocument();
+    await closed();
+    expect(await screen.findByText("Кава вдвох")).toBeInTheDocument();
     expect(screen.getByText("Увесь день")).toBeInTheDocument();
   });
-  it("changes theme and preserves choice", async () => {
+  it("keeps read updates hidden after reopening the app", async () => {
+    const user = userEvent.setup();
+    await user.click(await screen.findByText("Інтерстеллар"));
+    await waitFor(() =>
+      expect(
+        saved().reads.some(
+          (r: { activity_id: string }) => r.activity_id === "activity-1",
+        ),
+      ).toBe(true),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Закрити", exact: true }),
+    );
+    await closed();
+    expect(screen.queryByText("Інтерстеллар")).not.toBeInTheDocument();
+    cleanup();
+    mount();
+    await screen.findByRole("heading", { name: "Нове для вас" });
+    expect(screen.queryByText("Інтерстеллар")).not.toBeInTheDocument();
+    expect(screen.getByText("Кавові аксесуари")).toBeInTheDocument();
+  });
+  it("imports selected recipe ingredients from pasted text without fake network data", async () => {
+    const user = userEvent.setup();
+    await user.click(nav().getByText("Покупки"));
+    await user.click(
+      await screen.findByRole("button", { name: "Імпорт рецепта" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Вставити текст зі сторінки" }),
+    );
+    await user.type(
+      screen.getByLabelText("Інгредієнти · кожен із нового рядка"),
+      "200 г рису\n1 л води",
+    );
+    await user.click(screen.getByRole("button", { name: /Розібрати текст/ }));
+    await user.click(
+      await screen.findByRole("button", { name: "Додати 2 до покупок" }),
+    );
+    await closed();
+    expect(saved().shopping).toHaveLength(7);
+    expect(
+      saved().shopping.find((i: { name: string }) => i.name === "рису"),
+    ).toMatchObject({ quantity: 200, unit: "г" });
+  });
+  it("generates and preserves a three-course dinner idea", async () => {
+    const user = userEvent.setup();
+    await user.click(nav().getByText("Меню"));
+    await screen.findByRole("heading", { name: "Меню" });
+    const before = [...document.querySelectorAll(".menu-course h2")].map(
+      (el) => el.textContent,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Згенерувати вечерю" }),
+    );
+    const after = [...document.querySelectorAll(".menu-course h2")].map(
+      (el) => el.textContent,
+    );
+    expect(after).toHaveLength(3);
+    expect(after).not.toEqual(before);
+    expect(JSON.parse(localStorage.getItem("ours-menu-demo-anna")!).side).toBe(
+      after[0],
+    );
+  });
+  it("switches themes and preserves the preference", async () => {
     const user = userEvent.setup();
     await user.click(
       screen.getByRole("button", { name: "Відкрити налаштування" }),
@@ -127,10 +217,11 @@ describe("Working demo experience", () => {
     await user.click(within(dialog).getByRole("button", { name: "Світла" }));
     expect(document.documentElement.dataset.theme).toBe("light");
   });
-  it("warns before discarding a form and keeps input when continuing", async () => {
+  it("preserves an unsaved form when continuing after close", async () => {
     const user = userEvent.setup();
+    await user.click(nav().getByText("Покупки"));
     await user.click(
-      screen.getByRole("button", { name: "Швидко додати товар" }),
+      await screen.findByRole("button", { name: "Додати товар" }),
     );
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Назва товару"), "Помідори");
@@ -144,20 +235,24 @@ describe("Working demo experience", () => {
     expect(screen.getByDisplayValue("Помідори")).toBeInTheDocument();
     expect(screen.getByLabelText("Кількість")).toHaveValue(3);
   });
-  it("reserves partner wish without putting reservation fields on wishes", async () => {
+  it("keeps reservations out of wishes and the update feed", async () => {
     const user = userEvent.setup();
+    const activityCount = saved().activities.length;
     await user.click(nav().getByText("Бажання"));
     await user.click(
       await screen.findByRole("button", { name: "Бажання партнера" }),
     );
-    await user.click(screen.getByRole("button", { name: "Хочу подарувати" }));
+    await user.click(screen.getByRole("heading", { name: "Кавові аксесуари" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Хочу подарувати" }),
+    );
     expect(
       await screen.findByRole("button", {
         name: "Заплановано · позначити придбаним",
       }),
     ).toBeInTheDocument();
-    const saved = JSON.parse(localStorage.getItem("ours-demo-v1")!);
-    expect(saved.reservations).toHaveLength(1);
-    expect(saved.wishes[2]).not.toHaveProperty("status");
+    expect(saved().reservations).toHaveLength(1);
+    expect(saved().activities).toHaveLength(activityCount);
+    expect(saved().wishes[2]).not.toHaveProperty("status");
   });
 });

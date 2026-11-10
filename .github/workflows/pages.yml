@@ -21,6 +21,11 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Typecheck authenticated link import function
+        run: deno check --config supabase/functions/link-preview/deno.json supabase/functions/link-preview/index.ts supabase/link-preview-dashboard.ts
       - run: |
           npm run build
           node scripts/verify-dist.mjs "$VITE_BASE_PATH"
