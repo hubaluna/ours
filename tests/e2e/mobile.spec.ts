@@ -1,0 +1,49 @@
+import { test, expect } from "@playwright/test";
+test("navigation, sheet, responsive layout and themes", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto("/");
+  await expect(page.getByText("Усе наше.")).toBeVisible();
+  const nav = page.getByRole("navigation", { name: "Основна навігація" });
+  await nav.getByText("Покупки").click();
+  await page.getByRole("button", { name: "Додати товар", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel("Назва товару").fill("Авокадо");
+  await dialog.getByRole("button", { name: "Додати до списку" }).click();
+  await expect(dialog).not.toBeVisible();
+  await page.getByRole("checkbox", { name: "Куплено: Авокадо" }).click();
+  await expect(
+    page.getByRole("checkbox", { name: "Повернути: Авокадо" }),
+  ).toHaveAttribute("aria-checked", "true");
+  await nav.getByText("Бажання").click();
+  await expect(
+    page.getByRole("button", { name: "Додати бажання" }),
+  ).toBeVisible();
+  await nav.getByText("Плани").click();
+  await expect(page.getByRole("button", { name: "Додати план" })).toBeVisible();
+  await page.getByRole("button", { name: "Відкрити налаштування" }).click();
+  await page.getByRole("button", { name: "Темна", exact: true }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.getByRole("button", { name: "Закрити", exact: true }).click();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  expect(errors).toEqual([]);
+  await page.screenshot({
+    path: `test-results/${test.info().project.name}-dark.png`,
+    fullPage: true,
+  });
+});
+test("320px has no horizontal overflow", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page.goto("/");
+  await expect(page.getByRole("navigation")).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+});
