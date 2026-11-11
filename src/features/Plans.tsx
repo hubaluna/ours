@@ -7,6 +7,8 @@ import {
   ChevronRight,
   Clock3,
   ExternalLink,
+  Link2,
+  Copy,
 } from "lucide-react";
 import { useApp } from "../hooks/AppContext";
 import { kyivDate, longDate } from "../lib/utils";
@@ -16,8 +18,10 @@ import { BottomSheet, Button, EmptyState, IconButton } from "../components/ui";
 import { EventForm } from "../components/Forms";
 import { AddButton, PagedList, ScreenHeader } from "../components/Compact";
 import { publicUrl } from "../../supabase/functions/_shared/urls";
+import { checked, configured, supabase } from "../lib/supabase";
+import publicConfig from "../lib/public-config.json";
 export default function Plans() {
-  const { data } = useApp(),
+  const { data, demo } = useApp(),
     today = kyivDate();
   const [, tick] = useState(0);
   useEffect(() => {
@@ -31,7 +35,44 @@ export default function Plans() {
     [form, setForm] = useState<Plan | "new" | null>(null),
     [detail, setDetail] = useState<Plan | null>(null),
     [showDescription, setShowDescription] = useState(false),
-    [expanded, setExpanded] = useState(false);
+    [expanded, setExpanded] = useState(false),
+    [calendarFeed, setCalendarFeed] = useState<string | null>(null),
+    [syncOpen, setSyncOpen] = useState(false),
+    [feedBusy, setFeedBusy] = useState(false),
+    [feedError, setFeedError] = useState("");
+  const makeCalendarFeed = async () => {
+    if (demo || !supabase || !configured) {
+      setFeedError("Підключіть акаунт, щоб синхронізувати календар.");
+      return;
+    }
+    setFeedBusy(true);
+    setFeedError("");
+    try {
+      const random = crypto.getRandomValues(new Uint8Array(32));
+      const token = btoa(String.fromCharCode(...random))
+        .replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+      await checked(supabase.rpc("rotate_calendar_feed_token", { p_token: token }));
+      const projectUrl = import.meta.env.VITE_SUPABASE_URL || publicConfig.supabaseUrl;
+      const feed = `${projectUrl}/functions/v1/calendar-feed?token=${token}`;
+      setCalendarFeed(feed);
+    } catch {
+      setFeedError("Не вдалося створити посилання. Спробуйте ще раз.");
+    } finally {
+      setFeedBusy(false);
+    }
+  };
+  const revokeCalendarFeed = async () => {
+    if (!supabase) return;
+    setFeedBusy(true);
+    try {
+      await checked(supabase.rpc("revoke_calendar_feed_token"));
+      setCalendarFeed(null);
+    } catch {
+      setFeedError("Не вдалося вимкнути підписку.");
+    } finally {
+      setFeedBusy(false);
+    }
+  };
   const year = month.getFullYear(),
     mo = month.getMonth(),
     length = new Date(year, mo + 1, 0).getDate(),
@@ -138,6 +179,9 @@ export default function Plans() {
   return (
     <section className="screen">
       <ScreenHeader title="Календар" subtitle="Час, який ми ділимо">
+        <IconButton label="Синхронізувати календар" onClick={() => setSyncOpen(true)}>
+          <Link2 size={18} />
+        </IconButton>
         <AddButton label="Додати план" onClick={() => setForm("new")} />
       </ScreenHeader>
       <div className="calendar-layout">
@@ -220,7 +264,29 @@ export default function Plans() {
         </section>
       </div>
       <AnimatePresence mode="wait">
-        {form ? (
+        {syncOpen ? (
+          <BottomSheet key="calendar-sync" title="Підписка на календар" onClose={() => setSyncOpen(false)}>
+            <div className="calendar-sync-panel">
+              <p>Додає події Ours до Apple або Google Calendar. Зміни в цих календарях назад в Ours не передаються.</p>
+              {calendarFeed ? (
+                <>
+                  <label className="calendar-feed-link">Посилання на підписку<input readOnly value={calendarFeed} /></label>
+                  <a className="button secondary" href={`webcal://${calendarFeed.replace(/^https?:\/\//, "")}`}><CalendarDays size={17} /> Додати в Apple Calendar</a>
+                  <a className="button secondary" href={`https://calendar.google.com/calendar/u/0/r/settings/addbyurl?url=${encodeURIComponent(calendarFeed)}`} target="_blank" rel="noopener noreferrer"><ExternalLink size={17} /> Додати в Google Calendar</a>
+                  <Button className="ghost" busy={feedBusy} onClick={() => void navigator.clipboard?.writeText(calendarFeed).catch(() => setFeedError("Не вдалося скопіювати посилання."))}><Copy size={16} /> Копіювати посилання</Button>
+                  <Button className="danger ghost" busy={feedBusy} onClick={() => void revokeCalendarFeed()}>Відкликати посилання</Button>
+                  <small>Посилання дає доступ до назв, часу, місця й описів подій. Для приватності не пересилайте його іншим. Відкличте його тут, щоб зупинити підписку.</small>
+                </>
+              ) : (
+                <>
+                  <Button busy={feedBusy} onClick={() => void makeCalendarFeed()}><Link2 size={17} /> Створити посилання</Button>
+                  <Button className="danger ghost" busy={feedBusy} onClick={() => void revokeCalendarFeed()}>Відкликати раніше створене посилання</Button>
+                </>
+              )}
+              {feedError && <p role="alert">{feedError}</p>}
+            </div>
+          </BottomSheet>
+        ) : form ? (
           <EventForm
             key="event-form"
             date={selected}

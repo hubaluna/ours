@@ -1,6 +1,7 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   Camera,
+  Bell,
   Check,
   Copy,
   Download,
@@ -16,6 +17,12 @@ import { checked, supabase, uploadImage } from "../lib/supabase";
 import { downloadJson } from "../lib/utils";
 import type { Theme } from "../lib/types";
 import { Avatar, BottomSheet, Button, Field } from "../components/ui";
+import {
+  pushSupportMessage,
+  savePushPreferences,
+  savePushSubscription,
+  subscribeToPush,
+} from "../lib/push-notifications";
 export default function Settings({
   onClose,
   theme,
@@ -114,6 +121,7 @@ export default function Settings({
           ))}
         </div>
       </section>
+      <PushSettings userId={userId} coupleId={coupleId} demo={demo} notify={notify} />
       <section className="settings-section">
         <h3>
           <UsersRound size={16} /> Наш маленький світ
@@ -226,5 +234,77 @@ export default function Settings({
         ours. <span>маленькі речі, велике разом</span>
       </p>
     </BottomSheet>
+  );
+}
+
+type PushPrefs = { enabled: boolean; shopping: boolean; wishes: boolean; movies: boolean; events: boolean; recipes: boolean };
+const defaultPushPrefs: PushPrefs = { enabled: false, shopping: true, wishes: true, movies: true, events: true, recipes: true };
+function PushSettings({ userId, coupleId, demo, notify }: { userId: string; coupleId: string | null; demo: boolean; notify: (text: string) => void }) {
+  const [preferences, setPreferences] = useState(defaultPushPrefs);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!supabase || demo || !userId) return;
+    let alive = true;
+    void (async () => {
+      try {
+        const row = await checked(supabase.from("push_preferences").select("*").eq("user_id", userId).maybeSingle());
+        if (alive && row) setPreferences({ ...defaultPushPrefs, ...row });
+      } catch {
+        if (alive) notify("Не вдалося завантажити налаштування сповіщень.");
+      }
+    })();
+    return () => { alive = false; };
+  }, [demo, userId, notify]);
+
+  const toggle = async () => {
+    if (demo || !coupleId) {
+      notify("Сповіщення доступні після підключення акаунта.");
+      return;
+    }
+    setBusy(true);
+    try {
+      if (preferences.enabled) {
+        const next = { ...preferences, enabled: false };
+        await savePushPreferences(userId, next);
+        setPreferences(next);
+        notify("Push-сповіщення вимкнено для акаунта.");
+      } else {
+        const subscription = await subscribeToPush();
+        await savePushSubscription(subscription, userId, coupleId);
+        const next = { ...preferences, enabled: true };
+        await savePushPreferences(userId, next);
+        setPreferences(next);
+        notify("Push-сповіщення увімкнено на цьому пристрої.");
+      }
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Не вдалося змінити сповіщення.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const updateKind = (key: keyof Omit<PushPrefs, "enabled">, value: boolean) => {
+    const next = { ...preferences, [key]: value };
+    setPreferences(next);
+    if (!demo && userId) void savePushPreferences(userId, next).catch(() => notify("Не вдалося зберегти типи сповіщень."));
+  };
+  const supportMessage = typeof window === "undefined" ? null : pushSupportMessage();
+  return (
+    <section className="settings-section push-settings">
+      <h3><Bell size={16} /> Сповіщення</h3>
+      <p className="settings-help">Push на телефон про зміни партнера, навіть коли Ours закритий. На iPhone застосунок має бути доданий на екран «Додому».</p>
+      {demo ? <p className="settings-help">Підключіть акаунт і спільний простір, щоб увімкнути push.</p> : supportMessage ? <p className="settings-help">{supportMessage}</p> : null}
+      {typeof window !== "undefined" && "Notification" in window && Notification.permission === "denied" && <p className="settings-help">Доступ заборонено в браузері. Змініть дозвіл у налаштуваннях сайту на телефоні.</p>}
+      <Button className={preferences.enabled ? "secondary" : "ghost"} busy={busy} onClick={() => void toggle()}>
+        {preferences.enabled ? "Вимкнути push" : "Увімкнути push на цьому пристрої"}
+      </Button>
+      {preferences.enabled && <div className="push-kind-list">
+        {([
+          ["shopping", "Покупки"], ["wishes", "Бажання"], ["movies", "Кіно"], ["events", "Календар"], ["recipes", "Меню"],
+        ] as const).map(([key, label]) => <label key={key}>
+          <input type="checkbox" checked={preferences[key]} onChange={(event) => updateKind(key, event.target.checked)} />
+          <span>{label}</span>
+        </label>)}
+      </div>}
+    </section>
   );
 }

@@ -15,6 +15,7 @@ import { MotionGlobalConfig } from "motion/react";
 import { AppProvider } from "../src/hooks/AppContext";
 import App from "../src/App";
 import { createDemo } from "../src/lib/demo";
+import { kyivDate } from "../src/lib/utils";
 // Lazy feature modules can take longer than the default 1s on shared runners.
 configure({ asyncUtilTimeout: 5000 });
 vi.mock("virtual:pwa-register/react", () => ({
@@ -162,7 +163,7 @@ describe("Compact seven-tab app", () => {
     );
     await user.click(await screen.findByRole("button", { name: "Завершити" }));
     await waitFor(() => expect(saved().sessions).toHaveLength(1));
-    const purchaseDate = saved().sessions[0].created_at.slice(0, 10);
+    const purchaseDate = kyivDate(new Date(saved().sessions[0].created_at));
     await user.click(
       screen.getByRole("button", { name: "Історія покупок" }),
     );
@@ -180,7 +181,8 @@ describe("Compact seven-tab app", () => {
     fireEvent.change(within(dialog).getByLabelText("Покупки до дати"), {
       target: { value: purchaseDate },
     });
-    expect(within(dialog).getByText(/Молоко,/)).toBeInTheDocument();
+    expect(within(dialog).getByText("Молоко")).toBeInTheDocument();
+    expect(within(dialog).getAllByText(/\d{2}:\d{2}/).length).toBeGreaterThan(0);
     await user.clear(
       within(dialog).getByRole("textbox", { name: "Пошук у покупках" }),
     );

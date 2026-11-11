@@ -118,20 +118,8 @@ export default function Menu() {
         />
       </ScreenHeader>
       <div className="menu-view-switch" role="group" aria-label="Перегляд меню">
-        <button
-          type="button"
-          aria-label="Каталог рецептів"
-          aria-pressed={!showPlan}
-          onClick={openCatalog}
-        >
-          Каталог
-        </button>
-        <button
-          type="button"
-          aria-label={`Готуємо · ${rows.length}`}
-          aria-pressed={showPlan}
-          onClick={() => setShowPlan(true)}
-        >
+        <button type="button" aria-label="Страви" aria-pressed={!showPlan} onClick={openCatalog}>Страви</button>
+        <button type="button" aria-label={`Готуємо · ${rows.length}`} aria-pressed={showPlan} onClick={() => setShowPlan(true)}>
           Готуємо <span>{rows.length}</span>
         </button>
       </div>

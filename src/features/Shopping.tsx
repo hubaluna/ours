@@ -174,12 +174,24 @@ export default function Shopping() {
               historySessions.map((s) => (
                 <div className="history-card" key={s.id}>
                   <h3>{longDate(kyivDate(new Date(s.created_at)))}</h3>
-                  <p>
+                  <ul className="history-products">
                     {data.shopping
                       .filter((i) => i.session_id === s.id)
-                      .map((i) => i.name)
-                      .join(", ")}
-                  </p>
+                      .map((item) => (
+                        <li key={item.id}>
+                          <span>{item.name}</span>
+                          <time dateTime={s.created_at}>
+                            {new Intl.DateTimeFormat("uk-UA", {
+                              day: "numeric",
+                              month: "short",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              timeZone: "Europe/Kyiv",
+                            }).format(new Date(s.created_at))}
+                          </time>
+                        </li>
+                      ))}
+                  </ul>
                   <Button
                     className="secondary"
                     busy={pending.includes(`repeat-${s.id}`)}

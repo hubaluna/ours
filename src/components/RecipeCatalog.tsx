@@ -53,12 +53,12 @@ export function RecipeCatalog({
     );
   const content = (
     <>
-      {inline && <h2 className="catalog-inline-title">Каталог рецептів</h2>}
       <div className="catalog-controls">
-        <Field label="Пошук страви або продукту">
+        {inline ? (
           <div className="catalog-search">
             <Search size={17} />
             <input
+              aria-label="Пошук страви або продукту"
               data-autofocus
               type="search"
               value={filter.query}
@@ -66,24 +66,25 @@ export function RecipeCatalog({
               placeholder="Назва, курка, рис…"
             />
           </div>
-        </Field>
-        <div
-          className="catalog-category-filters"
-          role="group"
-          aria-label="Категорії рецептів"
-        >
-          {(
-            [["all", "Усі"], ...Object.entries(categoryNames)] as [
-              CatalogFilter["category"],
-              string,
-            ][]
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={filter.category === key}
-              onClick={() => onFilter({ ...filter, category: key })}
-            >
+        ) : (
+          <Field label="Пошук страви або продукту">
+            <div className="catalog-search">
+              <Search size={17} />
+              <input
+                aria-label="Пошук страви або продукту"
+                data-autofocus
+                type="search"
+                value={filter.query}
+                onChange={(e) => onFilter({ ...filter, query: e.target.value })}
+                placeholder="Назва, курка, рис…"
+              />
+            </div>
+          </Field>
+        )}
+        <div className="catalog-category-filters" role="group" aria-label="Категорії рецептів">
+          {([["all", "Усі"], ...Object.entries(categoryNames)] as [CatalogFilter["category"], string][]).map(([key, label]) => (
+            <button key={key} type="button" aria-pressed={filter.category === key}
+              onClick={() => onFilter({ ...filter, category: key })}>
               {label}
             </button>
           ))}

@@ -2,3 +2,11 @@
 # The handler verifies user JWT through auth.getUser and checks couple membership.
 # Disable the legacy gateway check so modern asymmetric signing keys work too.
 verify_jwt = false
+
+[functions.calendar-feed]
+# Calendar clients subscribe with a high-entropy, revocable feed token.
+verify_jwt = false
+
+[functions.push-dispatch]
+# Database pg_net calls are authenticated with a private Vault-backed hook secret.
+verify_jwt = false

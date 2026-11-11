@@ -418,7 +418,8 @@ p {
   flex: 1;
 }
 .segmented {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   padding: 4px;
   background: var(--surface);
   border-radius: 15px;
@@ -428,7 +429,10 @@ p {
 }
 .segmented > button {
   position: relative;
-  flex: 1;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  text-align: left;
   min-width: 0;
   min-height: 36px;
   padding: 7px 10px;
@@ -447,7 +451,7 @@ p {
 }
 .segmented > button > span:last-child {
   position: relative;
-  white-space: nowrap;
+  white-space: normal;
 }
 .filter-line {
   height: 28px;
@@ -1445,21 +1449,33 @@ p {
   font-size: 15px;
   text-transform: capitalize;
 }
-.history-card p {
-  font-size: 12px;
+.history-products {
+  display: grid;
+  gap: 5px;
   margin: 10px 0;
+  padding: 0;
+  list-style: none;
+}
+.history-products li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+.history-products li time {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 10px;
 }
 .history-card .button {
   font-size: 11px;
 }
 .history-filters {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   margin: 8px 0 14px;
-}
-.history-filters > input {
-  grid-column: 1 / -1;
 }
 .history-filters label {
   display: grid;
@@ -1470,6 +1486,38 @@ p {
 .event-detail-compact {
   display: grid;
   gap: 10px;
+}
+.calendar-sync-panel {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.calendar-sync-panel > p,
+.calendar-sync-panel > small {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.calendar-sync-panel .button {
+  justify-content: flex-start;
+}
+.calendar-feed-link {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.calendar-feed-link input {
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
 }
 .event-form {
   gap: 14px;
@@ -1786,6 +1834,29 @@ p {
 }
 .settings-section > .button {
   margin-top: 15px;
+}
+.push-settings .settings-help {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.push-kind-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 10px;
+  margin-top: 9px;
+}
+.push-kind-list label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.push-kind-list input {
+  accent-color: var(--accent);
 }
 .settings-row.button {
   width: 100%;
@@ -3329,28 +3400,30 @@ p {
   color: var(--text);
   outline-offset: 4px;
 }
+.catalog-filter-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 9px;
+}
 .catalog-category-filters {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  max-height: 124px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 .catalog-category-filters button {
+  min-height: 36px;
   padding: 7px 10px;
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  background: var(--surface);
-  color: var(--text);
+  border-bottom: 1px solid var(--line);
+  text-align: left;
   font-size: 11px;
 }
 .catalog-category-filters button[aria-pressed="true"] {
-  background: var(--accent);
-  color: white;
-  border-color: var(--accent);
-}
-.catalog-filter-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 9px;
+  border-radius: 10px;
+  background: var(--accent-light);
+  color: var(--text);
 }
 .catalog-filter-row label {
   display: grid;
@@ -3608,7 +3681,7 @@ p {
 .menu-view-switch {
   flex-shrink: 0;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
   padding: 3px;
   border: 1px solid var(--line);
@@ -3618,14 +3691,14 @@ p {
 .menu-view-switch button {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: 6px;
   min-height: 32px;
-  border: 0;
+  padding: 6px 10px;
   border-radius: 9px;
-  background: transparent;
   color: var(--muted);
   font-size: 11px;
+  text-align: left;
 }
 .menu-view-switch button[aria-pressed="true"] {
   background: var(--card);
@@ -3651,14 +3724,6 @@ p {
   padding: 2px 3px 12px;
   scrollbar-width: thin;
 }
-.catalog-inline-title {
-  flex-shrink: 0;
-  margin: 0;
-  padding: 1px 3px 2px;
-  overflow: visible;
-  font-size: 13px;
-  line-height: 1.3;
-}
 .recipe-catalog-inline .catalog-controls {
   position: relative;
   top: auto;
@@ -3672,17 +3737,7 @@ p {
   font-size: 12px;
 }
 .recipe-catalog-inline .catalog-category-filters {
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.recipe-catalog-inline .catalog-category-filters::-webkit-scrollbar {
-  display: none;
-}
-.recipe-catalog-inline .catalog-category-filters button {
-  flex-shrink: 0;
-  padding: 5px 8px;
-  font-size: 10px;
+  grid-template-columns: minmax(0, 1fr);
 }
 .recipe-catalog-inline .catalog-filter-row {
   gap: 5px;
@@ -3947,6 +4002,9 @@ p {
   padding: 0;
   margin-left: auto;
 }
+.meal-menu-panel .paged-content {
+  overflow-y: auto;
+}
 .meal-menu-panel .empty-state {
   padding: 10px;
   gap: 10px;
@@ -4040,14 +4098,8 @@ p {
   .menu-screen .screen-header {
     min-height: 40px;
   }
-  .menu-view-switch button {
-    min-height: 27px;
-  }
   .recipe-catalog-inline .catalog-controls {
     gap: 3px;
-  }
-  .recipe-catalog-inline .catalog-category-filters button {
-    padding: 3px 7px;
   }
   .recipe-catalog-inline .catalog-filter-row select {
     padding: 3px 2px;

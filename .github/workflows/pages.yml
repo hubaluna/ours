@@ -24,8 +24,10 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - name: Typecheck authenticated link import function
-        run: deno check --config supabase/functions/link-preview/deno.json supabase/functions/link-preview/index.ts supabase/link-preview-dashboard.ts
+      - name: Typecheck Supabase Edge Functions
+        run: deno check --config supabase/functions/link-preview/deno.json supabase/functions/link-preview/index.ts supabase/link-preview-dashboard.ts supabase/functions/calendar-feed/index.ts supabase/functions/push-dispatch/index.ts
+      - name: Test Web Push encryption and VAPID signing
+        run: deno test supabase/functions/push-dispatch/web-push.test.ts
       - run: |
           npm run build
           node scripts/verify-dist.mjs "$VITE_BASE_PATH"

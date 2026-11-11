@@ -47,6 +47,7 @@ export default defineConfig(({ mode }) => {
         workbox: {
           navigateFallback: "index.html",
           navigateFallbackDenylist: [/^\/auth/, /supabase/],
+          importScripts: ["push-events.js"],
           globPatterns: ["**/*.{js,css,html,png,jpg,jpeg,webp,svg,woff2}"],
           runtimeCaching: [],
           cleanupOutdatedCaches: true,

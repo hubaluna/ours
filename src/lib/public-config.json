@@ -1,4 +1,5 @@
 {
   "supabaseUrl": "https://eacfpfeynhucdzwwrfdz.supabase.co",
-  "supabasePublishableKey": "sb_publishable_0LhgKBRKpMDRnqsGqnBczA_0KJXyCp5"
+  "supabasePublishableKey": "sb_publishable_0LhgKBRKpMDRnqsGqnBczA_0KJXyCp5",
+  "vapidPublicKey": "BPAHv2azbwC6WSefxP7z8r0yQPdlu-snNXZYBuMy-sU4WrZ5HpGyKsJixgNAarvdZv5lppQAKlzGPjKIuuSIa3Q"
 }

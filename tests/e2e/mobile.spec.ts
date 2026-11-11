@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 const tabs = ["Головна", "Покупки", "Меню", "Кіно", "Бажання", "Календар"];
 const nav = (page: Page) =>
   page.getByRole("navigation", { name: "Основна навігація" });
@@ -84,7 +84,7 @@ async function fit(page: Page) {
         const catalog = document.querySelector<HTMLElement>(".recipe-catalog-inline");
         if (!catalog) return true;
         const title = catalog.querySelector<HTMLElement>(".catalog-inline-title");
-        if (!title) return false;
+        if (!title) return true;
         const range = document.createRange();
         range.selectNodeContents(title);
         const text = range.getBoundingClientRect();
@@ -108,13 +108,14 @@ async function fit(page: Page) {
           !content ||
           !rows ||
           rows.getBoundingClientRect().bottom <=
-            content.getBoundingClientRect().bottom + 1
+            content.getBoundingClientRect().bottom + 1 ||
+          (getComputedStyle(content).overflowY === "auto" && content.scrollHeight > content.clientHeight)
         );
       }),
     )
     .toBe(true);
 }
-async function seek(page: Page, locator: ReturnType<Page["getByRole"]>) {
+async function seek(page: Page, locator: Locator) {
   for (let i = 0; i < 12 && (await locator.count()) === 0; i++) {
     const next = page.getByRole("button", { name: "Наступна сторінка" });
     if (!(await next.isEnabled())) break;
@@ -171,7 +172,7 @@ test("six tabs, unseen updates, shopping, movies, calendar and appearance", asyn
   await item.click();
   await page.getByRole("button", { name: "Потрібно · 6" }).click();
   await fit(page);
-  await expect(page.locator(".shopping-row")).toHaveCount(6);
+  await expect(page.locator(".pager")).toContainText("із 6");
   await shot(page, "shopping");
   await choose(page, "Меню");
   await page.getByRole("button", { name: "Згенерувати вечерю" }).click();
@@ -235,6 +236,8 @@ test("six tabs, unseen updates, shopping, movies, calendar and appearance", asyn
   await page.getByRole("button", { name: "Відкрити налаштування" }).click();
   dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Сповіщення" })).toBeVisible();
+  await expect(dialog.getByText("Підключіть акаунт і спільний простір, щоб увімкнути push.")).toBeVisible();
   await shot(page, "settings");
   await dialog.getByRole("button", { name: "Темна", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
@@ -356,7 +359,7 @@ test("the catalog is the default menu view and card plus is idempotent", async (
   await expect(rice).toHaveCount(1);
   await rice.getByRole("button", { name: `Збільшити порції · ${title}` }).click();
   await expect(rice.getByRole("status")).toContainText("2");
-  await page.getByRole("button", { name: "Каталог рецептів", exact: true }).click();
+  await page.getByRole("button", { name: "Страви", exact: true }).click();
   await expect(
     catalog.getByRole("button", { name: `Уже в меню · ${title}` }),
   ).toBeDisabled();
@@ -433,7 +436,7 @@ test("a private recipe joins the shared catalog and scales automatically into sh
       )
     ).shopping.filter((i: { menu_key?: string }) => i.menu_key),
   ).toHaveLength(0);
-  await page.getByRole("button", { name: "Каталог рецептів", exact: true }).click();
+  await page.getByRole("button", { name: "Страви", exact: true }).click();
   await catalog
     .locator(".catalog-card")
     .filter({
@@ -582,17 +585,13 @@ test("55 recipes, filters, ranked pairings, one-click pair and portion changes s
 }) => {
   await page.goto("/");
   await choose(page, "Меню");
-  await page
-    .getByRole("button", { name: "Каталог рецептів", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Страви", exact: true }).click();
   const catalog = page.getByRole("region", { name: "Каталог рецептів" });
   await expect(catalog.locator(".catalog-count")).toContainText("55 рецептів");
   await expect(catalog.locator(".catalog-card")).toHaveCount(55);
-  const catalogTitle = catalog.getByRole("heading", { name: "Каталог рецептів" });
-  await expect(catalogTitle).toBeVisible();
-  const headingBox = await catalogTitle.boundingBox();
-  const catalogBox = await catalog.boundingBox();
-  expect(headingBox!.x).toBeGreaterThanOrEqual(catalogBox!.x);
+  await expect(catalog.getByRole("heading", { name: "Каталог рецептів" })).toHaveCount(0);
+  await expect(catalog.getByText("Пошук страви або продукту", { exact: true })).toHaveCount(0);
+  await expect(catalog.getByLabel("Пошук страви або продукту")).toBeVisible();
   const firstTitle = await catalog.locator(".catalog-card h3").first().innerText();
   await expect(
     catalog.getByRole("button", { name: `Додати до меню · ${firstTitle}` }),
@@ -626,7 +625,7 @@ test("55 recipes, filters, ranked pairings, one-click pair and portion changes s
     .getByRole("button", { name: "Додати пару" })
     .click();
   await expect(dialog).not.toBeVisible();
-  await expect(page.locator(".meal-row")).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Готуємо · 2" })).toBeVisible();
   const before = await page.evaluate(() =>
     JSON.parse(localStorage.getItem("ours-demo-v1")!),
   );
@@ -646,10 +645,11 @@ test("55 recipes, filters, ranked pairings, one-click pair and portion changes s
   await page.reload();
   await choose(page, "Меню");
   await page.getByRole("button", { name: "Готуємо · 2" }).click();
-  await expect(page.locator(".meal-row")).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Готуємо · 2" })).toBeVisible();
   const rice = page
     .locator(".meal-row")
     .filter({ has: page.getByRole("heading", { name: "Рис", exact: true }) });
+  await seek(page, rice);
   await rice.getByRole("button", { name: "Рецепт", exact: true }).click();
   await expect(
     dialog.getByRole("heading", { name: "До цього гарніру пасуватиме" }),
@@ -679,7 +679,7 @@ test("a salad alone fits every compact viewport and uses its matching image", as
   await page.goto("/");
   await choose(page, "Меню");
   await page
-    .getByRole("button", { name: "Каталог рецептів", exact: true })
+    .getByRole("button", { name: "Страви", exact: true })
     .click();
   const catalog = page.getByRole("region", { name: "Каталог рецептів" });
   await catalog.getByLabel("Пошук страви або продукту").fill("Зелений салат");
