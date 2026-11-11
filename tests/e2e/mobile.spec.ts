@@ -87,6 +87,7 @@ test("six tabs, unseen updates, shopping, movies, calendar and appearance", asyn
   page,
 }) => {
   test.setTimeout(90_000);
+  let dialog: ReturnType<typeof page.getByRole>;
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
@@ -106,7 +107,7 @@ test("six tabs, unseen updates, shopping, movies, calendar and appearance", asyn
   await expect(page.getByText("Інтерстеллар", { exact: true })).toHaveCount(0);
   await choose(page, "Покупки");
   await page.getByRole("button", { name: "Додати товар", exact: true }).click();
-  const dialog = page.getByRole("dialog");
+  dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("Назва товару").fill("Авокадо");
   await shot(page, "add-shopping");
