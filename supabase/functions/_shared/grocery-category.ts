@@ -20,14 +20,20 @@ export function isPantryStaple(name: string): boolean {
     .toLocaleLowerCase("uk")
     .replace(/[.,;:!?()[\]{}]+/g, " ")
     .replace(/\s+/g, " ");
+  const ingredient = normalized
+    .replace(
+      /^(?:\d+(?:[.,]\d+)?(?:\/\d+)?|\d+\/\d+|[¼½¾])\s+(?:(?:ст|ч)\s*(?:л|ложк(?:а|и|у|ою)?)|(?:столов(?:а|ої|і)?|чайна)\s+ложк(?:а|и|у|ою)?|tbsp|tsp|tablespoons?|teaspoons?|кг|гр?\.?|г|мл|л|шт\.?|штук|зубчик)\s+/i,
+      "",
+    )
+    .trim();
   if (
     /^(перець|перцю)(?:\s+(?:чорний|чорного|мелений|меленого|горошком|black pepper|pepper)(?:\s.*)?)?$/i.test(
-      normalized,
+      ingredient,
     )
   )
     return true;
   return /^(сіль|солі|salt|цукор|цукру|sugar|мед|меду|honey|оцет|оцту|vinegar|вода|води|воду|water|олія|олії|олію|оливкова олія|оливкової олії|соняшникова олія|соняшникової олії|olive oil|sunflower oil)(?:\s.*)?$/i.test(
-    normalized,
+    ingredient,
   );
 }
 

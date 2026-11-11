@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-const tabs = ["Головна", "Покупки", "Меню", "Кіно", "Бажання", "Календар", "Місця"];
+const tabs = ["Головна", "Покупки", "Меню", "Кіно", "Бажання", "Календар"];
 const nav = (page: Page) =>
   page.getByRole("navigation", { name: "Основна навігація" });
 async function choose(page: Page, tab: string) {
@@ -29,7 +29,7 @@ async function fit(page: Page) {
         const buttons = Array.from(
           document.querySelectorAll<HTMLButtonElement>(".bottom-nav > button"),
         );
-        if (!shell || buttons.length !== 7) return false;
+        if (!shell || buttons.length !== 6) return false;
         const outer = shell.getBoundingClientRect();
         const boxes = buttons.map((button) => button.getBoundingClientRect());
         const labels = buttons.map((button) =>
@@ -65,6 +65,31 @@ async function fit(page: Page) {
               card.getBoundingClientRect().bottom + 1,
           )
         );
+      }),
+    )
+    .toBe(true);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const sheet = document.querySelector<HTMLElement>(".sheet");
+        if (!sheet || getComputedStyle(sheet).visibility === "hidden") return true;
+        const box = sheet.getBoundingClientRect();
+        return box.left >= 8 && box.top >= 8 && box.right <= innerWidth - 8 && box.bottom <= innerHeight - 8;
+      }),
+    )
+    .toBe(true);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const catalog = document.querySelector<HTMLElement>(".recipe-catalog-inline");
+        if (!catalog) return true;
+        const title = catalog.querySelector<HTMLElement>(".catalog-inline-title");
+        if (!title) return false;
+        const range = document.createRange();
+        range.selectNodeContents(title);
+        const text = range.getBoundingClientRect();
+        const parent = catalog.getBoundingClientRect();
+        return title.getClientRects().length > 0 && text.left >= parent.left && text.right <= parent.right;
       }),
     )
     .toBe(true);
@@ -106,7 +131,7 @@ async function shot(page: Page, name: string) {
     fullPage: false,
   });
 }
-test("seven tabs, unseen updates, shopping, movies, calendar and appearance", async ({
+test("six tabs, unseen updates, shopping, movies, calendar and appearance", async ({
   page,
 }) => {
   test.setTimeout(90_000);
@@ -226,7 +251,7 @@ for (const viewport of [
   { width: 844, height: 390 },
   { width: 1280, height: 800 },
 ])
-  test(`all seven screens fit ${viewport.width}x${viewport.height} without document scroll`, async ({
+  test(`all six screens fit ${viewport.width}x${viewport.height} without document scroll`, async ({
     page,
   }) => {
     await page.setViewportSize(viewport);
@@ -474,7 +499,7 @@ test("a TikTok video recipe can omit written steps and opens its source", async 
   expect(menuData.mealPlan).toHaveLength(1);
   expect(
     menuData.shopping.some((item: { menu_key?: string }) => item.menu_key),
-  ).toBe(true);
+  ).toBe(false);
   await page
     .getByRole("button", { name: "Прибрати з меню · Відео рецепт" })
     .click();
@@ -526,6 +551,24 @@ test("calendar shows upcoming events and countdown when today is empty", async (
   await fit(page);
 });
 
+test("calendar accepts a public HTTPS link and shows it in event details", async ({ page }) => {
+  await page.goto("/");
+  await choose(page, "Календар");
+  await page.getByRole("button", { name: "Додати план" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Назва").fill("Посилання на подію");
+  await dialog.getByLabel("Посилання · необов’язково").fill("http://example.com/event");
+  await dialog.getByRole("button", { name: "Додати план" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("HTTPS");
+  await dialog.getByLabel("Посилання · необов’язково").fill("https://example.com/event");
+  await dialog.getByRole("button", { name: "Додати план" }).click();
+  await expect(dialog).not.toBeVisible();
+  const nextEventsPage = page.locator(".day-plans").getByRole("button", { name: "Наступна сторінка" });
+  if (await nextEventsPage.isEnabled()) await nextEventsPage.click();
+  await page.getByRole("button", { name: "Посилання на подію" }).click();
+  await expect(page.getByRole("link", { name: "Відкрити посилання" })).toHaveAttribute("href", "https://example.com/event");
+});
+
 test("55 recipes, filters, ranked pairings, one-click pair and portion changes survive reload", async ({
   page,
 }) => {
@@ -536,20 +579,23 @@ test("55 recipes, filters, ranked pairings, one-click pair and portion changes s
     .click();
   const catalog = page.getByRole("region", { name: "Каталог рецептів" });
   await expect(catalog.locator(".catalog-count")).toContainText("55 рецептів");
-  await expect(catalog.locator(".catalog-card")).toHaveCount(2);
+  await expect(catalog.locator(".catalog-card")).toHaveCount(55);
+  const catalogTitle = catalog.getByRole("heading", { name: "Каталог рецептів" });
+  await expect(catalogTitle).toBeVisible();
+  const headingBox = await catalogTitle.boundingBox();
+  const catalogBox = await catalog.boundingBox();
+  expect(headingBox!.x).toBeGreaterThanOrEqual(catalogBox!.x);
   const firstTitle = await catalog.locator(".catalog-card h3").first().innerText();
   await expect(
     catalog.getByRole("button", { name: `Додати до меню · ${firstTitle}` }),
   ).toBeVisible();
   await catalog.getByRole("button", { name: "Гарніри", exact: true }).click();
   await expect(catalog.locator(".catalog-count")).toContainText("10 рецептів");
-  const originalViewport = page.viewportSize()!;
-  await page.setViewportSize({ width: 844, height: 390 });
-  const firstPage = await catalog.locator(".catalog-card h3").first().innerText();
-  await catalog.getByRole("button", { name: "Наступна сторінка каталогу" }).click();
-  await expect(catalog.locator(".catalog-card h3").first()).not.toHaveText(firstPage);
-  await fit(page);
-  await page.setViewportSize(originalViewport);
+  const scrollTop = await catalog.evaluate((element) => element.scrollTop);
+  await catalog.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  await expect.poll(() => catalog.evaluate((element) => element.scrollTop)).toBeGreaterThan(scrollTop);
+  await expect(catalog.locator(".catalog-card").last()).toBeInViewport();
+  await catalog.evaluate((element) => { element.scrollTop = 0; });
 
   await catalog
     .getByRole("button", { name: "М’ясо та риба", exact: true })

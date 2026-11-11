@@ -1,6 +1,6 @@
 import { groceryCategories } from "../../supabase/functions/_shared/grocery-category";
 
-export type Tab = "home" | "shopping" | "movies" | "wishes" | "plans" | "places" | "menu";
+export type Tab = "home" | "shopping" | "movies" | "wishes" | "plans" | "menu";
 export type Theme = "light" | "dark" | "system";
 export const categories = groceryCategories;
 export const eventCategories = [
@@ -78,6 +78,7 @@ export type Plan = {
   time: string | null;
   all_day: boolean;
   location: string;
+  url?: string;
   description: string;
   category: string;
   created_by: string;
@@ -251,6 +252,7 @@ export type NewPlan = Pick<
   | "time"
   | "all_day"
   | "location"
+  | "url"
   | "description"
   | "category"
 >;

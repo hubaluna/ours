@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Clock3,
   MapPin,
+  ExternalLink,
 } from "lucide-react";
 import { useApp } from "../hooks/AppContext";
 import { kyivDate, longDate } from "../lib/utils";
@@ -15,6 +16,7 @@ import { spring, soft } from "../lib/motion";
 import { BottomSheet, Button, EmptyState, IconButton } from "../components/ui";
 import { EventForm } from "../components/Forms";
 import { AddButton, PagedList, ScreenHeader } from "../components/Compact";
+import { publicUrl } from "../../supabase/functions/_shared/urls";
 export default function Plans() {
   const { data } = useApp(),
     today = kyivDate();
@@ -268,6 +270,11 @@ export default function Plans() {
                     </p>
                   )}
                 </>
+              )}
+              {publicUrl(detail.url ?? "") && (
+                <a className="button secondary" href={publicUrl(detail.url ?? "")} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink size={16} /> Відкрити посилання
+                </a>
               )}
               <Button
                 onClick={() => {

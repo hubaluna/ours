@@ -29,10 +29,15 @@ describe("Original recipe package, portions and pairing", () => {
       "Воду",
       "Олія, для смаження",
       "Перцю чорного меленого",
+      "4 ст. л. цукру;",
+      "1/4 ч. л. солі",
+      "50 мл меду для подачі",
     ])
       expect(isPantryStaple(name)).toBe(true);
     expect(isPantryStaple("Болгарський перець")).toBe(false);
     expect(isPantryStaple("Масло вершкове")).toBe(false);
+    expect(isPantryStaple("1 кг свинини")).toBe(false);
+    expect(isPantryStaple("1 ч. л. перцю болгарського")).toBe(false);
   });
   it("preserves all 55 unique recipes, every original ingredient, step and image", () => {
     expect(validateRecipeArchive(archive)).toBe(archive);

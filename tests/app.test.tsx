@@ -297,30 +297,11 @@ describe("Compact seven-tab app", () => {
       within(details).getByText("Забронювати столик біля вікна"),
     ).toBeInTheDocument();
   });
-  it("saves a shared place with a type, visit date, address and link", async () => {
-    const user = userEvent.setup();
-    await user.click(nav().getByText("Місця"));
-    await user.click(await screen.findByRole("button", { name: "Додати місце" }));
-    const form = await screen.findByRole("dialog", { name: "Нове місце" });
-    await user.type(within(form).getByLabelText("Назва"), "Науковий музей");
-    await user.selectOptions(within(form).getByLabelText("Тип місця"), "Музей");
-    await user.type(within(form).getByLabelText("Адреса"), "Київ");
-    await user.type(within(form).getByLabelText("Коли хочемо піти"), "2026-12-10");
-    await user.type(within(form).getByLabelText("Посилання"), "https://example.org/museum");
-    await user.type(within(form).getByLabelText("Нотатка"), "Квитки онлайн");
-    await user.click(within(form).getByRole("button", { name: "Зберегти місце" }));
-    await closed();
-    expect(saved().places[0]).toMatchObject({
-      title: "Науковий музей",
-      type: "Музей",
-      address: "Київ",
-      url: "https://example.org/museum",
-      planned_date: "2026-12-10",
-    });
-    await user.click(screen.getByRole("button", { name: /Науковий музей/ }));
-    const detail = await screen.findByRole("dialog", { name: "Науковий музей" });
-    await user.click(within(detail).getByRole("button", { name: "Довідково" }));
-    expect(within(detail).getByText("Квитки онлайн")).toBeInTheDocument();
+  it("keeps Places out of the app navigation while Wishes stays available", async () => {
+    expect(nav().queryByText("Місця")).not.toBeInTheDocument();
+    await userEvent.setup().click(nav().getByText("Бажання"));
+    expect(await screen.findByRole("heading", { name: "Бажання" })).toBeInTheDocument();
+    expect(nav().queryByText("Місця")).not.toBeInTheDocument();
   });
   it("keeps read updates hidden after reopening the app", async () => {
     const user = userEvent.setup();

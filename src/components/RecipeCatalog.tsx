@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { Check, Clock3, Plus, Search } from "lucide-react";
 import type { RecipeView, RecipeCategory } from "../lib/types";
 import { categoryNames, normalizedIngredient } from "../lib/recipe-catalog";
@@ -31,8 +30,6 @@ export function RecipeCatalog({
   onAdd?: (recipe: RecipeView) => void;
   disabled?: boolean;
 }) {
-  const [page, setPage] = useState(0);
-  useEffect(() => setPage(0), [filter.query, filter.category, filter.time, filter.scope, filter.sort]);
   const query = normalizedIngredient(filter.query);
   const shown = recipes
     .filter(
@@ -54,8 +51,6 @@ export function RecipeCatalog({
           a.title.localeCompare(b.title, "uk")
         : a.title.localeCompare(b.title, "uk"),
     );
-  const visible = inline ? shown.slice(page * 2, page * 2 + 2) : shown;
-  const pageCount = Math.max(1, Math.ceil(shown.length / 2));
   const content = (
     <>
       {inline && <h2 className="catalog-inline-title">Каталог рецептів</h2>}
@@ -148,7 +143,7 @@ export function RecipeCatalog({
       </div>
       {shown.length ? (
         <div className="recipe-catalog-grid">
-          {visible.map((recipe) => (
+          {shown.map((recipe) => (
             <article
               className={`catalog-card card${inline ? " catalog-card-inline" : ""}`}
               key={recipe.key}
@@ -210,27 +205,6 @@ export function RecipeCatalog({
           title="Такої страви ще немає"
           description="Спробуйте іншу назву або змініть фільтри."
         />
-      )}
-      {inline && shown.length > 2 && (
-        <div className="catalog-inline-pager" aria-label="Сторінки каталогу">
-          <button
-            type="button"
-            aria-label="Попередня сторінка каталогу"
-            disabled={page === 0}
-            onClick={() => setPage((value) => Math.max(0, value - 1))}
-          >
-            ‹
-          </button>
-          <span>{page + 1} / {pageCount}</span>
-          <button
-            type="button"
-            aria-label="Наступна сторінка каталогу"
-            disabled={page >= pageCount - 1}
-            onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))}
-          >
-            ›
-          </button>
-        </div>
       )}
     </>
   );

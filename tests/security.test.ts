@@ -68,6 +68,8 @@ beforeAll(async () => {
   await db.exec(
     readFileSync("supabase/migrations/009_places_wish_size.sql", "utf8"),
   );
+  await db.exec(readFileSync("supabase/migrations/010_pantry_amount_prefix.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/011_event_links.sql", "utf8"));
   await asUser(a);
 }, 60000);
 afterAll(async () => {
@@ -351,10 +353,12 @@ describe("Real PostgreSQL RLS and RPC, under authenticated roles", () => {
       `insert into public.events(couple_id,title,date,time,created_by) values('${couple}','Вечір кіно','2026-11-10','19:00','${a}')`,
     );
     await asUser(b);
-    await rows("update public.events set title='Кіно і попкорн'");
-    expect((await rows("select * from public.events"))[0].title).toBe(
-      "Кіно і попкорн",
-    );
+    await rows("update public.events set title='Кіно і попкорн',url='https://example.com/event'");
+    expect((await rows("select * from public.events"))[0]).toMatchObject({
+      title: "Кіно і попкорн",
+      url: "https://example.com/event",
+    });
+    await expect(rows("update public.events set url='http://example.com/event'")).rejects.toThrow(/check constraint/i);
   });
   it("shares saved places only inside the couple", async () => {
     await asUser(a);
@@ -676,7 +680,7 @@ describe("Shared recipe catalog, menu and atomic shopping", () => {
   it("uses the same Ukrainian grocery categories and excludes only pantry pepper", async () => {
     expect(
       await rows(
-        `select public.normalize_grocery_category('Молочні продукти') as legacy, public.valid_grocery_category('Солодощі') as sweets, public.valid_grocery_category('Молочні продукти') as old_allowed, public.is_pantry_staple('Перцю чорного') as pepper, public.is_pantry_staple('Олія, для смаження') as oil, public.is_pantry_staple('Воду') as water, public.is_pantry_staple('Меду') as honey, public.is_pantry_staple('Болгарський перець') as bell_pepper, public.is_pantry_staple('Масло вершкове') as butter`,
+        `select public.normalize_grocery_category('Молочні продукти') as legacy, public.valid_grocery_category('Солодощі') as sweets, public.valid_grocery_category('Молочні продукти') as old_allowed, public.is_pantry_staple('Перцю чорного') as pepper, public.is_pantry_staple('Олія, для смаження') as oil, public.is_pantry_staple('Воду') as water, public.is_pantry_staple('Меду') as honey, public.is_pantry_staple('Болгарський перець') as bell_pepper, public.is_pantry_staple('Масло вершкове') as butter, public.is_pantry_staple('4 ст. л. цукру;') as amount_sugar, public.is_pantry_staple('1/4 ч. л. солі') as fractional_salt, public.is_pantry_staple('50 мл меду для подачі') as amount_honey, public.is_pantry_staple('1 кг свинини') as pork, public.is_pantry_staple('1 ч. л. перцю болгарського') as bell_pepper_amount`,
       ),
     ).toEqual([
       {
@@ -689,6 +693,11 @@ describe("Shared recipe catalog, menu and atomic shopping", () => {
         honey: true,
         bell_pepper: false,
         butter: false,
+        amount_sugar: true,
+        fractional_salt: true,
+        amount_honey: true,
+        pork: false,
+        bell_pepper_amount: false,
       },
     ]);
   });

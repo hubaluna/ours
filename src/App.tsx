@@ -8,7 +8,6 @@ import {
   House,
   RefreshCw,
   ShoppingBag,
-  MapPin,
   WifiOff,
   X,
 } from "lucide-react";
@@ -26,7 +25,6 @@ const screens = {
   movies: () => import("./features/Movies"),
   wishes: () => import("./features/Wishes"),
   plans: () => import("./features/Plans"),
-  places: () => import("./features/Places"),
 };
 const Home = lazy(screens.home),
   Shopping = lazy(screens.shopping),
@@ -34,7 +32,6 @@ const Home = lazy(screens.home),
   Movies = lazy(screens.movies),
   Wishes = lazy(screens.wishes),
   Plans = lazy(screens.plans),
-  Places = lazy(screens.places),
   Settings = lazy(() => import("./features/Settings"));
 const tabs = [
   { id: "home", label: "Головна", icon: House },
@@ -43,7 +40,6 @@ const tabs = [
   { id: "movies", label: "Кіно", icon: Film },
   { id: "wishes", label: "Бажання", icon: Gift },
   { id: "plans", label: "Календар", icon: CalendarDays },
-  { id: "places", label: "Місця", icon: MapPin },
 ] as const;
 type MascotPose = "logo" | "nav" | null;
 function useOccasionalCat(): MascotPose {
@@ -251,8 +247,6 @@ export default function App() {
                       <Movies />
                     ) : tab === "wishes" ? (
                       <Wishes />
-                    ) : tab === "places" ? (
-                      <Places />
                     ) : (
                       <Plans />
                     )}

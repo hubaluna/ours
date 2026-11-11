@@ -2190,13 +2190,14 @@ p {
     font-size: 8px;
   }
   .sheet-backdrop {
-    padding: 12px 0 0;
+    padding: max(12px, env(safe-area-inset-top)) 12px
+      max(12px, env(safe-area-inset-bottom));
   }
   .sheet {
     padding-left: 21px;
     padding-right: 21px;
-    max-height: calc(100dvh - 12px);
-    border-radius: 30px 30px 0 0;
+    max-height: calc(100dvh - 24px);
+    border-radius: 26px;
   }
   .sheet-title h2 {
     font-size: 22px;
@@ -3640,10 +3641,16 @@ p {
   min-height: 0;
   flex-direction: column;
   gap: 5px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2px 3px 12px;
+  scrollbar-width: thin;
 }
 .catalog-inline-title {
   flex-shrink: 0;
   margin: 0;
+  padding: 1px 3px 2px;
+  overflow: visible;
   font-size: 13px;
   line-height: 1.3;
 }
@@ -3685,13 +3692,26 @@ p {
   line-height: 1.2;
 }
 .recipe-catalog-inline .recipe-catalog-grid {
-  flex: 1;
-  min-height: 0;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  flex: 0 0 auto;
+  min-height: min-content;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: 7px;
-  overflow: hidden;
+  overflow: visible;
   padding: 0;
+}
+.recipe-catalog-inline .catalog-card-inline {
+  min-height: 90px;
+  flex-direction: row;
+  align-items: stretch;
+}
+.recipe-catalog-inline .catalog-card-inline .catalog-card-main {
+  flex-direction: row;
+  align-items: center;
+}
+.recipe-catalog-inline .catalog-card-inline .catalog-card-image {
+  width: 92px;
+  height: 90px;
 }
 .catalog-card-inline {
   position: relative;
@@ -4018,9 +4038,6 @@ p {
   .menu-view-switch button {
     min-height: 27px;
   }
-  .catalog-inline-title {
-    display: none;
-  }
   .recipe-catalog-inline .catalog-controls {
     gap: 3px;
   }
@@ -4038,9 +4055,6 @@ p {
     height: 25px;
     border-radius: 8px;
   }
-  .catalog-inline-pager {
-    height: 27px;
-  }
   .meal-menu-panel .empty-state p {
     display: none;
   }
@@ -4052,9 +4066,6 @@ p {
   }
 }
 @media (max-height: 700px) {
-  .catalog-inline-title {
-    display: none;
-  }
   .catalog-card-inline .catalog-card-image {
     height: clamp(46px, 12vh, 78px);
   }

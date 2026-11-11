@@ -14,6 +14,7 @@ import {
 import { kyivDate } from "../lib/utils";
 import { groceryCategory } from "../../supabase/functions/_shared/grocery-category";
 import { quantityLabel } from "../lib/recipe-catalog";
+import { publicUrl } from "../../supabase/functions/_shared/urls";
 import { BottomSheet, Button, ConfirmDelete, Field } from "./ui";
 const textSchema = z
   .string()
@@ -458,6 +459,11 @@ export function EventForm({
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
+    const url = String(f.get("url") ?? "").trim();
+    if (url && !publicUrl(url)) {
+      setError("Посилання має бути публічним HTTPS-адресом.");
+      return;
+    }
     const parsed = textSchema.safeParse(String(f.get("title")));
     if (!parsed.success) {
       setError(parsed.error.issues[0].message);
@@ -469,6 +475,7 @@ export function EventForm({
       time: allDay ? null : String(f.get("time")) || null,
       all_day: allDay,
       location: String(f.get("location")),
+      url,
       description: String(f.get("description")),
       category: String(f.get("category")),
     };
@@ -539,6 +546,15 @@ export function EventForm({
             maxLength={300}
             defaultValue={event?.location}
             placeholder="Де зустрічаємось?"
+          />
+        </Field>
+        <Field label="Посилання · необов’язково">
+          <input
+            name="url"
+            type="url"
+            maxLength={2048}
+            defaultValue={event?.url}
+            placeholder="https://"
           />
         </Field>
         <Field label="Деталі">

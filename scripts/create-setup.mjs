@@ -9,6 +9,8 @@ const migrations = [
   "007_private_wishes.sql",
   "008_grocery_categories.sql",
   "009_places_wish_size.sql",
+  "010_pantry_amount_prefix.sql",
+  "011_event_links.sql",
 ];
 const body = migrations
   .map(
