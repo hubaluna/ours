@@ -19,11 +19,11 @@ export function createDemo(): Data {
       { id: "demo-mark", name: "Марк", avatar_path: null },
     ],
     shopping: [
-      ["Молоко", 1, "л", "Молочні продукти"],
+      ["Молоко", 1, "л", "Молочне"],
       ["Яйця", 10, "шт.", "Інше"],
-      ["Сир", 200, "г", "Молочні продукти"],
-      ["Хліб", 1, "шт.", "Бакалія"],
-      ["Куряче філе", 1, "кг", "М’ясо та риба"],
+      ["Сир", 200, "г", "Молочне"],
+      ["Хліб", 1, "шт.", "Хліб і випічка"],
+      ["Куряче філе", 1, "кг", "М’ясо, риба та яйця"],
     ].map(([name, quantity, unit, category], i) => ({
       id: `item-${i}`,
       couple_id: DEMO_COUPLE,
@@ -112,6 +112,8 @@ export function createDemo(): Data {
         note: "Бездротові навушники з шумозаглушенням. У теплому білому кольорі.",
         image_url: "",
         image_path: "illustration:headphones",
+        is_private: false,
+        size: "",
         created_at: now,
       },
       {
@@ -125,6 +127,8 @@ export function createDemo(): Data {
         note: "Щось про маленькі радощі щодня.",
         image_url: "",
         image_path: "illustration:book",
+        is_private: false,
+        size: "",
         created_at: now,
       },
       {
@@ -138,6 +142,23 @@ export function createDemo(): Data {
         note: "Кавові аксесуари для нашої кухні.",
         image_url: "",
         image_path: "illustration:coffee",
+        is_private: false,
+        size: "",
+        created_at: now,
+      },
+      {
+        id: "wish-4",
+        couple_id: DEMO_COUPLE,
+        owner_id: DEMO_USER,
+        name: "Теплий светр",
+        price: 2100,
+        url: "https://example.com/sweater",
+        priority: "Просто хочу",
+        note: "М’який светр на осінь.",
+        image_url: "",
+        image_path: "illustration:sweater",
+        is_private: true,
+        size: "M",
         created_at: now,
       },
     ],
@@ -183,6 +204,7 @@ export function createDemo(): Data {
         created_at: now,
       },
     ],
+    places: [],
     history: [],
   };
 }
@@ -212,6 +234,7 @@ export function readDemo(): Data {
           movies: Array.isArray(data.movies)
             ? data.movies
             : createDemo().movies,
+          places: Array.isArray(data.places) ? data.places : [],
           activities: Array.isArray(data.activities)
             ? data.activities
             : createDemo().activities,
@@ -219,6 +242,8 @@ export function readDemo(): Data {
           wishes: data.wishes.map((w) => ({
             ...w,
             image_url: w.image_url ?? "",
+            is_private: w.is_private ?? false,
+            size: w.size ?? "",
           })),
         };
     }

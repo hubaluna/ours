@@ -164,18 +164,22 @@ export default function Movies() {
               </div>
               <p>{ratingMovie.title}</p>
               <fieldset className="rating-picker">
-                <legend>Ваша оцінка від 1 до 10</legend>
-                <div>
-                  {Array.from({ length: 10 }, (_, i) => i + 1).map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      aria-pressed={rating === value}
-                      onClick={() => setRating(value)}
-                    >
-                      {value}
-                    </button>
-                  ))}
+                <legend>Оцінка · від 1 до 10</legend>
+                <div className="rating-control">
+                  <input
+                    type="range"
+                    aria-label="Оцінка фільму"
+                    aria-valuetext={rating === null ? "Не оцінено" : `${rating} з 10`}
+                    min={1}
+                    max={10}
+                    step={1}
+                    value={rating ?? 5}
+                    onChange={(event) => setRating(Number(event.target.value))}
+                  />
+                  <output aria-live="polite">{rating ?? "—"}<small>/10</small></output>
+                </div>
+                <div className="rating-scale" aria-hidden="true">
+                  <span>1</span><span>5</span><span>10</span>
                 </div>
               </fieldset>
             </div>

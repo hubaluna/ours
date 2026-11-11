@@ -287,8 +287,13 @@ export function WishForm({
       return;
     }
     const url = String(f.get("url"));
+    const size = String(f.get("size") ?? "").trim();
     if (url && !z.url({ protocol: /^https?$/ }).safeParse(url).success) {
       setError("Додайте повне посилання, що починається з https://");
+      return;
+    }
+    if (size.length > 120) {
+      setError("Розмір або варіант має бути до 120 символів.");
       return;
     }
     const value = {
@@ -297,8 +302,10 @@ export function WishForm({
       url,
       priority: String(f.get("priority")),
       note: String(f.get("note")),
+      size,
       image_path: image,
       image_url: seed?.image_url ?? "",
+      is_private: f.get("is_private") === "on",
     };
     const ok = wish
       ? await update("wishes", wish.id, value, "Бажання збережено")
@@ -383,12 +390,31 @@ export function WishForm({
             </select>
           </Field>
         </div>
+        <label className="private-wish-setting">
+          <input
+            type="checkbox"
+            name="is_private"
+            defaultChecked={seed?.is_private ?? false}
+          />
+          <span>
+            <strong>Лише для мене</strong>
+            <small>Партнер не побачить це бажання чи його фотографію.</small>
+          </span>
+        </label>
         <Field label="Посилання на товар">
           <input
             name="url"
             type="url"
             defaultValue={seed?.url}
             placeholder="https://"
+          />
+        </Field>
+        <Field label="Розмір / варіант">
+          <input
+            name="size"
+            maxLength={120}
+            defaultValue={seed?.size ?? ""}
+            placeholder="Наприклад, M, 38 або 250 мл"
           />
         </Field>
         <Field label="Кілька слів">

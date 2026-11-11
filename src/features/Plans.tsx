@@ -28,6 +28,8 @@ export default function Plans() {
       () => new Date(`${today.slice(0, 7)}-01T12:00:00`),
     ),
     [form, setForm] = useState<Plan | "new" | null>(null),
+    [detail, setDetail] = useState<Plan | null>(null),
+    [showDescription, setShowDescription] = useState(false),
     [expanded, setExpanded] = useState(false);
   const year = month.getFullYear(),
     mo = month.getMonth(),
@@ -183,7 +185,10 @@ export default function Plans() {
                 <button
                   className="calendar-event-row"
                   key={event.id}
-                  onClick={() => setForm(event)}
+                  onClick={() => {
+                    setDetail(event);
+                    setShowDescription(false);
+                  }}
                 >
                   <span className="event-icon">
                     <CalendarDays size={19} />
@@ -227,6 +232,53 @@ export default function Plans() {
             event={form === "new" ? undefined : form}
             onClose={() => setForm(null)}
           />
+        ) : detail ? (
+          <BottomSheet
+            key="event-detail"
+            title={detail.title}
+            onClose={() => setDetail(null)}
+          >
+            <div className="event-detail-compact">
+              <p>
+                <CalendarDays size={16} />
+                {longDate(detail.date)}
+              </p>
+              <p>
+                <Clock3 size={16} />
+                {detail.all_day
+                  ? "Увесь день"
+                  : detail.time?.slice(0, 5) || "Без часу"}
+              </p>
+              {detail.description && (
+                <>
+                  <Button
+                    className="secondary"
+                    aria-expanded={showDescription}
+                    onClick={() => setShowDescription((open) => !open)}
+                  >
+                    {showDescription ? "Сховати довідку" : "Довідково"}
+                    <ChevronDown
+                      size={16}
+                      className={showDescription ? "rotated" : ""}
+                    />
+                  </Button>
+                  {showDescription && (
+                    <p className="event-description-expanded">
+                      {detail.description}
+                    </p>
+                  )}
+                </>
+              )}
+              <Button
+                onClick={() => {
+                  setForm(detail);
+                  setDetail(null);
+                }}
+              >
+                Редагувати план
+              </Button>
+            </div>
+          </BottomSheet>
         ) : expanded ? (
           <BottomSheet
             key="month-sheet"

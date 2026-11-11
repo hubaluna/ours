@@ -423,4 +423,617 @@ alter table public.recipes add constraint recipes_instructions_check check (
 );
 
 
+-- 007_private_wishes.sql
+
+-- A wish is shared by default. Private rows are visible only to their owner.
+alter table public.wishes
+  add column if not exists is_private boolean not null default false,
+  add column if not exists is_deleted boolean not null default false;
+create index if not exists wishes_private_owner
+  on public.wishes(couple_id, owner_id, created_at desc)
+  where is_private;
+
+-- Keep private image paths private even after a wish is deleted or its image
+-- is replaced. Removing the Storage object cascades and removes its marker.
+create table if not exists public.private_wish_images (
+  object_id uuid primary key references storage.objects(id) on delete cascade,
+  couple_id uuid not null references public.couples(id) on delete cascade,
+  owner_id uuid not null,
+  created_at timestamptz not null default now()
+);
+alter table public.private_wish_images enable row level security;
+revoke all on public.private_wish_images from public, anon, authenticated;
+
+create or replace function public.mark_private_wish_image(
+  p_path text,
+  p_couple uuid,
+  p_owner uuid
+)
+returns void
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  v_object uuid;
+begin
+  if p_path is null or p_path = '' then return; end if;
+  select o.id into v_object
+  from storage.objects o
+  where o.bucket_id = 'photos'
+    and o.name = p_path
+    and (storage.foldername(o.name))[1] = p_couple::text
+    and (storage.foldername(o.name))[2] = p_owner::text
+  limit 1;
+  if v_object is not null then
+    insert into public.private_wish_images(object_id, couple_id, owner_id)
+    values (v_object, p_couple, p_owner)
+    on conflict (object_id) do nothing;
+  end if;
+end
+$$;
+
+create or replace function public.track_private_wish_image()
+returns trigger
+language plpgsql security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if new.is_private then
+      perform public.mark_private_wish_image(new.image_path, new.couple_id, new.owner_id);
+    else
+      perform public.unmark_private_wish_image(new.image_path, new.owner_id, new.id);
+    end if;
+    return new;
+  elsif tg_op = 'UPDATE' then
+    if new.is_private then
+      perform public.mark_private_wish_image(new.image_path, new.couple_id, new.owner_id);
+    else
+      if old.is_private then
+        perform public.unmark_private_wish_image(old.image_path, old.owner_id, old.id);
+      end if;
+      perform public.unmark_private_wish_image(new.image_path, new.owner_id, new.id);
+    end if;
+    return new;
+  end if;
+  -- Keep the marker after a private wish is deleted; its orphaned image is
+  -- private until the corresponding Storage object is explicitly removed.
+  return old;
+end
+$$;
+revoke all on function public.mark_private_wish_image(text, uuid, uuid) from public, anon, authenticated;
+
+create or replace function public.unmark_private_wish_image(
+  p_path text,
+  p_owner uuid,
+  p_wish uuid
+)
+returns void
+language plpgsql security definer
+set search_path = ''
+as $$
+begin
+  if p_path is null or p_path = '' then return; end if;
+  delete from public.private_wish_images p
+  using storage.objects o
+  where p.object_id = o.id
+    and o.bucket_id = 'photos'
+    and o.name = p_path
+    and p.owner_id = p_owner
+    and not exists (
+      select 1 from public.wishes w
+      where w.id <> p_wish
+        and w.is_private
+        and w.owner_id = p_owner
+        and w.image_path = p_path
+    );
+  return;
+end
+$$;
+revoke all on function public.unmark_private_wish_image(text, uuid, uuid) from public, anon, authenticated;
+revoke all on function public.track_private_wish_image() from public, anon, authenticated;
+drop trigger if exists wishes_track_private_image on public.wishes;
+create trigger wishes_track_private_image
+  after insert or update or delete on public.wishes
+  for each row execute function public.track_private_wish_image();
+
+-- Storage uploads may finish after the wish form is saved. Mark a later
+-- upload too, so the private image never becomes readable in that interval.
+create or replace function public.track_private_wish_storage_object()
+returns trigger
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  v_couple uuid;
+  v_owner uuid;
+begin
+  if new.bucket_id <> 'photos' then return new; end if;
+  begin
+    v_couple := ((storage.foldername(new.name))[1])::uuid;
+    v_owner := ((storage.foldername(new.name))[2])::uuid;
+  exception when others then
+    return new;
+  end;
+  if exists (
+    select 1 from public.wishes w
+    where w.is_private and w.couple_id = v_couple and w.owner_id = v_owner
+      and w.image_path = new.name
+  ) then
+    perform public.mark_private_wish_image(new.name, v_couple, v_owner);
+  end if;
+  return new;
+end
+$$;
+revoke all on function public.track_private_wish_storage_object() from public, anon, authenticated;
+drop trigger if exists storage_track_private_wish_image on storage.objects;
+create trigger storage_track_private_wish_image
+  after insert on storage.objects
+  for each row execute function public.track_private_wish_storage_object();
+
+drop policy if exists wishes_read on public.wishes;
+create policy wishes_read on public.wishes
+  for select to authenticated
+  using (
+    couple_id = public.current_couple()
+    and not is_deleted
+    and (not is_private or owner_id = auth.uid())
+  );
+
+-- A private-wish image path must not be readable by the other member of the
+-- couple, even through a direct query to storage.objects.
+create or replace function public.is_private_wish_image(p_path text)
+returns boolean
+language sql stable security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.private_wish_images p
+    join storage.objects o on o.id = p.object_id
+    where o.bucket_id = 'photos'
+      and o.name = p_path
+      and p.owner_id <> auth.uid()
+  )
+$$;
+revoke all on function public.is_private_wish_image(text) from public, anon;
+grant execute on function public.is_private_wish_image(text) to authenticated;
+
+drop policy if exists photos_read on storage.objects;
+create policy photos_read on storage.objects
+  for select to authenticated
+  using (
+    bucket_id = 'photos'
+    and (storage.foldername(name))[1] = public.current_couple()::text
+    and not public.is_private_wish_image(name)
+  );
+
+-- Reservation rows must not expose or modify a gift against a private wish.
+drop policy if exists reservation_read on public.gift_reservations;
+create policy reservation_read on public.gift_reservations
+  for select to authenticated
+  using (
+    reserved_by = auth.uid()
+    and exists (
+      select 1 from public.wishes w
+      where w.id = wish_id
+        and w.couple_id = public.current_couple()
+        and w.owner_id <> auth.uid()
+        and not w.is_private
+    )
+  );
+
+drop policy if exists reservation_insert on public.gift_reservations;
+create policy reservation_insert on public.gift_reservations
+  for insert to authenticated
+  with check (
+    reserved_by = auth.uid()
+    and exists (
+      select 1 from public.wishes w
+      where w.id = wish_id
+        and w.couple_id = public.current_couple()
+        and w.owner_id <> auth.uid()
+        and not w.is_private
+    )
+  );
+
+drop policy if exists reservation_update on public.gift_reservations;
+create policy reservation_update on public.gift_reservations
+  for update to authenticated
+  using (
+    reserved_by = auth.uid()
+    and exists (
+      select 1 from public.wishes w
+      where w.id = wish_id
+        and w.couple_id = public.current_couple()
+        and w.owner_id <> auth.uid()
+        and not w.is_private
+    )
+  )
+  with check (
+    reserved_by = auth.uid()
+    and exists (
+      select 1 from public.wishes w
+      where w.id = wish_id
+        and w.couple_id = public.current_couple()
+        and w.owner_id <> auth.uid()
+        and not w.is_private
+    )
+  );
+
+drop policy if exists reservation_delete on public.gift_reservations;
+create policy reservation_delete on public.gift_reservations
+  for delete to authenticated
+  using (
+    reserved_by = auth.uid()
+    and exists (
+      select 1 from public.wishes w
+      where w.id = wish_id
+        and w.couple_id = public.current_couple()
+        and w.owner_id <> auth.uid()
+        and not w.is_private
+    )
+  );
+
+grant update(is_private) on public.wishes to authenticated;
+
+-- Do not publish wish DELETE rows: Realtime sends DELETE payloads without
+-- row-level filtering. The owner-only RPC below tombstones and scrubs content.
+create or replace function public.delete_wish(p_wish_id uuid)
+returns void
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  v_couple uuid := public.current_couple();
+begin
+  update public.wishes
+  set is_private = true,
+      is_deleted = true,
+      name = 'Видалене побажання',
+      price = null,
+      url = '',
+      note = '',
+      image_path = null
+  where id = p_wish_id
+    and couple_id = v_couple
+    and owner_id = auth.uid()
+    and not is_deleted;
+  if not found then raise exception 'wish_not_found'; end if;
+  delete from public.gift_reservations where wish_id = p_wish_id;
+end
+$$;
+revoke all on function public.delete_wish(uuid) from public, anon;
+grant execute on function public.delete_wish(uuid) to authenticated;
+revoke delete on public.wishes from authenticated;
+
+-- Hidden wishes never create shared activity entries. A public-to-private
+-- change may announce removal of the formerly visible wish, but subsequent
+-- edits or deletion of the private row stay silent.
+create or replace function public.log_shared_activity()
+returns trigger
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  r jsonb;
+  v_kind text;
+  v_action text;
+  v_visible boolean := true;
+begin
+  if auth.uid() is null or current_setting('ours.skip_activity', true) = 'on' then
+    return null;
+  end if;
+
+  if tg_table_name = 'wishes' then
+    if tg_op = 'INSERT' then
+      v_visible := not new.is_private;
+    elsif tg_op = 'DELETE' then
+      v_visible := not old.is_private;
+    else
+      v_visible := not new.is_private or not old.is_private;
+      if not old.is_private and new.is_private then
+        delete from public.gift_reservations where wish_id = old.id;
+        -- activity_events is published without row-level filtering. Replace
+        -- the old identity with a generic row instead of emitting a DELETE
+        -- payload that still contains the former title and wish UUID.
+        update public.activity_events
+        set title = 'Побажання оновлено', entity_id = null, action = 'updated'
+        where couple_id = old.couple_id
+          and kind = 'wishes'
+          and entity_id = old.id;
+        return null;
+      end if;
+    end if;
+    if not v_visible then return null; end if;
+  end if;
+
+  if tg_op = 'UPDATE' and tg_table_name = 'shopping_items' then
+    if new.session_id is distinct from old.session_id or new.session_id is not null then
+      return null;
+    end if;
+  end if;
+
+  if tg_op = 'DELETE' then r := to_jsonb(old); else r := to_jsonb(new); end if;
+  v_kind := case tg_table_name when 'shopping_items' then 'shopping' else tg_table_name end;
+  v_action := case tg_op when 'INSERT' then 'added' when 'DELETE' then 'deleted' else 'updated' end;
+  if tg_op = 'UPDATE' and tg_table_name = 'shopping_items' and (r->>'purchased')::boolean then
+    v_action := 'purchased';
+  end if;
+  insert into public.activity_events(couple_id, actor_id, kind, action, entity_id, title)
+  values (
+    (r->>'couple_id')::uuid,
+    auth.uid(),
+    v_kind,
+    v_action,
+    (r->>'id')::uuid,
+    left(coalesce(r->>'name', r->>'title', 'Оновлення'), 160)
+  );
+  return null;
+end
+$$;
+
+
+-- 008_grocery_categories.sql
+
+-- Keep every persisted grocery/category payload on the same small Ukrainian
+-- taxonomy. Translate legacy names before tightening the checks.
+create or replace function public.normalize_grocery_category(p_category text)
+returns text
+language sql immutable
+set search_path = ''
+as $$
+  select case p_category
+    when 'М’ясо та риба' then 'М’ясо, риба та яйця'
+    when 'Молочні продукти' then 'Молочне'
+    when 'Бакалія' then 'Крупи, макарони та бакалія'
+    when 'Побутові товари' then 'Побутове й гігієна'
+    when 'Овочі та фрукти' then 'Овочі та фрукти'
+    when 'М’ясо, риба та яйця' then 'М’ясо, риба та яйця'
+    when 'Молочне' then 'Молочне'
+    when 'Хліб і випічка' then 'Хліб і випічка'
+    when 'Крупи, макарони та бакалія' then 'Крупи, макарони та бакалія'
+    when 'Консервація й соуси' then 'Консервація й соуси'
+    when 'Заморожене' then 'Заморожене'
+    when 'Солодощі' then 'Солодощі'
+    when 'Снеки' then 'Снеки'
+    when 'Напої' then 'Напої'
+    when 'Побутове й гігієна' then 'Побутове й гігієна'
+    else 'Інше'
+  end
+$$;
+
+create or replace function public.valid_grocery_category(p_category text)
+returns boolean
+language sql immutable
+set search_path = ''
+as $$
+  select p_category = any(array[
+    'Овочі та фрукти', 'М’ясо, риба та яйця', 'Молочне',
+    'Хліб і випічка', 'Крупи, макарони та бакалія',
+    'Консервація й соуси', 'Заморожене', 'Солодощі', 'Снеки',
+    'Напої', 'Побутове й гігієна', 'Інше'
+  ]::text[])
+$$;
+
+create or replace function public.normalize_grocery_ingredients(p_items jsonb)
+returns jsonb
+language sql immutable
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(
+    jsonb_set(i.value, '{category}', to_jsonb(public.normalize_grocery_category(i.value->>'category')), true)
+    order by i.ordinality
+  ), '[]'::jsonb)
+  from jsonb_array_elements(case when jsonb_typeof(p_items) = 'array' then p_items else '[]'::jsonb end)
+    with ordinality as i(value, ordinality)
+$$;
+
+alter table public.shopping_items drop constraint if exists shopping_items_category_check;
+update public.shopping_items
+set category = public.normalize_grocery_category(category)
+where not public.valid_grocery_category(category);
+alter table public.shopping_items add constraint shopping_items_category_check
+  check (public.valid_grocery_category(category));
+
+update public.shopping_product_history
+set category = public.normalize_grocery_category(category)
+where not public.valid_grocery_category(category);
+alter table public.shopping_product_history drop constraint if exists shopping_product_history_category_check;
+alter table public.shopping_product_history add constraint shopping_product_history_category_check
+  check (public.valid_grocery_category(category));
+
+create or replace function public.valid_menu_ingredients(p_items jsonb)
+returns boolean
+language sql immutable
+set search_path = ''
+as $$
+  select jsonb_typeof(p_items) = 'array'
+    and jsonb_array_length(p_items) between 1 and 80
+    and octet_length(p_items::text) <= 40000
+    and not exists (
+      select 1
+      from jsonb_array_elements(case when jsonb_typeof(p_items) = 'array' then p_items else '[]'::jsonb end) i
+      where jsonb_typeof(i) <> 'object'
+        or jsonb_typeof(i->'name') is distinct from 'string'
+        or length(btrim(i->>'name')) not between 1 and 160
+        or coalesce(i->>'unit','') not in ('г','кг','мл','л','шт.','уп.','зубчик','за смаком','за рецептом')
+        or not public.valid_grocery_category(i->>'category')
+        or not case
+          when i->>'unit' in ('за смаком','за рецептом') then i->'quantity' is not distinct from 'null'::jsonb
+          when jsonb_typeof(i->'quantity') = 'number' then (i->>'quantity')::numeric >= 0 and (i->>'quantity')::numeric < 1000000
+          else false
+        end
+    )
+$$;
+
+update public.recipes
+set structured_ingredients = public.normalize_grocery_ingredients(structured_ingredients)
+where structured_ingredients is not null;
+update public.recipe_catalog
+set ingredients = public.normalize_grocery_ingredients(ingredients);
+update public.meal_plan_items
+set ingredients = public.normalize_grocery_ingredients(ingredients);
+
+create or replace function public.is_pantry_staple(p_name text)
+returns boolean
+language sql immutable
+set search_path = ''
+as $$
+  select
+    regexp_replace(lower(btrim(coalesce(p_name, ''))), '[[:punct:][:space:]]+', ' ', 'g')
+      ~* '^(сіль|солі|salt|цукор|цукру|sugar|мед|меду|honey|оцет|оцту|vinegar|вода|води|воду|water|олія|олії|олію|оливкова олія|оливкової олії|соняшникова олія|соняшникової олії|olive oil|sunflower oil)( [[:alnum:]].*)?$'
+    or regexp_replace(lower(btrim(coalesce(p_name, ''))), '[[:punct:][:space:]]+', ' ', 'g')
+      ~* '^(перець|перцю)( (чорний|чорного|мелений|меленого|горошком|black pepper|pepper)( [[:alnum:]].*)?)?$'
+$$;
+
+create or replace function public.sync_menu_shopping(p_couple uuid)
+returns void
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  desired jsonb;
+  excluded_keys text[];
+  previous_skip text := coalesce(current_setting('ours.skip_activity', true), 'off');
+  previous_sync text := coalesce(current_setting('ours.sync_menu', true), 'off');
+begin
+  select menu_excluded_keys into excluded_keys
+  from public.couples where id = p_couple for update;
+  if not found then return; end if;
+  perform set_config('ours.skip_activity', 'on', true);
+  perform set_config('ours.sync_menu', 'on', true);
+
+  select coalesce(jsonb_agg(to_jsonb(grouped)), '[]'::jsonb) into desired
+  from (
+    select
+      md5(regexp_replace(translate(lower(btrim(i.name)), chr(8217)||chr(96), chr(39)||chr(39)), '[[:space:]]+', ' ', 'g') || chr(10) || i.unit) as menu_key,
+      min(btrim(i.name)) as name,
+      round(sum(i.quantity * m.servings / m.base_servings), 3) as quantity,
+      i.unit,
+      min(i.category) as category
+    from public.meal_plan_items m
+    cross join lateral jsonb_to_recordset(m.ingredients) as i(name text, quantity numeric, unit text, category text)
+    where m.couple_id = p_couple
+      and not m.shopping_completed
+      and (i.quantity is null or i.quantity > 0)
+    group by regexp_replace(translate(lower(btrim(i.name)), chr(8217)||chr(96), chr(39)||chr(39)), '[[:space:]]+', ' ', 'g'), i.unit
+  ) grouped
+  where not public.is_pantry_staple(grouped.name)
+    and not (grouped.menu_key = any(excluded_keys));
+
+  update public.shopping_items
+  set menu_key = null
+  where couple_id = p_couple and session_id is null and menu_key is not null and purchased
+    and not exists (select 1 from jsonb_array_elements(desired) d where d->>'menu_key' = shopping_items.menu_key);
+  delete from public.shopping_items
+  where couple_id = p_couple and session_id is null and menu_key is not null and not purchased
+    and not exists (select 1 from jsonb_array_elements(desired) d where d->>'menu_key' = shopping_items.menu_key);
+  insert into public.shopping_items(couple_id, added_by, menu_key, name, quantity, unit, category)
+  select p_couple, coalesce(auth.uid(), (select created_by from public.couples where id = p_couple)), d.menu_key, d.name, d.quantity, d.unit, d.category
+  from jsonb_to_recordset(desired) as d(menu_key text, name text, quantity numeric, unit text, category text)
+  on conflict(couple_id, menu_key) where session_id is null and menu_key is not null do update
+    set name = excluded.name, quantity = excluded.quantity, unit = excluded.unit, category = excluded.category,
+        purchased = shopping_items.purchased and ((shopping_items.quantity is null and excluded.quantity is null) or shopping_items.quantity >= excluded.quantity)
+    where row(shopping_items.name, shopping_items.quantity, shopping_items.unit, shopping_items.category)
+      is distinct from row(excluded.name, excluded.quantity, excluded.unit, excluded.category);
+  perform set_config('ours.skip_activity', previous_skip, true);
+  perform set_config('ours.sync_menu', previous_sync, true);
+end
+$$;
+
+create or replace function public.add_shopping_batch(p_items jsonb)
+returns integer
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  v_couple uuid := public.current_couple();
+  n integer;
+  previous_skip text := coalesce(current_setting('ours.skip_activity', true), 'off');
+begin
+  if v_couple is null then raise exception 'authentication required'; end if;
+  if jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) not between 1 and 80 then
+    raise exception 'invalid ingredients';
+  end if;
+  perform set_config('ours.skip_activity', 'on', true);
+  insert into public.shopping_items(couple_id, added_by, name, quantity, unit, category, price)
+  select v_couple, auth.uid(), x.name, x.quantity, x.unit, x.category, x.price
+  from jsonb_to_recordset(p_items) as x(name text, quantity numeric, unit text, category text, price numeric)
+  where not public.is_pantry_staple(x.name);
+  get diagnostics n = row_count;
+  perform set_config('ours.skip_activity', previous_skip, true);
+  if n > 0 then
+    insert into public.activity_events(couple_id, actor_id, kind, action, title)
+    values(v_couple, auth.uid(), 'shopping', 'added', 'Продукти з рецепта · ' || n::text);
+  end if;
+  return n;
+end
+$$;
+
+-- Remove newly excluded pantry staples from existing generated menu rows;
+-- manual and purchased shopping rows are preserved by the sync routine.
+do $$
+declare
+  r record;
+begin
+  for r in select id from public.couples loop
+    perform public.sync_menu_shopping(r.id);
+  end loop;
+end
+$$;
+
+
+-- 009_places_wish_size.sql
+
+alter table public.wishes
+  add column if not exists size text not null default '' check (length(size) <= 120);
+grant update(size) on public.wishes to authenticated;
+
+create table if not exists public.places (
+  id uuid primary key default gen_random_uuid(),
+  couple_id uuid not null references public.couples(id) on delete cascade,
+  title text not null check (length(btrim(title)) between 1 and 160),
+  type text not null check (type in ('Кінотеатр','Театр','Музей','Виставка','Парк','Зоопарк','Інше')),
+  address text not null default '' check (length(address) <= 300),
+  url text not null default '' check (url = '' or (url ~ '^https://' and length(url) <= 2048)),
+  planned_date date,
+  description text not null default '' check (length(description) <= 2000),
+  created_by uuid not null references public.profiles(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists places_couple_date on public.places(couple_id, planned_date, created_at desc);
+alter table public.places enable row level security;
+revoke all on public.places from anon, authenticated;
+grant select, insert, update, delete on public.places to authenticated;
+drop policy if exists places_read on public.places;
+create policy places_read on public.places
+  for select to authenticated using (couple_id = public.current_couple());
+drop policy if exists places_insert on public.places;
+create policy places_insert on public.places
+  for insert to authenticated with check (couple_id = public.current_couple() and created_by = auth.uid());
+drop policy if exists places_update on public.places;
+create policy places_update on public.places
+  for update to authenticated using (couple_id = public.current_couple())
+  with check (couple_id = public.current_couple());
+drop policy if exists places_delete on public.places;
+create policy places_delete on public.places
+  for delete to authenticated using (couple_id = public.current_couple());
+drop trigger if exists touch_updated on public.places;
+create trigger touch_updated before update on public.places
+  for each row execute function public.touch_updated_at();
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'places'
+  ) then
+    alter publication supabase_realtime add table public.places;
+  end if;
+end
+$$;
+
+
 commit;

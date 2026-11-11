@@ -8,6 +8,7 @@ import {
   House,
   RefreshCw,
   ShoppingBag,
+  MapPin,
   WifiOff,
   X,
 } from "lucide-react";
@@ -25,6 +26,7 @@ const screens = {
   movies: () => import("./features/Movies"),
   wishes: () => import("./features/Wishes"),
   plans: () => import("./features/Plans"),
+  places: () => import("./features/Places"),
 };
 const Home = lazy(screens.home),
   Shopping = lazy(screens.shopping),
@@ -32,6 +34,7 @@ const Home = lazy(screens.home),
   Movies = lazy(screens.movies),
   Wishes = lazy(screens.wishes),
   Plans = lazy(screens.plans),
+  Places = lazy(screens.places),
   Settings = lazy(() => import("./features/Settings"));
 const tabs = [
   { id: "home", label: "Головна", icon: House },
@@ -40,7 +43,62 @@ const tabs = [
   { id: "movies", label: "Кіно", icon: Film },
   { id: "wishes", label: "Бажання", icon: Gift },
   { id: "plans", label: "Календар", icon: CalendarDays },
+  { id: "places", label: "Місця", icon: MapPin },
 ] as const;
+type MascotPose = "logo" | "nav" | null;
+function useOccasionalCat(): MascotPose {
+  const [pose, setPose] = useState<MascotPose>(null);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let moments = 0,
+      showTimer: number | undefined,
+      hideTimer: number | undefined;
+    const isBusy = () =>
+      document.visibilityState !== "visible" ||
+      Boolean(document.querySelector('[role="dialog"], [aria-modal="true"]')) ||
+      Boolean(
+        document.activeElement?.matches(
+          "input, textarea, select, [contenteditable='true']",
+        ),
+      );
+    const schedule = () => {
+      showTimer = window.setTimeout(() => {
+        if (isBusy()) {
+          moments++;
+          schedule();
+          return;
+        }
+        setPose(moments % 2 === 0 ? "logo" : "nav");
+        hideTimer = window.setTimeout(() => {
+          setPose(null);
+          moments++;
+          schedule();
+        }, 8000);
+      }, moments === 0 ? 50000 : 65000);
+    };
+    const pause = () => {
+      if (isBusy()) setPose(null);
+    };
+    document.addEventListener("focusin", pause);
+    document.addEventListener("visibilitychange", pause);
+    const observer = new MutationObserver(pause);
+    observer.observe(document.body, {
+      attributes: true,
+      childList: true,
+      subtree: true,
+      attributeFilter: ["role", "aria-modal"],
+    });
+    schedule();
+    return () => {
+      if (showTimer) window.clearTimeout(showTimer);
+      if (hideTimer) window.clearTimeout(hideTimer);
+      document.removeEventListener("focusin", pause);
+      document.removeEventListener("visibilitychange", pause);
+      observer.disconnect();
+    };
+  }, []);
+  return pose;
+}
 export default function App() {
   const {
     demo,
@@ -56,6 +114,7 @@ export default function App() {
     refresh,
   } = useApp();
   const { theme, setTheme } = useTheme();
+  const mascot = useOccasionalCat();
   const [tab, setTab] = useState<Tab>("home"),
     [settings, setSettings] = useState(false);
   const {
@@ -109,6 +168,21 @@ export default function App() {
         )
       ) : (
         <div className="app-shell">
+          <AnimatePresence>
+            {mascot && (
+              <motion.img
+                key={mascot}
+                className={`app-mascot app-mascot-${mascot}`}
+                src={`${import.meta.env.BASE_URL}art/${mascot === "logo" ? "cat-sitting.webp" : "cat-nav-peek.webp"}`}
+                alt=""
+                aria-hidden="true"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 4 }}
+                transition={{ duration: 0.45 }}
+              />
+            )}
+          </AnimatePresence>
           <header className="app-header">
             <button
               className="brand"
@@ -177,6 +251,8 @@ export default function App() {
                       <Movies />
                     ) : tab === "wishes" ? (
                       <Wishes />
+                    ) : tab === "places" ? (
+                      <Places />
                     ) : (
                       <Plans />
                     )}

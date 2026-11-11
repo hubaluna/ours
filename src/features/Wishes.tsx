@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence } from "motion/react";
 import {
   Check,
   ChevronRight,
+  Download,
   ExternalLink,
   Gift,
   Link2,
@@ -30,7 +31,7 @@ import {
   ScreenHeader,
 } from "../components/Compact";
 import { LinkImport } from "../components/LinkImportLoader";
-function WishImage({ wish }: { wish: Wish }) {
+function WishImage({ wish, eager = false }: { wish: Wish; eager?: boolean }) {
   const image = useImage(wish.image_path),
     [failedUrl, setFailedUrl] = useState("");
   const url = image || publicUrl(wish.image_url || "");
@@ -41,7 +42,7 @@ function WishImage({ wish }: { wish: Wish }) {
           src={url}
           alt={wish.name}
           referrerPolicy="no-referrer"
-          loading="lazy"
+          loading={eager ? "eager" : "lazy"}
           onError={() => setFailedUrl(url)}
         />
       ) : (
@@ -108,10 +109,50 @@ export default function Wishes() {
     [detail, setDetail] = useState<Wish | null>(null),
     [form, setForm] = useState<Wish | "new" | null>(null),
     [initial, setInitial] = useState<Partial<NewWish>>(),
+    [exporting, setExporting] = useState(false),
+    [exportSelection, setExportSelection] = useState<string[]>([]),
+    [printItems, setPrintItems] = useState<Wish[]>([]),
     [importing, setImporting] = useState(false);
-  const wishes = data.wishes.filter((w) =>
-    view === "mine" ? w.owner_id === userId : w.owner_id !== userId,
+  const wishes = data.wishes.filter(
+    (w) =>
+      !w.is_deleted &&
+      (view === "mine"
+        ? w.owner_id === userId
+        : w.owner_id !== userId && !w.is_private),
   );
+  useEffect(() => {
+    if (!printItems.length) return;
+    let cancelled = false;
+    const afterPaint = () => {
+      const images = Array.from(
+        document.querySelectorAll<HTMLImageElement>(
+          ".wishlist-print-sheet img",
+        ),
+      );
+      const ready = Promise.all(
+        images.map((image) =>
+          image.complete
+            ? Promise.resolve()
+            : new Promise<void>((resolve) => {
+                image.addEventListener("load", () => resolve(), { once: true });
+                image.addEventListener("error", () => resolve(), { once: true });
+                window.setTimeout(resolve, 2500);
+              }),
+        ),
+      );
+      void ready.then(() => {
+        if (!cancelled) window.print();
+      });
+    };
+    const timer = window.setTimeout(afterPaint, 250);
+    const finish = () => setPrintItems([]);
+    window.addEventListener("afterprint", finish);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      window.removeEventListener("afterprint", finish);
+    };
+  }, [printItems]);
   const receive = (r: LinkMetadata) => {
     setInitial({
       name: r.title,
@@ -130,6 +171,17 @@ export default function Wishes() {
       <ScreenHeader title="Бажання" subtitle="Невеликі підказки для радості">
         {view === "mine" && (
           <>
+            {wishes.length > 0 && (
+              <IconButton
+                label="Експорт бажань у PDF"
+                onClick={() => {
+                  setExportSelection(wishes.map((wish) => wish.id));
+                  setExporting(true);
+                }}
+              >
+                <Download size={18} />
+              </IconButton>
+            )}
             <IconButton
               label="Імпорт бажання"
               onClick={() => setImporting(true)}
@@ -183,6 +235,11 @@ export default function Wishes() {
               <WishImage wish={wish} />
               <div>
                 <span className="row-kicker">{wish.priority}</span>
+                {wish.is_private && (
+                  <span className="private-wish-badge">
+                    <LockKeyhole size={11} /> Лише я
+                  </span>
+                )}
                 <h2>{wish.name}</h2>
                 <p>
                   {wish.price !== null ? money(wish.price) : "Ціна не вказана"}
@@ -193,8 +250,67 @@ export default function Wishes() {
           )}
         />
       </div>
+      {printItems.length > 0 && (
+        <section className="wishlist-print-sheet" aria-hidden="true">
+          <h1>Бажання</h1>
+          {printItems.map((wish) => (
+            <article className="wishlist-print-item" key={wish.id}>
+              <WishImage wish={wish} eager />
+              <div>
+                <h2>{wish.name}</h2>
+                {wish.size && <p>Розмір / варіант: {wish.size}</p>}
+                {wish.price !== null && <p>Ціна: {money(wish.price)}</p>}
+                {safeUrl(wish.url) && (
+                  <a href={safeUrl(wish.url)!}>{safeUrl(wish.url)}</a>
+                )}
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
       <AnimatePresence mode="wait">
-        {form ? (
+        {exporting ? (
+          <BottomSheet
+            key="wish-export"
+            title="Експорт у PDF"
+            onClose={() => setExporting(false)}
+          >
+            <div className="wish-export">
+              <p>Оберіть бажання, які додати. У вікні друку виберіть «Зберегти як PDF».</p>
+              <div className="wish-export-actions">
+                <button onClick={() => setExportSelection(wishes.map((wish) => wish.id))}>Обрати всі</button>
+                <button onClick={() => setExportSelection([])}>Очистити вибір</button>
+              </div>
+              <div className="wish-export-list">
+                {wishes.map((wish) => (
+                  <label key={wish.id}>
+                    <input
+                      type="checkbox"
+                      checked={exportSelection.includes(wish.id)}
+                      onChange={(event) =>
+                        setExportSelection((selected) =>
+                          event.target.checked
+                            ? [...selected, wish.id]
+                            : selected.filter((id) => id !== wish.id),
+                        )
+                      }
+                    />
+                    <span>{wish.name}{wish.size ? ` · ${wish.size}` : ""}</span>
+                  </label>
+                ))}
+              </div>
+              <Button
+                disabled={!exportSelection.length}
+                onClick={() => {
+                  setPrintItems(wishes.filter((wish) => exportSelection.includes(wish.id)));
+                  setExporting(false);
+                }}
+              >
+                Створити PDF · {exportSelection.length}
+              </Button>
+            </div>
+          </BottomSheet>
+        ) : form ? (
           <WishForm
             key="wish-form"
             wish={form === "new" ? undefined : form}

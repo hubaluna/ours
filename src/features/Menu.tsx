@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { AnimatePresence } from "motion/react";
 import {
-  BookOpen,
   Check,
   Link2,
   RotateCcw,
@@ -16,7 +15,7 @@ import {
   recipeLibrary,
   resolveRecipe,
 } from "../lib/recipe-catalog";
-import { Button, EmptyState, IconButton } from "../components/ui";
+import { IconButton } from "../components/ui";
 import { AddButton, PagedList, ScreenHeader } from "../components/Compact";
 import { RecipeForm } from "../components/RecipeForm";
 import { LinkImport } from "../components/LinkImportLoader";
@@ -39,7 +38,7 @@ export default function Menu() {
     restoreMenuProducts,
     pending,
   } = useApp();
-  const [catalog, setCatalog] = useState(false),
+  const [showPlan, setShowPlan] = useState(false),
     [filter, setFilter] = useState<CatalogFilter>(initialFilter),
     [detail, setDetail] = useState<RecipeView | null>(null),
     [fromCatalog, setFromCatalog] = useState(false),
@@ -65,8 +64,22 @@ export default function Menu() {
   }, []);
   const openCatalog = () => {
     setDetail(null);
-    setCatalog(true);
+    setShowPlan(false);
   };
+  const addFromCatalog = (recipe: RecipeView) => {
+    const alreadyAdded = data.mealPlan.some((item) =>
+      recipe.catalogId
+        ? item.catalog_id === recipe.catalogId
+        : item.recipe_id === recipe.customId,
+    );
+    if (!alreadyAdded) void upsertMenu([{ recipe, servings: 1 }]);
+  };
+  const isInMenu = (recipe: RecipeView) =>
+    data.mealPlan.some((item) =>
+      recipe.catalogId
+        ? item.catalog_id === recipe.catalogId
+        : item.recipe_id === recipe.customId,
+    );
   const generate = () => {
     const choices = library.filter((recipe) => recipe.key !== lastRandom);
     const random = new Uint32Array(1);
@@ -86,10 +99,9 @@ export default function Menu() {
     <section className="screen menu-screen shared-menu-screen">
       <ScreenHeader
         title="Меню"
-        subtitle={`${rows.length ? `Страв у меню: ${rows.length}` : "Оберіть вечерю до смаку"}`}
       >
-        <IconButton label="Каталог рецептів" onClick={openCatalog}>
-          <BookOpen size={19} />
+        <IconButton label="Згенерувати вечерю" onClick={generate}>
+          <Shuffle size={18} />
         </IconButton>
         <IconButton
           label="Імпорт рецепта в меню"
@@ -105,27 +117,32 @@ export default function Menu() {
           }}
         />
       </ScreenHeader>
-      <div className="menu-status-line">
-        <span className="status-dot" />
-        Покупки перераховуються разом із порціями
+      <div className="menu-view-switch" role="group" aria-label="Перегляд меню">
+        <button
+          type="button"
+          aria-label="Каталог рецептів"
+          aria-pressed={!showPlan}
+          onClick={openCatalog}
+        >
+          Каталог
+        </button>
+        <button
+          type="button"
+          aria-label={`Готуємо · ${rows.length}`}
+          aria-pressed={showPlan}
+          onClick={() => setShowPlan(true)}
+        >
+          Готуємо <span>{rows.length}</span>
+        </button>
       </div>
       <div className="screen-panel meal-menu-panel">
-        <PagedList
-          items={rows}
-          rowHeight={rowHeight}
-          empty={
-            <EmptyState
-              title="Сьогодні може бути навіть лише салат"
-              description="Усі 55 рецептів уже в каталозі. Додайте будь-які страви — без обов’язкових поєднань."
-            >
-              <Button onClick={openCatalog}>
-                <BookOpen size={17} />
-                Відкрити каталог · 55
-              </Button>
-            </EmptyState>
-          }
-          render={({ item, recipe }) => (
-            <article className="meal-row" key={item.id}>
+        {showPlan ? (
+          <PagedList
+            items={rows}
+            rowHeight={rowHeight}
+            empty={<div className="menu-plan-empty">Страв ще не додано</div>}
+            render={({ item, recipe }) => (
+              <article className="meal-row" key={item.id}>
               <button
                 className="meal-image"
                 onClick={() => {
@@ -195,16 +212,28 @@ export default function Menu() {
                   <Trash2 size={14} />
                 </IconButton>
               </div>
-            </article>
-          )}
-        />
+              </article>
+            )}
+          />
+        ) : (
+          <RecipeCatalog
+            inline
+            recipes={catalogLibrary}
+            filter={filter}
+            onFilter={setFilter}
+            onClose={openCatalog}
+            disabled={busy}
+            onSelect={(recipe) => {
+              setFromCatalog(true);
+              setDetail(recipe);
+            }}
+            isSelected={isInMenu}
+            onAdd={addFromCatalog}
+          />
+        )}
       </div>
-      <div className="menu-toolbar">
-        <Button onClick={generate}>
-          <Shuffle size={17} />
-          Згенерувати вечерю
-        </Button>
-        {rows.length > 0 && (
+      {showPlan && rows.length > 0 && (
+        <div className="menu-toolbar">
           <IconButton
             label="Повернути приховані продукти"
             disabled={busy}
@@ -212,8 +241,8 @@ export default function Menu() {
           >
             <RotateCcw size={17} />
           </IconButton>
-        )}
-      </div>
+        </div>
+      )}
       <AnimatePresence mode="wait">
         {form ? (
           <RecipeForm
@@ -224,7 +253,7 @@ export default function Menu() {
             onSaved={(_category, title) => {
               setForm(null);
               setFilter({ ...initialFilter, scope: "own", query: title });
-              setCatalog(true);
+              setShowPlan(false);
             }}
           />
         ) : importing ? (
@@ -252,31 +281,19 @@ export default function Menu() {
             onClose={() => setDetail(null)}
             onBack={
               fromCatalog
-                ? () => {
-                    setDetail(null);
-                    setCatalog(true);
-                  }
+                ? () => setDetail(null)
                 : undefined
             }
-            onAdd={upsertMenu}
+            onAdd={async (items) => {
+              const saved = await upsertMenu(items);
+              setShowPlan(true);
+              return saved;
+            }}
             onEdit={(value) => {
               if (value.custom) {
                 setDetail(null);
                 setForm(value.custom);
               }
-            }}
-          />
-        ) : catalog ? (
-          <RecipeCatalog
-            key="recipe-catalog"
-            recipes={catalogLibrary}
-            filter={filter}
-            onFilter={setFilter}
-            onClose={() => setCatalog(false)}
-            onSelect={(recipe) => {
-              setFromCatalog(true);
-              setCatalog(false);
-              setDetail(recipe);
             }}
           />
         ) : null}

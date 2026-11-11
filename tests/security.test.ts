@@ -4,8 +4,15 @@ import {
   catalogRows,
   catalogImportSQL,
 } from "../scripts/import-recipe-catalog.mjs";
+import { isPantryStaple } from "../supabase/functions/_shared/grocery-category";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-let db: PGlite, couple: string, token: string, wish: string, session: string;
+let db: PGlite,
+  couple: string,
+  token: string,
+  wish: string,
+  session: string,
+  privateWish: string,
+  publicWish: string;
 const a = "00000000-0000-4000-8000-000000000001",
   b = "00000000-0000-4000-8000-000000000002",
   c = "00000000-0000-4000-8000-000000000003",
@@ -21,7 +28,7 @@ async function rows<T = Record<string, unknown>>(sql: string) {
 beforeAll(async () => {
   db = new PGlite();
   await db.exec(
-    `create role anon nologin;create role authenticated nologin;create schema auth;create table auth.users(id uuid primary key,raw_user_meta_data jsonb default '{}');create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;grant usage on schema auth,public to authenticated,anon;grant execute on function auth.uid() to authenticated,anon;`,
+    `create role anon nologin;create role authenticated nologin;create schema auth;create table auth.users(id uuid primary key,raw_user_meta_data jsonb default '{}');create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;grant usage on schema auth,public to authenticated,anon;grant execute on function auth.uid() to authenticated,anon;create schema realtime;create table realtime.sent_events(payload jsonb,event text,topic text,is_private boolean);grant select on realtime.sent_events to authenticated;create table realtime.messages(topic text,payload jsonb);create function realtime.topic() returns text language sql stable as $$ select current_setting('realtime.topic',true) $$;create function realtime.send(jsonb,text,text,boolean) returns uuid language plpgsql as $$ begin insert into realtime.sent_events values($1,$2,$3,$4);return gen_random_uuid();end $$;`,
   );
   await db.exec(readFileSync("supabase/migrations/001_core.sql", "utf8"));
   await db.exec(
@@ -51,6 +58,15 @@ beforeAll(async () => {
   );
   await db.exec(
     readFileSync("supabase/migrations/006_tiktok_video_recipes.sql", "utf8"),
+  );
+  await db.exec(
+    readFileSync("supabase/migrations/007_private_wishes.sql", "utf8"),
+  );
+  await db.exec(
+    readFileSync("supabase/migrations/008_grocery_categories.sql", "utf8"),
+  );
+  await db.exec(
+    readFileSync("supabase/migrations/009_places_wish_size.sql", "utf8"),
   );
   await asUser(a);
 }, 60000);
@@ -107,7 +123,7 @@ describe("Real PostgreSQL RLS and RPC, under authenticated roles", () => {
     await rows("update public.shopping_items set purchased=false");
     expect(
       (await rows("select purchased from public.shopping_items"))[0].purchased,
-    ).toBe(false);
+    ).toBeFalsy();
   });
   it("prevents archiving unfinished lists, archives atomically and repeats", async () => {
     await expect(rows("select public.finish_shopping()")).rejects.toThrow(
@@ -191,6 +207,144 @@ describe("Real PostgreSQL RLS and RPC, under authenticated roles", () => {
       ),
     ).toHaveLength(0);
   });
+  it("hides private wishes, their image paths and history from the partner", async () => {
+    await asUser(a);
+    publicWish = String(
+      (
+        await rows(
+          `insert into public.wishes(couple_id,owner_id,name,priority) values('${couple}','${a}','Публічна книжка','Дуже хочу') returning id`,
+        )
+      )[0].id,
+    );
+    const publicActivity = await rows(
+      `select id,title from public.activity_events where kind='wishes' and entity_id='${publicWish}'`,
+    );
+    expect(publicActivity).toEqual([{ id: expect.any(String), title: "Публічна книжка" }]);
+    await asUser(b);
+    await rows(
+      `insert into public.gift_reservations(wish_id,reserved_by) values('${publicWish}','${b}')`,
+    );
+    expect(
+      await rows(
+        `select name from public.wishes where id='${publicWish}'`,
+      ),
+    ).toEqual([{ name: "Публічна книжка" }]);
+
+    await asUser(a);
+    await rows(
+      `update public.wishes set is_private=true where id='${publicWish}'`,
+    );
+    await db.exec("reset role");
+    expect(
+      await rows(
+        `select id from public.gift_reservations where wish_id='${publicWish}'`,
+      ),
+    ).toHaveLength(0);
+    await asUser(a);
+    expect(
+      await rows(
+        `select title,entity_id,action from public.activity_events where id='${publicActivity[0].id}'`,
+      ),
+    ).toEqual([
+      { title: "Побажання оновлено", entity_id: null, action: "updated" },
+    ]);
+    const imagePath = `${couple}/${a}/private-wish-photo.webp`;
+    privateWish = String(
+      (
+        await rows(
+          `insert into public.wishes(couple_id,owner_id,name,image_path,is_private) values('${couple}','${a}','Приватний подарунок','${imagePath}',true) returning id`,
+        )
+      )[0].id,
+    );
+    await rows(
+      `insert into storage.objects(bucket_id,name) values('photos','${imagePath}')`,
+    );
+    expect(
+      await rows(
+        `select name from public.wishes where id='${privateWish}' and is_private`,
+      ),
+    ).toEqual([{ name: "Приватний подарунок" }]);
+    expect(
+      await rows(
+        `select title from public.activity_events where kind='wishes' and entity_id='${privateWish}'`,
+      ),
+    ).toHaveLength(0);
+    await asUser(b);
+    expect(
+      await rows(
+        `select id from public.wishes where id in ('${publicWish}','${privateWish}')`,
+      ),
+    ).toHaveLength(0);
+    expect(
+      await rows(
+        `select id from public.activity_events where kind='wishes' and entity_id='${publicWish}'`,
+      ),
+    ).toHaveLength(0);
+    expect(
+      await rows(
+        `select title from public.activity_events where kind='wishes' and title='Публічна книжка'`,
+      ),
+    ).toHaveLength(0);
+    expect(
+      await rows(
+        `select name from storage.objects where name='${imagePath}'`,
+      ),
+    ).toHaveLength(0);
+    expect(
+      await rows(
+        `select id from public.gift_reservations where wish_id='${publicWish}'`,
+      ),
+    ).toHaveLength(0);
+    await expect(
+      rows(
+        `insert into public.gift_reservations(wish_id,reserved_by) values('${publicWish}','${b}') returning id`,
+      ),
+    ).rejects.toThrow(/row-level security/);
+    await expect(
+      rows(`delete from public.wishes where id='${publicWish}'`),
+    ).rejects.toThrow(/permission denied/);
+
+    await asUser(a);
+    await rows(
+      `update public.wishes set name='Ще більш приватний сюрприз' where id='${privateWish}'`,
+    );
+    await rows(`select public.delete_wish('${privateWish}')`);
+    await db.exec("reset role");
+    expect(
+      await rows(
+        `select id from public.activity_events where kind='wishes' and entity_id='${privateWish}'`,
+      ),
+    ).toHaveLength(0);
+    expect(
+      await rows(
+        `select name,url,note,image_path,is_private,is_deleted from public.wishes where id='${privateWish}'`,
+      ),
+    ).toEqual([
+      {
+        name: "Видалене побажання",
+        url: "",
+        note: "",
+        image_path: null,
+        is_private: true,
+        is_deleted: true,
+      },
+    ]);
+    await asUser(a);
+    const reattached = String(
+      (
+        await rows(
+          `insert into public.wishes(couple_id,owner_id,name,image_path) values('${couple}','${a}','Спільне фото','${imagePath}') returning id`,
+        )
+      )[0].id,
+    );
+    await asUser(b);
+    expect(
+      await rows(`select name from storage.objects where name='${imagePath}'`),
+    ).toHaveLength(1);
+    await asUser(a);
+    await rows(`select public.delete_wish('${reattached}')`);
+    await rows(`delete from storage.objects where name='${imagePath}'`);
+  });
   it("adds shared events and lets the partner edit them", async () => {
     await asUser(a);
     await rows(
@@ -201,6 +355,32 @@ describe("Real PostgreSQL RLS and RPC, under authenticated roles", () => {
     expect((await rows("select * from public.events"))[0].title).toBe(
       "Кіно і попкорн",
     );
+  });
+  it("shares saved places only inside the couple", async () => {
+    await asUser(a);
+    const place = String(
+      (
+        await rows(
+          `insert into public.places(couple_id,title,type,address,url,planned_date,description,created_by) values('${couple}','Музей науки','Музей','Київ','https://example.org','2026-12-10','Квитки онлайн','${a}') returning id`,
+        )
+      )[0].id,
+    );
+    await asUser(b);
+    const shared = await rows(
+      `select title,type,planned_date from public.places where id='${place}'`,
+    );
+    expect(shared).toHaveLength(1);
+    expect(shared[0]).toMatchObject({ title: "Музей науки", type: "Музей" });
+    expect(new Date(String(shared[0].planned_date)).toISOString().slice(0, 10)).toBe(
+      "2026-12-10",
+    );
+    await asUser(c);
+    expect(await rows(`select id from public.places where id='${place}'`)).toHaveLength(0);
+    await expect(
+      rows(
+        `insert into public.places(couple_id,title,type,created_by) values('${couple}','Чужий парк','Парк','${c}')`,
+      ),
+    ).rejects.toThrow(/row-level security/);
   });
   it("blocks reads, inserts and exports from a different space", async () => {
     await asUser(c);
@@ -343,10 +523,11 @@ describe("Real PostgreSQL RLS and RPC, under authenticated roles", () => {
         name: "Рис",
         quantity: 200,
         unit: "г",
-        category: "Бакалія",
+        category: "Крупи, макарони та бакалія",
         price: null,
       },
       { name: "Вода", quantity: 1, unit: "л", category: "Напої", price: null },
+      { name: "Болгарський перець", quantity: 1, unit: "шт.", category: "Овочі та фрукти", price: null },
     ]);
     expect(
       (
@@ -363,6 +544,9 @@ describe("Real PostgreSQL RLS and RPC, under authenticated roles", () => {
         "select id from public.activity_events where title='Продукти з рецепта · 2'",
       ),
     ).toHaveLength(1);
+    expect(
+      await rows("select id from public.shopping_items where name='Вода'"),
+    ).toHaveLength(0);
     const invalid = JSON.stringify([
       { name: "Good", quantity: 1, unit: "шт.", category: "Інше", price: null },
       { name: "Bad", quantity: 0, unit: "шт.", category: "Інше", price: null },
@@ -489,6 +673,25 @@ describe("Shared recipe catalog, menu and atomic shopping", () => {
       /permission denied/,
     );
   });
+  it("uses the same Ukrainian grocery categories and excludes only pantry pepper", async () => {
+    expect(
+      await rows(
+        `select public.normalize_grocery_category('Молочні продукти') as legacy, public.valid_grocery_category('Солодощі') as sweets, public.valid_grocery_category('Молочні продукти') as old_allowed, public.is_pantry_staple('Перцю чорного') as pepper, public.is_pantry_staple('Олія, для смаження') as oil, public.is_pantry_staple('Воду') as water, public.is_pantry_staple('Меду') as honey, public.is_pantry_staple('Болгарський перець') as bell_pepper, public.is_pantry_staple('Масло вершкове') as butter`,
+      ),
+    ).toEqual([
+      {
+        legacy: "Молочне",
+        sweets: true,
+        old_allowed: false,
+        pepper: true,
+        oil: true,
+        water: true,
+        honey: true,
+        bell_pepper: false,
+        butter: false,
+      },
+    ]);
+  });
   it("adds only a salad, shares it with the partner and respects portions without duplicate menu or shopping rows", async () => {
     await asUser(a);
     await menu([{ catalog_id: "ours55/green_salad", servings: 2 }]);
@@ -529,7 +732,7 @@ describe("Shared recipe catalog, menu and atomic shopping", () => {
     const expected = new Map<string, number | null>();
     for (const plan of plans)
       for (const i of plan.ingredients) {
-        if (i.quantity === 0) continue;
+        if (i.quantity === 0 || isPantryStaple(i.name)) continue;
         const key = i.name.toLowerCase() + "|" + i.unit;
         expected.set(
           key,
@@ -559,10 +762,13 @@ describe("Shared recipe catalog, menu and atomic shopping", () => {
         menu([{ catalog_id: "ours55/rice", servings }]),
       ).rejects.toThrow();
   });
-  it("keeps manual products, supports pantry exclusions and prevents forged generated rows", async () => {
+  it("excludes pantry staples from recipe shopping but keeps manual products", async () => {
     const before = (
       await rows("select id from public.shopping_items where menu_key is null")
     ).length;
+    await rows(
+      `insert into public.shopping_items(couple_id,added_by,name,quantity,unit,category) values('${couple}','${a}','Сіль',1,'шт.','Крупи, макарони та бакалія')`,
+    );
     await rows(
       "delete from public.shopping_items where menu_key is not null and name='Сіль'",
     );
@@ -570,10 +776,13 @@ describe("Shared recipe catalog, menu and atomic shopping", () => {
     await menu([{ catalog_id: "ours55/rice", servings: 3 }]);
     expect((await generated()).some((i) => i.name === "Сіль")).toBe(false);
     await rows("select public.restore_menu_products()");
-    expect((await generated()).some((i) => i.name === "Сіль")).toBe(true);
+    expect((await generated()).some((i) => i.name === "Сіль")).toBe(false);
+    expect(
+      await rows("select id from public.shopping_items where menu_key is null and name='Сіль'"),
+    ).toHaveLength(1);
     expect(
       await rows("select id from public.shopping_items where menu_key is null"),
-    ).toHaveLength(before);
+    ).toHaveLength(before + 1);
     await expect(
       rows(
         "update public.shopping_items set quantity=1 where menu_key is not null and quantity is not null",
@@ -607,7 +816,7 @@ describe("Shared recipe catalog, menu and atomic shopping", () => {
           recipe_id: privateId,
           servings: 1,
           ingredients: [
-            { name: "Рис", quantity: 1, unit: "г", category: "Бакалія" },
+            { name: "Рис", quantity: 1, unit: "г", category: "Крупи, макарони та бакалія" },
           ],
         },
       ]),
@@ -627,7 +836,7 @@ describe("Shared recipe catalog, menu and atomic shopping", () => {
             name: "Унікальний рис",
             quantity: 100,
             unit: "г",
-            category: "Бакалія",
+            category: "Крупи, макарони та бакалія",
           },
         ],
       },
@@ -638,7 +847,7 @@ describe("Shared recipe catalog, menu and atomic shopping", () => {
       ),
     ).toBe(300);
     await rows(
-      `update public.recipes set base_servings=2,structured_ingredients='[{"name":"Унікальний рис","quantity":200,"unit":"г","category":"Бакалія"}]' where id='${privateId}'`,
+      `update public.recipes set base_servings=2,structured_ingredients='[{"name":"Унікальний рис","quantity":200,"unit":"г","category":"Крупи, макарони та бакалія"}]' where id='${privateId}'`,
     );
     expect(
       Number(

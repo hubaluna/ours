@@ -16,9 +16,24 @@ import {
   validateRecipeArchive,
 } from "../scripts/import-recipe-catalog.mjs";
 import { movieSynopsis } from "../supabase/functions/_shared/movie-synopsis";
+import { isPantryStaple } from "../supabase/functions/_shared/grocery-category";
 
 const recipe = (id: string) => catalogRecipes.find((r) => r.sourceId === id)!;
 describe("Original recipe package, portions and pairing", () => {
+  it("filters common pantry staples without excluding bell peppers or dairy butter", () => {
+    for (const name of [
+      "Сіль за смаком",
+      "Цукру",
+      "Меду",
+      "Оцту яблучного",
+      "Воду",
+      "Олія, для смаження",
+      "Перцю чорного меленого",
+    ])
+      expect(isPantryStaple(name)).toBe(true);
+    expect(isPantryStaple("Болгарський перець")).toBe(false);
+    expect(isPantryStaple("Масло вершкове")).toBe(false);
+  });
   it("preserves all 55 unique recipes, every original ingredient, step and image", () => {
     expect(validateRecipeArchive(archive)).toBe(archive);
     expect(new Set(catalogRecipes.map((r) => r.catalogId)).size).toBe(55);
@@ -128,7 +143,7 @@ describe("Original recipe package, portions and pairing", () => {
     expect(quantityLabel(null, "за смаком")).toBe("за смаком");
     expect(
       scaleIngredients(
-        [{ name: "Рис", quantity: 200, unit: "г", category: "Бакалія" }],
+        [{ name: "Рис", quantity: 200, unit: "г", category: "Крупи, макарони та бакалія" }],
         3,
         2,
       )[0].quantity,
@@ -136,8 +151,8 @@ describe("Original recipe package, portions and pairing", () => {
   });
   it("sums the same ingredients across portions while keeping different units distinct", () => {
     const ingredients = [
-      { name: "Рис", quantity: 100, unit: "г", category: "Бакалія" },
-      { name: "Сіль", quantity: null, unit: "за смаком", category: "Бакалія" },
+      { name: "Рис", quantity: 100, unit: "г", category: "Крупи, макарони та бакалія" },
+      { name: "Сіль", quantity: null, unit: "за смаком", category: "Крупи, макарони та бакалія" },
     ];
     const sum = aggregateIngredients([
       { ingredients, servings: 2, baseServings: 1 },

@@ -9,7 +9,10 @@ import type {
   ShoppingItem,
 } from "./types";
 import { parseIngredient } from "../../supabase/functions/_shared/ingredients";
-import { groceryCategory } from "../../supabase/functions/_shared/grocery-category";
+import {
+  groceryCategory,
+  isPantryStaple,
+} from "../../supabase/functions/_shared/grocery-category";
 export const MAX_SERVINGS = 12;
 export const categoryMap: Record<string, RecipeCategory> = {
   sides: "side",
@@ -237,7 +240,11 @@ export function syncDemoMenuShopping(
   );
   const desired = new Map(
     ingredients
-      .filter((i) => !excluded.includes(ingredientKey(i)))
+      .filter(
+        (i) =>
+          !isPantryStaple(i.name) &&
+          !excluded.includes(ingredientKey(i)),
+      )
       .map((i) => [ingredientKey(i), i]),
   );
   const result: ShoppingItem[] = shopping

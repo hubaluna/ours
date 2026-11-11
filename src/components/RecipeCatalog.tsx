@@ -1,4 +1,5 @@
-import { Clock3, Search } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Check, Clock3, Plus, Search } from "lucide-react";
 import type { RecipeView, RecipeCategory } from "../lib/types";
 import { categoryNames, normalizedIngredient } from "../lib/recipe-catalog";
 import { BottomSheet, EmptyState, Field } from "./ui";
@@ -15,13 +16,23 @@ export function RecipeCatalog({
   onFilter,
   onSelect,
   onClose,
+  inline = false,
+  isSelected,
+  onAdd,
+  disabled = false,
 }: {
   recipes: RecipeView[];
   filter: CatalogFilter;
   onFilter: (filter: CatalogFilter) => void;
   onSelect: (recipe: RecipeView) => void;
   onClose: () => void;
+  inline?: boolean;
+  isSelected?: (recipe: RecipeView) => boolean;
+  onAdd?: (recipe: RecipeView) => void;
+  disabled?: boolean;
 }) {
+  const [page, setPage] = useState(0);
+  useEffect(() => setPage(0), [filter.query, filter.category, filter.time, filter.scope, filter.sort]);
   const query = normalizedIngredient(filter.query);
   const shown = recipes
     .filter(
@@ -43,13 +54,11 @@ export function RecipeCatalog({
           a.title.localeCompare(b.title, "uk")
         : a.title.localeCompare(b.title, "uk"),
     );
-  return (
-    <BottomSheet
-      title="Каталог рецептів"
-      onClose={onClose}
-      wide
-      guardChanges={false}
-    >
+  const visible = inline ? shown.slice(page * 2, page * 2 + 2) : shown;
+  const pageCount = Math.max(1, Math.ceil(shown.length / 2));
+  const content = (
+    <>
+      {inline && <h2 className="catalog-inline-title">Каталог рецептів</h2>}
       <div className="catalog-controls">
         <Field label="Пошук страви або продукту">
           <div className="catalog-search">
@@ -139,41 +148,61 @@ export function RecipeCatalog({
       </div>
       {shown.length ? (
         <div className="recipe-catalog-grid">
-          {shown.map((recipe) => (
-            <button
-              className="catalog-card card"
+          {visible.map((recipe) => (
+            <article
+              className={`catalog-card card${inline ? " catalog-card-inline" : ""}`}
               key={recipe.key}
-              type="button"
-              onClick={() => onSelect(recipe)}
             >
-              <div className="catalog-card-image">
-                <img
-                  src={recipe.image_url}
-                  alt={recipe.title}
-                  loading="lazy"
-                  referrerPolicy="no-referrer"
-                />
-                {recipe.imageType === "placeholder" && (
-                  <span>Тимчасова обкладинка</span>
-                )}
-                {recipe.imageType === "generated_food_illustration" && (
-                  <span>Згенероване зображення</span>
-                )}
-              </div>
-              <div className="catalog-card-copy">
-                <small>
-                  {categoryNames[recipe.category]}
-                  {recipe.customId ? " · Власний" : ""}
-                </small>
-                <h3>{recipe.title}</h3>
-                <p>
-                  <Clock3 size={13} />
-                  {recipe.totalTimeMinutes
-                    ? `${recipe.totalTimeMinutes} хв`
-                    : "Час не вказано"}
-                </p>
-              </div>
-            </button>
+              <button
+                className="catalog-card-main"
+                type="button"
+                onClick={() => onSelect(recipe)}
+                aria-label={`Відкрити рецепт · ${recipe.title}`}
+              >
+                <div className="catalog-card-image">
+                  <img
+                    src={recipe.image_url}
+                    alt={recipe.title}
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                  />
+                  {recipe.imageType === "placeholder" && (
+                    <span>Тимчасова обкладинка</span>
+                  )}
+                  {recipe.imageType === "generated_food_illustration" && (
+                    <span>Згенероване зображення</span>
+                  )}
+                </div>
+                <div className="catalog-card-copy">
+                  <small>
+                    {categoryNames[recipe.category]}
+                    {recipe.customId ? " · Власний" : ""}
+                  </small>
+                  <h3>{recipe.title}</h3>
+                  <p>
+                    <Clock3 size={13} />
+                    {recipe.totalTimeMinutes
+                      ? `${recipe.totalTimeMinutes} хв`
+                      : "Час не вказано"}
+                  </p>
+                </div>
+              </button>
+              {inline && onAdd && (
+                <button
+                  className="catalog-card-add"
+                  type="button"
+                  aria-label={
+                    isSelected?.(recipe)
+                      ? `Уже в меню · ${recipe.title}`
+                      : `Додати до меню · ${recipe.title}`
+                  }
+                  disabled={disabled || isSelected?.(recipe)}
+                  onClick={() => onAdd(recipe)}
+                >
+                  {isSelected?.(recipe) ? <Check size={17} /> : <Plus size={18} />}
+                </button>
+              )}
+            </article>
           ))}
         </div>
       ) : (
@@ -182,6 +211,36 @@ export function RecipeCatalog({
           description="Спробуйте іншу назву або змініть фільтри."
         />
       )}
+      {inline && shown.length > 2 && (
+        <div className="catalog-inline-pager" aria-label="Сторінки каталогу">
+          <button
+            type="button"
+            aria-label="Попередня сторінка каталогу"
+            disabled={page === 0}
+            onClick={() => setPage((value) => Math.max(0, value - 1))}
+          >
+            ‹
+          </button>
+          <span>{page + 1} / {pageCount}</span>
+          <button
+            type="button"
+            aria-label="Наступна сторінка каталогу"
+            disabled={page >= pageCount - 1}
+            onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))}
+          >
+            ›
+          </button>
+        </div>
+      )}
+    </>
+  );
+  return inline ? (
+    <section className="recipe-catalog-inline" aria-label="Каталог рецептів">
+      {content}
+    </section>
+  ) : (
+    <BottomSheet title="Каталог рецептів" onClose={onClose} wide guardChanges={false}>
+      {content}
     </BottomSheet>
   );
 }

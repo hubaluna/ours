@@ -1,14 +1,8 @@
-export type Tab = "home" | "shopping" | "movies" | "wishes" | "plans" | "menu";
+import { groceryCategories } from "../../supabase/functions/_shared/grocery-category";
+
+export type Tab = "home" | "shopping" | "movies" | "wishes" | "plans" | "places" | "menu";
 export type Theme = "light" | "dark" | "system";
-export const categories = [
-  "Овочі та фрукти",
-  "М’ясо та риба",
-  "Молочні продукти",
-  "Бакалія",
-  "Напої",
-  "Побутові товари",
-  "Інше",
-] as const;
+export const categories = groceryCategories;
 export const eventCategories = [
   "Побачення",
   "Поїздка",
@@ -47,8 +41,28 @@ export type Wish = {
   note: string;
   image_path: string | null;
   image_url: string;
+  is_private: boolean;
+  is_deleted?: boolean;
+  size: string;
   created_at: string;
 };
+export type Place = {
+  id: string;
+  couple_id: string;
+  title: string;
+  type: "Кінотеатр" | "Театр" | "Музей" | "Виставка" | "Парк" | "Зоопарк" | "Інше";
+  address: string;
+  url: string;
+  planned_date: string | null;
+  description: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+export type NewPlace = Pick<
+  Place,
+  "title" | "type" | "address" | "url" | "planned_date" | "description"
+>;
 export type Reservation = {
   id: string;
   wish_id: string;
@@ -203,6 +217,7 @@ export type Data = {
   wishes: Wish[];
   reservations: Reservation[];
   events: Plan[];
+  places: Place[];
   history: ProductHistory[];
 };
 export type Table =
@@ -211,14 +226,23 @@ export type Table =
   | "wishes"
   | "events"
   | "gift_reservations"
-  | "movies";
+  | "movies"
+  | "places";
 export type NewShopping = Pick<
   ShoppingItem,
   "name" | "quantity" | "unit" | "category" | "price"
 >;
 export type NewWish = Pick<
   Wish,
-  "name" | "price" | "url" | "priority" | "note" | "image_path" | "image_url"
+  | "name"
+  | "price"
+  | "url"
+  | "priority"
+  | "note"
+  | "image_path"
+  | "image_url"
+  | "is_private"
+  | "size"
 >;
 export type NewPlan = Pick<
   Plan,

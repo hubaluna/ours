@@ -19,12 +19,15 @@ import type {
   Activity,
   NewShopping,
   NewWish,
+  NewPlace,
   Profile,
   Table,
   RecipeView,
   MealPlanItem,
+  Place,
 } from "../lib/types";
 import { customRecipeView, syncDemoMenuShopping } from "../lib/recipe-catalog";
+import { isPantryStaple } from "../../supabase/functions/_shared/grocery-category";
 const empty: Data = {
   mealPlan: [],
   recipes: [],
@@ -37,6 +40,7 @@ const empty: Data = {
   wishes: [],
   reservations: [],
   events: [],
+  places: [],
   history: [],
 };
 type Notice = {
@@ -137,6 +141,7 @@ function useStore() {
         wishes,
         reservations,
         events,
+        places,
         history,
         movies,
         activities,
@@ -168,6 +173,7 @@ function useStore() {
           { couple_id: couple },
           "date",
         ),
+        readAll<Place>("places", { couple_id: couple }, "created_at", false),
         readAll<Data["history"][number]>("shopping_product_history", {
           couple_id: couple,
         }),
@@ -198,6 +204,7 @@ function useStore() {
         wishes,
         reservations,
         events,
+        places,
         history,
         movies,
         activities,
@@ -234,10 +241,11 @@ function useStore() {
       "shopping_items",
       "shopping_sessions",
       "shopping_product_history",
-      "wishes",
       "events",
       "couple_members",
       "movies",
+      "places",
+      "wishes",
       "recipes",
       "meal_plan_items",
       "activity_events",
@@ -253,13 +261,12 @@ function useStore() {
           },
           () => void refresh(),
         );
-      // Supabase cannot filter DELETE events. No private payload is consumed;
-      // a delete only invalidates the caller's own RLS-protected queries.
-      channel.on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table },
-        () => void refresh(),
-      );
+      if (table !== "wishes")
+        channel.on(
+          "postgres_changes",
+          { event: "DELETE", schema: "public", table },
+          () => void refresh(),
+        );
     }
     channel.on(
       "postgres_changes",
@@ -336,6 +343,7 @@ function useStore() {
     action: Activity["action"],
   ): Data => {
     if (table === "gift_reservations") return d;
+    if (table === "wishes" && row.is_private === true) return d;
     return {
       ...d,
       activities: [
@@ -343,7 +351,12 @@ function useStore() {
           id: crypto.randomUUID(),
           couple_id: DEMO_COUPLE,
           actor_id: userId,
-          kind: table === "shopping_items" ? "shopping" : table,
+          kind:
+            table === "shopping_items"
+              ? "shopping"
+              : table === "places"
+                ? "events"
+                : table,
           action,
           entity_id: typeof row.id === "string" ? row.id : null,
           title: String(row.name || row.title || "Оновлення").slice(0, 160),
@@ -378,6 +391,7 @@ function useStore() {
               gift_reservations: "reservations",
               movies: "movies",
               recipes: "recipes",
+              places: "places",
             } as const
           )[table];
           setData((d) =>
@@ -419,6 +433,7 @@ function useStore() {
               gift_reservations: "reservations",
               movies: "movies",
               recipes: "recipes",
+              places: "places",
             } as const
           )[table];
           setData((d) =>
@@ -473,10 +488,14 @@ function useStore() {
     run(
       id,
       async () => {
-        if (supabase)
-          await checked(
-            supabase.from(table).delete().eq("id", id).select("id").single(),
-          );
+        if (supabase) {
+          if (table === "wishes")
+            await checked(supabase.rpc("delete_wish", { p_wish_id: id }));
+          else
+            await checked(
+              supabase.from(table).delete().eq("id", id).select("id").single(),
+            );
+        }
         else {
           const field = (
             {
@@ -486,6 +505,7 @@ function useStore() {
               gift_reservations: "reservations",
               movies: "movies",
               recipes: "recipes",
+              places: "places",
             } as const
           )[table];
           setData((d) =>
@@ -559,6 +579,13 @@ function useStore() {
       { ...value, couple_id: coupleId, created_by: userId },
       "add-event",
       "План збережено",
+    );
+  const addPlace = (value: NewPlace) =>
+    insert(
+      "places",
+      { ...value, couple_id: coupleId, created_by: userId },
+      "add-place",
+      "Місце збережено",
     );
   const addMovie = (value: NewMovie) =>
     insert(
@@ -706,15 +733,22 @@ function useStore() {
           ],
         }));
     });
-  const addShoppingBatch = (items: NewShopping[]) =>
-    run(
+  const addShoppingBatch = (items: NewShopping[]) => {
+    const products = items.filter((item) => !isPantryStaple(item.name));
+    if (!products.length) {
+      notify("Сіль, спеції та інші базові продукти вже є вдома.");
+      return Promise.resolve(false);
+    }
+    return run(
       "recipe",
       async () => {
         if (supabase)
-          await checked(supabase.rpc("add_shopping_batch", { p_items: items }));
+          await checked(
+            supabase.rpc("add_shopping_batch", { p_items: products }),
+          );
         else
           setData((d) => {
-            const rows = items.map((value) => ({
+            const rows = products.map((value) => ({
               ...value,
               id: crypto.randomUUID(),
               couple_id: DEMO_COUPLE,
@@ -726,13 +760,14 @@ function useStore() {
             return demoActivity(
               { ...d, shopping: [...d.shopping, ...rows] },
               "shopping_items",
-              { name: `Продукти з рецепта · ${items.length}` },
+              { name: `Продукти з рецепта · ${products.length}` },
               "added",
             );
           });
       },
       "Продукти додано до списку",
     );
+  };
   const archive = () =>
     run(
       "archive",
@@ -852,6 +887,7 @@ function useStore() {
     addShopping,
     addWish,
     addEvent,
+    addPlace,
     addMovie,
     addRecipe,
     upsertMenu,

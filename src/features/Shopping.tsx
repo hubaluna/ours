@@ -19,6 +19,9 @@ export default function Shopping() {
   const { data, archive, repeat, pending, addShoppingBatch } = useApp();
   const [form, setForm] = useState<ShoppingItem | "new" | null>(null),
     [history, setHistory] = useState(false),
+    [historySearch, setHistorySearch] = useState(""),
+    [historyFrom, setHistoryFrom] = useState(""),
+    [historyTo, setHistoryTo] = useState(""),
     [importing, setImporting] = useState(false),
     [view, setView] = useState("active"),
     [category, setCategory] = useState("all");
@@ -29,6 +32,21 @@ export default function Shopping() {
     (i) => category === "all" || i.category === category,
   );
   const total = current.reduce((n, i) => n + (i.price ?? 0), 0);
+  const historySessions = [...data.sessions]
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .filter((session) => {
+      const date = session.created_at.slice(0, 10);
+      const names = data.shopping
+        .filter((item) => item.session_id === session.id)
+        .map((item) => item.name)
+        .join(" ")
+        .toLocaleLowerCase("uk");
+      return (
+        (!historyFrom || date >= historyFrom) &&
+        (!historyTo || date <= historyTo) &&
+        (!historySearch || names.includes(historySearch.trim().toLocaleLowerCase("uk")))
+      );
+    });
   return (
     <section className="screen shopping-screen">
       <ScreenHeader
@@ -126,8 +144,34 @@ export default function Shopping() {
             title="Історія покупок"
             onClose={() => setHistory(false)}
           >
-            {data.sessions.length ? (
-              data.sessions.map((s) => (
+            <div className="history-filters">
+              <input
+                aria-label="Пошук у покупках"
+                placeholder="Знайти товар у покупках"
+                value={historySearch}
+                onChange={(event) => setHistorySearch(event.target.value)}
+              />
+              <label>
+                Від
+                <input
+                  aria-label="Покупки від дати"
+                  type="date"
+                  value={historyFrom}
+                  onChange={(event) => setHistoryFrom(event.target.value)}
+                />
+              </label>
+              <label>
+                До
+                <input
+                  aria-label="Покупки до дати"
+                  type="date"
+                  value={historyTo}
+                  onChange={(event) => setHistoryTo(event.target.value)}
+                />
+              </label>
+            </div>
+            {historySessions.length ? (
+              historySessions.map((s) => (
                 <div className="history-card" key={s.id}>
                   <h3>{longDate(s.created_at.slice(0, 10))}</h3>
                   <p>
@@ -148,7 +192,11 @@ export default function Shopping() {
             ) : (
               <EmptyState
                 title="Історія ще попереду"
-                description="Завершені списки залишатимуться тут."
+                description={
+                  data.sessions.length
+                    ? "За цими фільтрами покупок не знайдено."
+                    : "Завершені списки залишатимуться тут."
+                }
               />
             )}
           </BottomSheet>

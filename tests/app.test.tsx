@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cleanup,
   configure,
+  fireEvent,
   render,
   screen,
   waitFor,
@@ -89,6 +90,69 @@ describe("Compact six-tab app", () => {
     dialog = screen.queryByRole("dialog")!;
     expect(dialog).toBeNull();
   });
+  it("searches completed shopping sessions by product and purchase date", async () => {
+    const user = userEvent.setup();
+    await user.click(nav().getByText("Покупки"));
+    while (
+      (saved().shopping as { purchased: boolean; session_id: string | null }[])
+        .filter((item) => !item.purchased && !item.session_id).length
+    ) {
+      const visible = screen.queryAllByRole("checkbox", {
+        name: /^Куплено:/,
+      });
+      if (!visible.length) {
+        const next = screen.getByRole("button", { name: "Наступна сторінка" });
+        expect(next).toBeEnabled();
+        await user.click(next);
+        continue;
+      }
+      const before = (saved().shopping as { purchased: boolean }[]).filter(
+        (item) => !item.purchased,
+      ).length;
+      await user.click(visible[0]);
+      await waitFor(() =>
+        expect(
+          (saved().shopping as { purchased: boolean }[]).filter(
+            (item) => !item.purchased,
+          ),
+        ).toHaveLength(before - 1),
+      );
+    }
+    await user.click(
+      screen.getByRole("button", { name: "Куплено · 5" }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Завершити" }));
+    await waitFor(() => expect(saved().sessions).toHaveLength(1));
+    const purchaseDate = saved().sessions[0].created_at.slice(0, 10);
+    await user.click(
+      screen.getByRole("button", { name: "Історія покупок" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Історія покупок",
+    });
+    await user.type(
+      within(dialog).getByRole("textbox", { name: "Пошук у покупках" }),
+      "Молоко",
+    );
+    fireEvent.change(
+      within(dialog).getByLabelText("Покупки від дати"),
+      { target: { value: purchaseDate } },
+    );
+    fireEvent.change(within(dialog).getByLabelText("Покупки до дати"), {
+      target: { value: purchaseDate },
+    });
+    expect(within(dialog).getByText(/Молоко,/)).toBeInTheDocument();
+    await user.clear(
+      within(dialog).getByRole("textbox", { name: "Пошук у покупках" }),
+    );
+    await user.type(
+      within(dialog).getByRole("textbox", { name: "Пошук у покупках" }),
+      "Немає такого товару",
+    );
+    expect(
+      within(dialog).getByText("За цими фільтрами покупок не знайдено."),
+    ).toBeInTheDocument();
+  });
   it("creates and edits a wish through expanded details", async () => {
     const user = userEvent.setup();
     await user.click(nav().getByText("Бажання"));
@@ -108,6 +172,29 @@ describe("Compact six-tab app", () => {
     );
     expect(await screen.findByDisplayValue("Нова книга")).toBeInTheDocument();
   });
+  it("exports selected own wishes, including a private wish with its size", async () => {
+    const user = userEvent.setup();
+    const print = vi.fn();
+    Object.defineProperty(window, "print", { configurable: true, value: print });
+    await user.click(nav().getByText("Бажання"));
+    await user.click(
+      await screen.findByRole("button", { name: "Експорт бажань у PDF" }),
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Експорт у PDF" });
+    await user.click(within(dialog).getByRole("button", { name: "Очистити вибір" }));
+    await user.click(within(dialog).getByLabelText("Теплий светр · M"));
+    await user.click(within(dialog).getByRole("button", { name: "Створити PDF · 1" }));
+    await waitFor(() => expect(print).toHaveBeenCalledOnce());
+    expect(document.querySelector(".wishlist-print-sheet h2")?.textContent).toBe(
+      "Теплий светр",
+    );
+    expect(document.querySelector(".wishlist-print-sheet")?.textContent).toContain(
+      "Розмір / варіант: M",
+    );
+    expect(
+      document.querySelector<HTMLAnchorElement>(".wishlist-print-sheet a")?.href,
+    ).toBe("https://example.com/sweater");
+  });
   it("creates a movie, expands it and marks it watched", async () => {
     const user = userEvent.setup();
     await user.click(nav().getByText("Кіно"));
@@ -123,9 +210,9 @@ describe("Compact six-tab app", () => {
     await closed();
     await user.click(screen.getByRole("heading", { name: "Наш фільм" }));
     await user.click(await screen.findByRole("button", { name: "Подивились" }));
-    await user.click(
-      await screen.findByRole("button", { name: "8", exact: true }),
-    );
+    fireEvent.change(await screen.findByRole("slider", { name: "Оцінка фільму" }), {
+      target: { value: "8" },
+    });
     await user.click(screen.getByRole("button", { name: "Зберегти оцінку" }));
     await closed();
     await user.click(screen.getByRole("button", { name: "Переглянули" }));
@@ -145,6 +232,10 @@ describe("Compact six-tab app", () => {
     );
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Назва"), "Кава вдвох");
+    await user.type(
+      within(dialog).getByLabelText("Деталі"),
+      "Забронювати столик біля вікна",
+    );
     await user.click(within(dialog).getByLabelText("Увесь день"));
     await user.click(
       within(dialog).getByRole("button", { name: "Додати план" }),
@@ -152,6 +243,45 @@ describe("Compact six-tab app", () => {
     await closed();
     expect(await screen.findByText("Кава вдвох")).toBeInTheDocument();
     expect(screen.getByText("Увесь день")).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: /Кава вдвох/ }),
+    );
+    const details = await screen.findByRole("dialog", { name: "Кава вдвох" });
+    expect(within(details).getByText("Увесь день")).toBeInTheDocument();
+    expect(
+      within(details).queryByText("Забронювати столик біля вікна"),
+    ).not.toBeInTheDocument();
+    await user.click(
+      within(details).getByRole("button", { name: "Довідково" }),
+    );
+    expect(
+      within(details).getByText("Забронювати столик біля вікна"),
+    ).toBeInTheDocument();
+  });
+  it("saves a shared place with a type, visit date, address and link", async () => {
+    const user = userEvent.setup();
+    await user.click(nav().getByText("Місця"));
+    await user.click(await screen.findByRole("button", { name: "Додати місце" }));
+    const form = await screen.findByRole("dialog", { name: "Нове місце" });
+    await user.type(within(form).getByLabelText("Назва"), "Науковий музей");
+    await user.selectOptions(within(form).getByLabelText("Тип місця"), "Музей");
+    await user.type(within(form).getByLabelText("Адреса"), "Київ");
+    await user.type(within(form).getByLabelText("Коли хочемо піти"), "2026-12-10");
+    await user.type(within(form).getByLabelText("Посилання"), "https://example.org/museum");
+    await user.type(within(form).getByLabelText("Нотатка"), "Квитки онлайн");
+    await user.click(within(form).getByRole("button", { name: "Зберегти місце" }));
+    await closed();
+    expect(saved().places[0]).toMatchObject({
+      title: "Науковий музей",
+      type: "Музей",
+      address: "Київ",
+      url: "https://example.org/museum",
+      planned_date: "2026-12-10",
+    });
+    await user.click(screen.getByRole("button", { name: /Науковий музей/ }));
+    const detail = await screen.findByRole("dialog", { name: "Науковий музей" });
+    await user.click(within(detail).getByRole("button", { name: "Довідково" }));
+    expect(within(detail).getByText("Квитки онлайн")).toBeInTheDocument();
   });
   it("keeps read updates hidden after reopening the app", async () => {
     const user = userEvent.setup();
@@ -192,10 +322,11 @@ describe("Compact six-tab app", () => {
       await screen.findByRole("button", { name: "Додати 2 до покупок" }),
     );
     await closed();
-    expect(saved().shopping).toHaveLength(7);
+    expect(saved().shopping).toHaveLength(6);
     expect(
       saved().shopping.find((i: { name: string }) => i.name === "рису"),
     ).toMatchObject({ quantity: 200, unit: "г" });
+    expect(saved().shopping.some((i: { name: string }) => i.name === "води")).toBe(false);
   });
   it("opens a random recipe preview without forcing a multi-course menu", async () => {
     const user = userEvent.setup();

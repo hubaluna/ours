@@ -12,13 +12,14 @@ it("applies the one-query mobile setup atomically to a fresh project", async () 
  create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text references storage.buckets(id),name text not null);
  alter table storage.objects enable row level security;
  create function storage.foldername(name text) returns text[] language sql immutable as $$ select (string_to_array(name,'/'))[1:array_length(string_to_array(name,'/'),1)-1] $$;
+ create schema realtime;create table realtime.messages(topic text,payload jsonb);create table realtime.sent_events(payload jsonb,event text,topic text,is_private boolean);create function realtime.topic() returns text language sql stable as $$ select current_setting('realtime.topic',true) $$;create function realtime.send(jsonb,text,text,boolean) returns uuid language plpgsql as $$ begin insert into realtime.sent_events values($1,$2,$3,$4);return gen_random_uuid();end $$;
  create publication supabase_realtime;`);
     const sql = guardedSetupSQL(readFileSync("supabase/setup.sql", "utf8"));
     await db.exec(sql);
     const tables = await db.query(
       "select tablename from pg_tables where schemaname='public'",
     );
-    expect(tables.rows).toHaveLength(17);
+    expect(tables.rows).toHaveLength(19);
     const bucket = await db.query<{ public: boolean }>(
       "select public from storage.buckets where id='photos'",
     );
@@ -37,8 +38,8 @@ it("applies the one-query mobile setup atomically to a fresh project", async () 
         await db.query(
           "select tablename from pg_tables where schemaname='public'",
         )
-      ).rows,
-    ).toHaveLength(17);
+    ).rows,
+    ).toHaveLength(19);
   } finally {
     await db.close();
   }

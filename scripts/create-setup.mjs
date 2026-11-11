@@ -6,6 +6,9 @@ const migrations = [
   "004_recipes_movie_ratings.sql",
   "005_recipe_catalog_shared_menu.sql",
   "006_tiktok_video_recipes.sql",
+  "007_private_wishes.sql",
+  "008_grocery_categories.sql",
+  "009_places_wish_size.sql",
 ];
 const body = migrations
   .map(
