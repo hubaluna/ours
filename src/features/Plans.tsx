@@ -6,7 +6,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
-  MapPin,
   ExternalLink,
 } from "lucide-react";
 import { useApp } from "../hooks/AppContext";
@@ -211,12 +210,6 @@ export default function Plans() {
                       {event.all_day
                         ? "Увесь день"
                         : event.time?.slice(0, 5) || "Без часу"}
-                      {event.location && (
-                        <>
-                          <MapPin size={12} />
-                          <span>{event.location}</span>
-                        </>
-                      )}
                     </p>
                   </div>
                   <ChevronRight size={16} />

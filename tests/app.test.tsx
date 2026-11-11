@@ -271,8 +271,11 @@ describe("Compact seven-tab app", () => {
     );
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Назва"), "Кава вдвох");
+    expect(within(dialog).queryByLabelText("Місце")).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText("Категорія")).not.toBeInTheDocument();
+    await user.click(within(dialog).getByText("Довідково"));
     await user.type(
-      within(dialog).getByLabelText("Деталі"),
+      within(dialog).getByLabelText("Опис"),
       "Забронювати столик біля вікна",
     );
     await user.click(within(dialog).getByLabelText("Увесь день"));

@@ -5,7 +5,6 @@ import { useApp } from "../hooks/AppContext";
 import { uploadImage } from "../lib/supabase";
 import {
   categories,
-  eventCategories,
   type ShoppingItem,
   type Wish,
   type NewWish,
@@ -474,10 +473,10 @@ export function EventForm({
       date: String(f.get("date")),
       time: allDay ? null : String(f.get("time")) || null,
       all_day: allDay,
-      location: String(f.get("location")),
+      location: event?.location ?? "",
       url,
       description: String(f.get("description")),
-      category: String(f.get("category")),
+      category: event?.category ?? "Побачення",
     };
     const ok = event
       ? await update("events", event.id, value, "План оновлено")
@@ -489,7 +488,7 @@ export function EventForm({
       title={event ? "Ваш маленький план" : "Заплануємо щось хороше"}
       onClose={onClose}
     >
-      <form className="form" onSubmit={submit}>
+      <form className="form event-form" onSubmit={submit}>
         <div className="sheet-actions form-save">
           <Button
             type="submit"
@@ -508,14 +507,25 @@ export function EventForm({
             placeholder="Наприклад, вечеря вдвох"
           />
         </Field>
-        <Field label="Дата">
-          <input
-            name="date"
-            type="date"
-            required
-            defaultValue={event?.date ?? date ?? kyivDate()}
-          />
-        </Field>
+        <div className="form-grid event-datetime">
+          <Field label="Дата">
+            <input
+              name="date"
+              type="date"
+              required
+              defaultValue={event?.date ?? date ?? kyivDate()}
+            />
+          </Field>
+          {!allDay && (
+            <Field label="Час · Київ">
+              <input
+                type="time"
+                name="time"
+                defaultValue={event?.time?.slice(0, 5) ?? "19:00"}
+              />
+            </Field>
+          )}
+        </div>
         <label className="inline-check">
           <input
             type="checkbox"
@@ -524,30 +534,6 @@ export function EventForm({
           />
           Увесь день
         </label>
-        {!allDay && (
-          <Field label="Час · Київ">
-            <input
-              type="time"
-              name="time"
-              defaultValue={event?.time?.slice(0, 5) ?? "19:00"}
-            />
-          </Field>
-        )}
-        <Field label="Категорія">
-          <select name="category" defaultValue={event?.category ?? "Побачення"}>
-            {eventCategories.map((c) => (
-              <option key={c}>{c}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Місце">
-          <input
-            name="location"
-            maxLength={300}
-            defaultValue={event?.location}
-            placeholder="Де зустрічаємось?"
-          />
-        </Field>
         <Field label="Посилання · необов’язково">
           <input
             name="url"
@@ -557,15 +543,20 @@ export function EventForm({
             placeholder="https://"
           />
         </Field>
-        <Field label="Деталі">
-          <textarea
-            name="description"
-            maxLength={2000}
-            defaultValue={event?.description}
-            rows={2}
-            placeholder="Усе, що хочеться пам’ятати"
-          />
-        </Field>
+        <details className="additional-fields">
+          <summary>Довідково</summary>
+          <div className="form">
+            <Field label="Опис">
+              <textarea
+                name="description"
+                maxLength={2000}
+                defaultValue={event?.description}
+                rows={2}
+                placeholder="Усе, що хочеться пам’ятати"
+              />
+            </Field>
+          </div>
+        </details>
         {error && (
           <p role="alert" className="form-error">
             {error}

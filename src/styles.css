@@ -1094,17 +1094,23 @@ p {
   background: #17251b59;
   backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
-  padding: max(12px, env(safe-area-inset-top)) 14px
-    max(12px, env(safe-area-inset-bottom));
+  height: 100dvh;
+  padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(20px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   overflow: hidden;
 }
 .sheet {
   width: 100%;
   max-width: 520px;
-  max-height: calc(100dvh - max(32px, env(safe-area-inset-top) + env(safe-area-inset-bottom) + 24px));
+  max-height: 100%;
+  min-height: 0;
+  min-width: 0;
+  flex: 0 1 auto;
   border-radius: 28px;
   padding: 0 25px calc(27px + env(safe-area-inset-bottom));
   overflow-y: auto;
+  overflow-x: hidden;
+  overflow-wrap: anywhere;
   overscroll-behavior: contain;
   scroll-padding-bottom: 30px;
   background: var(--card);
@@ -1171,6 +1177,7 @@ p {
 .field select {
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   min-height: 48px;
   padding: 13px 14px;
   border: 1px solid var(--line);
@@ -1213,7 +1220,7 @@ p {
 }
 .form-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 13px;
 }
 .form .button[type="submit"] {
@@ -1463,6 +1470,14 @@ p {
 .event-detail-compact {
   display: grid;
   gap: 10px;
+}
+.event-form {
+  gap: 14px;
+}
+@media (max-width: 380px) {
+  .event-datetime {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .event-detail-compact > p {
   display: flex;
@@ -2189,14 +2204,9 @@ p {
   .activity-row small {
     font-size: 8px;
   }
-  .sheet-backdrop {
-    padding: max(12px, env(safe-area-inset-top)) 12px
-      max(12px, env(safe-area-inset-bottom));
-  }
   .sheet {
     padding-left: 21px;
     padding-right: 21px;
-    max-height: calc(100dvh - 24px);
     border-radius: 26px;
   }
   .sheet-title h2 {
@@ -3480,11 +3490,6 @@ p {
   max-height: 330px;
   object-fit: cover;
   border-radius: 18px;
-}
-.image-notice {
-  font-size: 10px;
-  color: var(--muted);
-  margin-top: 7px;
 }
 .recipe-facts {
   display: flex;

@@ -69,8 +69,8 @@ function useOccasionalCat(): MascotPose {
           setPose(null);
           moments++;
           schedule();
-        }, 8000);
-      }, moments === 0 ? 50000 : 65000);
+        }, 10000);
+      }, moments === 0 ? 25000 : 40000);
     };
     const pause = () => {
       if (isBusy()) setPose(null);

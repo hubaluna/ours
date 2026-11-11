@@ -227,11 +227,13 @@ export function BottomSheet({
     const resize = () => {
       const sheet = ref.current;
       if (!sheet) return;
-      sheet.style.maxHeight = `${Math.max(180, viewport.height - 16)}px`;
       const overlay = sheet.parentElement;
       if (overlay) {
         overlay.style.height = `${viewport.height}px`;
+        overlay.style.width = `${viewport.width}px`;
         overlay.style.top = `${viewport.offsetTop}px`;
+        overlay.style.left = `${viewport.offsetLeft}px`;
+        overlay.style.right = "auto";
         overlay.style.bottom = "auto";
       }
     };

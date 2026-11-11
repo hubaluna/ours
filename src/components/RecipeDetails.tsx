@@ -99,13 +99,6 @@ export function RecipeDetails({
             alt={recipe.title}
             referrerPolicy="no-referrer"
           />
-          <p className="image-notice">
-            {recipe.imageType === "placeholder"
-              ? "Тимчасова стилізована обкладинка · фото замінимо згодом"
-              : recipe.imageType === "generated_food_illustration"
-                ? "Згенероване зображення готової страви"
-                : "Фото готової страви"}
-          </p>
           <div className="recipe-facts">
             <span>{categoryNames[recipe.category]}</span>
             {recipe.totalTimeMinutes && (

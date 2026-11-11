@@ -161,12 +161,6 @@ export function RecipeCatalog({
                     loading="lazy"
                     referrerPolicy="no-referrer"
                   />
-                  {recipe.imageType === "placeholder" && (
-                    <span>Тимчасова обкладинка</span>
-                  )}
-                  {recipe.imageType === "generated_food_illustration" && (
-                    <span>Згенероване зображення</span>
-                  )}
                 </div>
                 <div className="catalog-card-copy">
                   <small>

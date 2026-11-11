@@ -557,6 +557,11 @@ test("calendar accepts a public HTTPS link and shows it in event details", async
   await page.getByRole("button", { name: "Додати план" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Назва").fill("Посилання на подію");
+  await expect(dialog.getByLabel("Місце", { exact: true })).toHaveCount(0);
+  await expect(dialog.getByLabel("Категорія", { exact: true })).toHaveCount(0);
+  await expect(dialog.getByLabel("Опис", { exact: true })).not.toBeVisible();
+  await dialog.getByText("Довідково", { exact: true }).click();
+  await dialog.getByLabel("Опис", { exact: true }).fill("Забронювати два квитки біля сцени");
   await dialog.getByLabel("Посилання · необов’язково").fill("http://example.com/event");
   await dialog.getByRole("button", { name: "Додати план" }).click();
   await expect(dialog.getByRole("alert")).toContainText("HTTPS");
@@ -566,6 +571,9 @@ test("calendar accepts a public HTTPS link and shows it in event details", async
   const nextEventsPage = page.locator(".day-plans").getByRole("button", { name: "Наступна сторінка" });
   if (await nextEventsPage.isEnabled()) await nextEventsPage.click();
   await page.getByRole("button", { name: "Посилання на подію" }).click();
+  await expect(dialog.getByText("Забронювати два квитки біля сцени")).not.toBeVisible();
+  await dialog.getByRole("button", { name: "Довідково" }).click();
+  await expect(dialog.getByText("Забронювати два квитки біля сцени")).toBeVisible();
   await expect(page.getByRole("link", { name: "Відкрити посилання" })).toHaveAttribute("href", "https://example.com/event");
 });
 
@@ -738,4 +746,63 @@ test("save controls stay at the top before and after scrolling long forms", asyn
     await dialog.getByRole("button", { name: "Закрити", exact: true }).click();
     await expect(dialog).not.toBeVisible();
   }
+});
+
+test("dialogs keep all four edges visible on small screens and above the keyboard", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto("/");
+  for (const viewport of [
+    { width: 320, height: 568 },
+    { width: 390, height: 664 },
+    { width: 844, height: 390 },
+  ]) {
+    await page.setViewportSize(viewport);
+    for (const [tab, add] of [
+      ["Покупки", "Додати товар"],
+      ["Кіно", "Додати фільм"],
+      ["Меню", "Додати рецепт"],
+      ["Бажання", "Додати бажання"],
+      ["Календар", "Додати план"],
+    ]) {
+      await choose(page, tab);
+      await page.getByRole("button", { name: add, exact: true }).click();
+      const dialog = page.getByRole("dialog");
+      await expect.poll(() => dialog.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        return box.left >= 16 && box.right <= innerWidth - 16 &&
+          box.top >= 20 && box.bottom <= innerHeight - 20 &&
+          el.scrollWidth <= el.clientWidth + 1;
+      })).toBe(true);
+      if (tab === "Календар" && viewport.width === 390) {
+        await page.screenshot({ path: test.info().outputPath("calendar-dialog.png") });
+      }
+      await dialog.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+      await expect.poll(() => dialog.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        return box.top >= 20 && box.bottom <= innerHeight - 20;
+      })).toBe(true);
+      await dialog.getByRole("button", { name: "Закрити", exact: true }).click();
+      await expect(dialog).not.toBeVisible();
+    }
+  }
+  await page.setViewportSize({ width: 390, height: 664 });
+  await choose(page, "Календар");
+  await page.getByRole("button", { name: "Додати план", exact: true }).click();
+  // Mobile keyboards resize and shift the visual viewport without resizing the document.
+  await page.evaluate(() => {
+    const viewport = window.visualViewport!;
+    Object.defineProperties(viewport, {
+      height: { configurable: true, value: 290 },
+      offsetTop: { configurable: true, value: 60 },
+    });
+    viewport.dispatchEvent(new Event("resize"));
+  });
+  const dialog = page.getByRole("dialog");
+  await expect.poll(() => dialog.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    return box.top >= 80 && box.bottom <= 330 && box.left >= 16 &&
+      box.right <= 374 && el.scrollWidth <= el.clientWidth + 1;
+  })).toBe(true);
+  await dialog.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  await expect(dialog.locator("summary")).toBeInViewport();
 });
