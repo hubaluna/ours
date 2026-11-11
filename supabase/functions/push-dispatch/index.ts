@@ -75,7 +75,7 @@ async function sendOne(subscription: Subscription, payload: string, publicKey: s
       ttl: "86400",
       urgency: "normal",
     },
-    body,
+    body: body.slice().buffer as ArrayBuffer,
     signal: AbortSignal.timeout(10000),
   });
   return response.status !== 404 && response.status !== 410;
