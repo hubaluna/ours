@@ -12,7 +12,12 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       VitePWA({
         registerType: "prompt",
-        includeAssets: ["icon.svg", "apple-touch-icon.png"],
+        includeAssets: [
+          "favicon.png",
+          "icon-192.png",
+          "icon-maskable.png",
+          "apple-touch-icon.png",
+        ],
         manifest: {
           name: "ours. — простір для двох",
           short_name: "ours.",

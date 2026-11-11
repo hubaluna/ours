@@ -10,7 +10,7 @@
     "ingredients": [
       {
         "name": "Куряче або свиняче філе",
-        "quantity": 180.0,
+        "quantity": 180,
         "unit": "г"
       },
       {
@@ -20,12 +20,12 @@
       },
       {
         "name": "Борошно",
-        "quantity": 15.0,
+        "quantity": 15,
         "unit": "г"
       },
       {
         "name": "Олія",
-        "quantity": 10.0,
+        "quantity": 10,
         "unit": "мл"
       },
       {
@@ -45,10 +45,170 @@
       "Розігрійте олію на сковороді. Смажте биточки на середньому вогні по 3–4 хвилини з кожного боку до золотистої скоринки й повної готовності всередині.",
       "Дайте м’ясу відпочити 2 хвилини та подавайте гарячим."
     ],
-    "recommendedSideIds": ["mashed_potato", "buckwheat", "rice"],
+    "recommendedSideIds": [
+      "mashed_potato",
+      "buckwheat",
+      "rice"
+    ],
     "notes": "На одну порцію можна взяти куряче або нежирне свиняче філе. Час смаження залежить від товщини шматочків.",
     "image": "images/meat_patties_cutlets.jpg",
     "imageType": "generated_food_illustration",
     "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%B1%D0%B8%D1%82%D0%BE%D1%87%D0%BA%D0%B8%20%D0%B2%D1%96%D0%B4%D0%B1%D0%B8%D0%B2%D0%BD%D1%96%20%D0%BA%D1%83%D1%80%D1%8F%D1%87%D1%96"
+  },
+  "baked_drumsticks": {
+    "image": "images/baked_drumsticks-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "baked_mackerel": {
+    "image": "images/baked_mackerel-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "baked_thighs": {
+    "image": "images/baked_thighs-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "baked_wings": {
+    "image": "images/baked_wings-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "battered_hake": {
+    "image": "images/battered_hake-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "beet_feta_salad": {
+    "image": "images/beet_feta_salad-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "beet_garlic_salad": {
+    "image": "images/beet_garlic_salad-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "bolognese": {
+    "image": "images/bolognese-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "buckwheat_meat_mushroom": {
+    "image": "images/buckwheat_meat_mushroom-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "caprese": {
+    "image": "images/caprese-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "carbonara": {
+    "image": "images/carbonara-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "chakhokhbili": {
+    "image": "images/chakhokhbili-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "chicken_wok_noodles": {
+    "image": "images/chicken_wok_noodles-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "chopped_chicken_cutlets": {
+    "image": "images/chopped_chicken_cutlets-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "cottage_cheese_varenyky": {
+    "image": "images/cottage_cheese_varenyky-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "crab_salad": {
+    "image": "images/crab_salad-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "creamy_chicken_mushroom_pasta": {
+    "image": "images/creamy_chicken_mushroom_pasta-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "fresh_cabbage_salad": {
+    "image": "images/fresh_cabbage_salad-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "fried_crucian": {
+    "image": "images/fried_crucian-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "georgian_chicken_salad": {
+    "image": "images/georgian_chicken_salad-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "greek_salad": {
+    "image": "images/greek_salad-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "green_salad": {
+    "image": "images/green_salad-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "ham_salad": {
+    "image": "images/ham_salad-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "herring_shuba": {
+    "image": "images/herring_shuba-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "home_caesar": {
+    "image": "images/home_caesar-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "home_chicken_salad": {
+    "image": "images/home_chicken_salad-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "olivier": {
+    "image": "images/olivier-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "pan_chicken_fillet": {
+    "image": "images/pan_chicken_fillet-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "peking_cabbage_salad": {
+    "image": "images/peking_cabbage_salad-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "pelmeni": {
+    "image": "images/pelmeni-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "pilaf": {
+    "image": "images/pilaf-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "pineapple_chicken_salad": {
+    "image": "images/pineapple_chicken_salad-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "pork_potato_roast": {
+    "image": "images/pork_potato_roast-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "sea_bream_bass": {
+    "image": "images/sea_bream_bass-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "stuffed_peppers": {
+    "image": "images/stuffed_peppers-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "sweet_sour_chicken": {
+    "image": "images/sweet_sour_chicken-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "trout_steak": {
+    "image": "images/trout_steak-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "vegetable_salad": {
+    "image": "images/vegetable_salad-photo.jpg",
+    "imageType": "generated_food_illustration"
+  },
+  "mushroom_salad": {
+    "image": "images/mushroom_salad-photo.jpg",
+    "imageType": "generated_food_illustration"
   }
 }

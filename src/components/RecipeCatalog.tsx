@@ -157,7 +157,7 @@ export function RecipeCatalog({
                   <span>Тимчасова обкладинка</span>
                 )}
                 {recipe.imageType === "generated_food_illustration" && (
-                  <span>Ілюстрація</span>
+                  <span>Згенероване зображення</span>
                 )}
               </div>
               <div className="catalog-card-copy">

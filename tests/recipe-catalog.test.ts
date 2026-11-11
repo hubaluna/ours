@@ -22,7 +22,15 @@ describe("Original recipe package, portions and pairing", () => {
   it("preserves all 55 unique recipes, every original ingredient, step and image", () => {
     expect(validateRecipeArchive(archive)).toBe(archive);
     expect(new Set(catalogRecipes.map((r) => r.catalogId)).size).toBe(55);
-    expect(catalogRows(archive)).toHaveLength(55);
+    const importedRows = catalogRows(archive);
+    expect(importedRows).toHaveLength(55);
+    expect(importedRows.every((entry) => entry.image_type === "generated_food_illustration")).toBe(true);
+    expect(new Set(importedRows.map((entry) => entry.image_url)).size).toBe(55);
+    for (const source of archive.recipes) {
+      expect(
+        importedRows.find((entry) => entry.source_id === source.id)?.original_data,
+      ).toEqual(source);
+    }
     for (const original of archive.recipes) {
       const item = recipe(original.id);
       const effective = correctedArchiveRecipes.find(
@@ -39,10 +47,20 @@ describe("Original recipe package, portions and pairing", () => {
           .subarray(0, 2)
           .toString("hex"),
       ).toBe("ffd8");
+      expect(effective.imageType).toBe("generated_food_illustration");
+      expect(
+        readFileSync(`public/recipes/ours55/${effective.image.split("/").pop()}`)
+          .subarray(0, 2)
+          .toString("hex"),
+      ).toBe("ffd8");
     }
     expect(
       catalogRecipes.filter((r) => r.imageType === "placeholder"),
-    ).toHaveLength(39);
+    ).toHaveLength(0);
+    expect(catalogRecipes).toHaveLength(55);
+    expect(catalogRecipes.map((entry) => entry.imageType)).toEqual(
+      Array(55).fill("generated_food_illustration"),
+    );
     expect(catalogRecipes.filter((r) => r.category === "salad")).toHaveLength(
       17,
     );

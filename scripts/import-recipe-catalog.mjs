@@ -84,7 +84,7 @@ export function catalogRows(data, site = "https://hubaluna.github.io/ours/") {
   if (base.protocol !== "https:")
     throw new Error("Catalog images need an HTTPS site URL.");
   return data.recipes.map((sourceRecipe) => {
-    const recipe = corrections[sourceRecipe.id] || sourceRecipe;
+    const recipe = { ...sourceRecipe, ...(corrections[sourceRecipe.id] || {}) };
     return {
       id: `ours55/${recipe.id}`,
       source_id: recipe.id,

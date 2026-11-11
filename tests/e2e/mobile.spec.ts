@@ -411,6 +411,7 @@ test("calendar shows upcoming events and countdown when today is empty", async (
   page,
 }) => {
   await page.goto("/");
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("ours-demo-v1"))).not.toBeNull();
   await page.evaluate(() => {
     const data = JSON.parse(localStorage.getItem("ours-demo-v1")!);
     const date = new Date();
@@ -534,7 +535,7 @@ test("55 recipes, filters, ranked pairings, one-click pair and portion changes s
   await shot(page, "catalog-pair-menu");
 });
 
-test("a salad alone fits every compact viewport and uses its original image", async ({
+test("a salad alone fits every compact viewport and uses its matching image", async ({
   page,
 }) => {
   await page.goto("/");
@@ -547,6 +548,10 @@ test("a salad alone fits every compact viewport and uses its original image", as
   await dialog.locator(".catalog-card").first().click();
   await dialog.getByRole("button", { name: "Додати до меню" }).click();
   await expect(dialog).not.toBeVisible();
+  await expect(page.locator(".meal-row img")).toHaveAttribute(
+    "src",
+    /green_salad-photo\.jpg$/,
+  );
   for (const viewport of [
     { width: 320, height: 568 },
     { width: 390, height: 664 },

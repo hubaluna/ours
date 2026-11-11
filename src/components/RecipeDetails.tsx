@@ -103,7 +103,7 @@ export function RecipeDetails({
             {recipe.imageType === "placeholder"
               ? "Тимчасова стилізована обкладинка · фото замінимо згодом"
               : recipe.imageType === "generated_food_illustration"
-                ? "Згенерована ілюстрація готової страви"
+                ? "Згенероване зображення готової страви"
                 : "Фото готової страви"}
           </p>
           <div className="recipe-facts">

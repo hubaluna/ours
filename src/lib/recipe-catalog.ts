@@ -116,7 +116,10 @@ export function structuredIngredients(lines: string[]): RecipeIngredient[] {
   });
 }
 export const correctedArchiveRecipes = archive.recipes.map(
-  (record) => corrections[record.id as keyof typeof corrections] ?? record,
+  (record) => ({
+    ...record,
+    ...(corrections[record.id as keyof typeof corrections] ?? {}),
+  }),
 );
 export const catalogRecipes: RecipeView[] = correctedArchiveRecipes.map(
   (record) => ({

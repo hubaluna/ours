@@ -10,6 +10,11 @@ for (const { src } of manifest.icons)
 for (const match of html.matchAll(/(?:src|href)="(\/[^"#]+)"/g))
   assert.ok(match[1].startsWith(base), `wrong base: ${match[1]}`);
 assert.ok(html.includes(`${base}apple-touch-icon.png`));
+assert.ok(html.includes(`${base}favicon.png`));
+assert.ok(
+  manifest.icons.some((icon) => icon.purpose === "maskable"),
+  "manifest needs a maskable home-screen icon",
+);
 const js = readdirSync("dist/assets")
   .filter((x) => x.endsWith(".js"))
   .map((x) => readFileSync(`dist/assets/${x}`, "utf8"))
