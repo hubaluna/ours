@@ -19,7 +19,8 @@ const body = files
               ? ""
               : statement
                   .replace('"linkedom"', '"npm:linkedom@0.18.15"')
-                  .replace('"ipaddr.js"', '"npm:ipaddr.js@2.5.0"'),
+                  .replace('"ipaddr.js"', '"npm:ipaddr.js@2.5.0"')
+                  .replace('"http-parser-js"', '"npm:http-parser-js@0.5.10"'),
         )
         .replace(/^export \{ publicUrl \} from .+;\s*\n/gm, ""),
   )

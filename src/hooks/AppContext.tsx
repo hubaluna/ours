@@ -264,8 +264,16 @@ function useStore() {
     );
     // Secret gifts are intentionally absent from Realtime publication.
     // The author refreshes after mutations and when returning to this page.
+    channel.on("system", {}, (payload) => {
+      if (payload.extension === "postgres_changes" && payload.status === "ok") {
+        setSync("live");
+        // PostgreSQL listeners become ready after the channel join. Refresh
+        // here as well to cover changes made during that subscription gap.
+        void refresh();
+      }
+    });
     channel.subscribe((status) => {
-      setSync(status === "SUBSCRIBED" ? "live" : "connecting");
+      if (status !== "SUBSCRIBED") setSync("connecting");
       if (status === "SUBSCRIBED") void refresh();
     });
     return () => {

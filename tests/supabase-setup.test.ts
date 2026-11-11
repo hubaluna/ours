@@ -4,6 +4,7 @@ import {
   expectedTables,
   managementClient,
   publicKey,
+  projectRefFromUrl,
   setup,
 } from "../scripts/supabase-setup.mjs";
 
@@ -76,6 +77,22 @@ function fixture(
 }
 
 describe("safe Supabase initial setup", () => {
+  it("derives the project from the configured public URL without accepting other destinations", () => {
+    expect(projectRefFromUrl(`https://${ref}.supabase.co`)).toBe(ref);
+    expect(projectRefFromUrl(`https://${ref}.supabase.co/`)).toBe(ref);
+    for (const url of [
+      undefined,
+      "not a URL",
+      `http://${ref}.supabase.co`,
+      `https://${ref}.supabase.co.evil.example`,
+      `https://secret@${ref}.supabase.co`,
+      `https://${ref}.supabase.co:5432`,
+      `https://${ref}.supabase.co/rest/v1/`,
+      `https://${ref}.supabase.co/?token=secret`,
+    ])
+      expect(projectRefFromUrl(url)).toBeUndefined();
+  });
+
   it("makes no request when the task has no token or an invalid project target", async () => {
     const f = fixture();
     await expect(setup({ ...f.args, token: "" })).rejects.toThrow(

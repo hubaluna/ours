@@ -1,5 +1,6 @@
 {
   "imports": {
+    "http-parser-js": "npm:http-parser-js@0.5.10",
     "linkedom": "npm:linkedom@0.18.15",
     "ipaddr.js": "npm:ipaddr.js@2.5.0"
   },

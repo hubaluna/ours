@@ -7,7 +7,9 @@
 У середовищі Codex, з якого **запущена задача**, потрібні:
 
 - `SUPABASE_ACCESS_TOKEN` — особистий токен Supabase, обмежений потрібним проєктом. Зберігайте у налаштуваннях середовища або особистому сховищі, не в чаті чи Git.
-- `SUPABASE_PROJECT_REF` — 20 літер з адреси `https://<project-ref>.supabase.co`. Це публічне значення; його можна повідомити Codex. Потрібне для точного вибору проєкту без дозволу читати всі проєкти акаунта.
+- `VITE_SUPABASE_URL` — URL потрібного проєкту. Команда визначає project ref із цієї адреси без дозволу читати всі проєкти акаунта. Як альтернативу можна задати `SUPABASE_PROJECT_REF` — 20 літер з адреси `https://<project-ref>.supabase.co`.
+
+`SUPABASE_ACCESS_TOKEN` створюється в **Account → Access Tokens**, а не в Project API Keys. Публічний `sb_publishable_…` і серверний `sb_secret_…` не замінюють цей токен. Додавайте його окремою змінною, зберігаючи обидві наявні `VITE_SUPABASE_*`.
 
 Для цієї команди достатньо **Project Settings: Read**, **Database: Read-write**, **API Keys: Read**. `API Key Secrets` не потрібен: запит ключів використовує `reveal=false`, адміністративні ключі відкидаються. Можна передати наявний публічний ключ у `VITE_SUPABASE_PUBLISHABLE_KEY` замість запиту API Keys.
 

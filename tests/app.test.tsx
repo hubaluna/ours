@@ -3,14 +3,18 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cleanup,
+  configure,
   render,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MotionGlobalConfig } from "motion/react";
 import { AppProvider } from "../src/hooks/AppContext";
 import App from "../src/App";
+// Lazy feature modules can take longer than the default 1s on shared runners.
+configure({ asyncUtilTimeout: 5000 });
 vi.mock("virtual:pwa-register/react", () => ({
   useRegisterSW: () => ({
     needRefresh: [false, () => {}],
@@ -24,6 +28,8 @@ const mount = () =>
     </AppProvider>,
   );
 beforeEach(() => {
+  // jsdom has no rendering timeline; exercise real animations in Playwright.
+  MotionGlobalConfig.skipAnimations = true;
   localStorage.clear();
   vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(420);
   window.matchMedia = vi.fn().mockImplementation((query) => ({
@@ -36,6 +42,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  MotionGlobalConfig.skipAnimations = false;
   vi.restoreAllMocks();
 });
 const nav = () =>

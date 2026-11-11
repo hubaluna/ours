@@ -2,6 +2,7 @@
   "version": "5",
   "specifiers": {
     "npm:@supabase/supabase-js@2.119.0": "2.119.0",
+    "npm:http-parser-js@0.5.10": "0.5.10",
     "npm:ipaddr.js@2.5.0": "2.5.0",
     "npm:linkedom@0.18.15": "0.18.15"
   },
@@ -141,6 +142,9 @@
         "entities@7.0.1"
       ]
     },
+    "http-parser-js@0.5.10": {
+      "integrity": "sha512-Pysuw9XpUq5dVc/2SMHpuTY01RFl8fttgcyunjL7eEMhGM3cI4eOmiCycJDVCo/7O7ClfQD3SaI6ftDzqOXYMA=="
+    },
     "iceberg-js@0.8.1": {
       "integrity": "sha512-1dhVQZXhcHje7798IVM+xoo/1ZdVfzOMIc8/rgVSijRK38EDqOJoGula9N/8ZI5RD8QTxNQtK/Gozpr+qUqRRA=="
     },
@@ -172,6 +176,7 @@
   },
   "workspace": {
     "dependencies": [
+      "npm:http-parser-js@0.5.10",
       "npm:ipaddr.js@2.5.0",
       "npm:linkedom@0.18.15"
     ]

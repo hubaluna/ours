@@ -24,6 +24,26 @@ const schemaQuery = `select c.relname as name, c.relrowsecurity as rls
  from pg_class c join pg_namespace n on n.oid=c.relnamespace
  where n.nspname='public' and c.relkind in ('r','p','v','m','f')`;
 
+export function projectRefFromUrl(url) {
+  if (!url) return undefined;
+  try {
+    const parsed = new URL(url);
+    if (
+      parsed.protocol === "https:" &&
+      !parsed.username &&
+      !parsed.password &&
+      !parsed.port &&
+      !parsed.search &&
+      !parsed.hash &&
+      parsed.pathname === "/"
+    )
+      return /^([a-z]{20})\.supabase\.co$/.exec(parsed.hostname)?.[1];
+  } catch {
+    // Never echo a malformed URL: it might contain credentials.
+  }
+  return undefined;
+}
+
 export function publicKey(keys, projectRef) {
   if (!Array.isArray(keys)) throw new Error("Unexpected API key response.");
   for (const key of keys) {
@@ -225,7 +245,10 @@ if (
     });
     await setup({
       token: process.env.SUPABASE_ACCESS_TOKEN,
-      projectRef: values["project-ref"] || process.env.SUPABASE_PROJECT_REF,
+      projectRef:
+        values["project-ref"] ||
+        process.env.SUPABASE_PROJECT_REF ||
+        projectRefFromUrl(process.env.VITE_SUPABASE_URL),
       suppliedKey: process.env.VITE_SUPABASE_PUBLISHABLE_KEY,
       apply: values.apply,
     });
