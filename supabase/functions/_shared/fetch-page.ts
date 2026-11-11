@@ -151,14 +151,28 @@ export async function fetchPublicPage(
   for (let redirects = 0; redirects <= 4; redirects++) {
     const { url, addresses } = await resolvePublicUrl(next, resolve);
     if (signal.aborted) throw new Error("TIMEOUT");
-    const address = addresses.find((a) => !a.includes(":")) || addresses[0];
-    const result = await requestPinnedPage(url, address, signal).catch(
-      (error) => {
-        if (error instanceof Error)
-          Object.assign(error, { sourceUrl: url.href });
-        throw error;
-      },
-    );
+    const candidates = [
+      ...new Set([
+        ...addresses.filter((address) => !address.includes(":")),
+        ...addresses.filter((address) => address.includes(":")),
+      ]),
+    ].slice(0, 4);
+    let result: PageResponse | undefined,
+      lastError: unknown;
+    for (const address of candidates) {
+      try {
+        result = await requestPinnedPage(url, address, signal);
+        break;
+      } catch (error) {
+        lastError = error;
+        if (signal.aborted) throw new Error("TIMEOUT", { cause: error });
+      }
+    }
+    if (!result) {
+      if (lastError instanceof Error)
+        Object.assign(lastError, { sourceUrl: url.href });
+      throw lastError ?? new Error("UNREADABLE_PAGE");
+    }
     if (result.status >= 300 && result.status < 400) {
       if (!result.location || redirects === 4)
         throw new Error("REDIRECT_LIMIT");

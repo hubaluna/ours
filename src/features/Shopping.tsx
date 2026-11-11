@@ -14,7 +14,7 @@ import {
 import { ShoppingForm } from "../components/Forms";
 import { AddButton, PagedList, ScreenHeader } from "../components/Compact";
 import { LinkImport } from "../components/LinkImportLoader";
-import { longDate, money } from "../lib/utils";
+import { kyivDate, longDate, money } from "../lib/utils";
 export default function Shopping() {
   const { data, archive, repeat, pending, addShoppingBatch } = useApp();
   const [form, setForm] = useState<ShoppingItem | "new" | null>(null),
@@ -35,7 +35,7 @@ export default function Shopping() {
   const historySessions = [...data.sessions]
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .filter((session) => {
-      const date = session.created_at.slice(0, 10);
+      const date = kyivDate(new Date(session.created_at));
       const names = data.shopping
         .filter((item) => item.session_id === session.id)
         .map((item) => item.name)
@@ -173,7 +173,7 @@ export default function Shopping() {
             {historySessions.length ? (
               historySessions.map((s) => (
                 <div className="history-card" key={s.id}>
-                  <h3>{longDate(s.created_at.slice(0, 10))}</h3>
+                  <h3>{longDate(kyivDate(new Date(s.created_at)))}</h3>
                   <p>
                     {data.shopping
                       .filter((i) => i.session_id === s.id)

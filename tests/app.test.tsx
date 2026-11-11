@@ -14,6 +14,7 @@ import userEvent from "@testing-library/user-event";
 import { MotionGlobalConfig } from "motion/react";
 import { AppProvider } from "../src/hooks/AppContext";
 import App from "../src/App";
+import { createDemo } from "../src/lib/demo";
 // Lazy feature modules can take longer than the default 1s on shared runners.
 configure({ asyncUtilTimeout: 5000 });
 vi.mock("virtual:pwa-register/react", () => ({
@@ -51,7 +52,45 @@ const nav = () =>
 const saved = () => JSON.parse(localStorage.getItem("ours-demo-v1")!);
 const closed = () =>
   waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-describe("Compact six-tab app", () => {
+describe("Compact seven-tab app", () => {
+  it("filters and labels shopping sessions by Kyiv date near UTC midnight", async () => {
+    cleanup();
+    const data = createDemo(),
+      sessionId = "session-kyiv-midnight",
+      created_at = "2026-12-31T22:30:00.000Z";
+    data.sessions = [
+      { id: sessionId, couple_id: "demo-couple", created_at },
+    ];
+    data.shopping = [
+      {
+        ...data.shopping[0],
+        id: "history-milk",
+        name: "Молоко",
+        purchased: true,
+        session_id: sessionId,
+        created_at,
+      },
+    ];
+    localStorage.setItem("ours-demo-v1", JSON.stringify(data));
+    mount();
+    const user = userEvent.setup();
+    await user.click(nav().getByText("Покупки"));
+    await user.click(
+      await screen.findByRole("button", { name: "Історія покупок" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Історія покупок",
+    });
+    fireEvent.change(within(dialog).getByLabelText("Покупки від дати"), {
+      target: { value: "2027-01-01" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Покупки до дати"), {
+      target: { value: "2027-01-01" },
+    });
+    expect(within(dialog).getByText(/1 січня/)).toBeInTheDocument();
+    expect(within(dialog).getByText("Молоко")).toBeInTheDocument();
+  });
+
   it("adds shopping, purchases and restores with separate compact filters", async () => {
     const user = userEvent.setup();
     await user.click(nav().getByText("Покупки"));

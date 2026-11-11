@@ -18,6 +18,7 @@ import type { NewShopping } from "../lib/types";
 import { groceryCategory } from "../../supabase/functions/_shared/grocery-category";
 import { movieSynopsis } from "../../supabase/functions/_shared/movie-synopsis";
 import { isTikTokVideoUrl } from "../lib/recipe-source";
+import { retryLinkPreview422 } from "../lib/link-preview-retry";
 import { useApp } from "../hooks/AppContext";
 export function LinkImport({
   kind,
@@ -65,15 +66,22 @@ export function LinkImport({
         );
         return;
       }
-      const { data, error } = await supabase.functions.invoke("link-preview", {
-        body: {
-          url: url || (kind === "movie" ? "https://uk.wikipedia.org/" : ""),
-          kind,
-          ...(kind === "movie" && movieQuery.trim()
-            ? { query: movieQuery.trim() }
-            : {}),
-        },
-      });
+      const client = supabase;
+      const { data, error } = await retryLinkPreview422<{
+        data: LinkMetadata;
+        movie_query?: string;
+      }>(() =>
+        client.functions.invoke("link-preview", {
+          body: {
+            url:
+              url || (kind === "movie" ? "https://uk.wikipedia.org/" : ""),
+            kind,
+            ...(kind === "movie" && movieQuery.trim()
+              ? { query: movieQuery.trim() }
+              : {}),
+          },
+        }),
+      );
       if (error || !data?.data) throw new Error();
       receive(data.data);
       if (kind === "movie" && !movieQuery)
@@ -81,7 +89,7 @@ export function LinkImport({
     } catch {
       setPaste(true);
       setError(
-        "Не вдалося прочитати посилання. Спробуйте вставити текст зі сторінки.",
+        "Не вдалося прочитати посилання. Спробуйте ще раз або вставте текст зі сторінки.",
       );
     } finally {
       setBusy(false);

@@ -80,6 +80,19 @@ it("pins TCP to public DNS while verifying TLS and HTTP Host against the origina
   expect(writes.join("")).not.toMatch(/Authorization:|Cookie:/);
   expect(closes[0]).toHaveBeenCalled();
 });
+it("tries the next validated public address after a failed pinned connection", async () => {
+  startTls.mockRejectedValueOnce(new Error("temporary connection failure"));
+  const result = await fetchPublicPage(
+    "https://example.com/page",
+    async () => ["93.184.216.34", "1.1.1.1"],
+    new AbortController().signal,
+  );
+  expect(result.html).toContain("Опис");
+  expect(connect.mock.calls).toEqual([
+    [{ hostname: "93.184.216.34", port: 443 }],
+    [{ hostname: "1.1.1.1", port: 443 }],
+  ]);
+});
 it("rejects redirected private hosts before opening another connection", async () => {
   pages.push({
     status: 302,
