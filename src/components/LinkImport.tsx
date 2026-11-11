@@ -10,6 +10,7 @@ import {
 } from "../../supabase/functions/_shared/metadata";
 import type { NewShopping } from "../lib/types";
 import { groceryCategory } from "../../supabase/functions/_shared/grocery-category";
+import { movieSynopsis } from "../../supabase/functions/_shared/movie-synopsis";
 import { useApp } from "../hooks/AppContext";
 export function LinkImport({
   kind,
@@ -34,6 +35,8 @@ export function LinkImport({
       (NewShopping & { selected: boolean })[]
     >([]);
   const receive = (value: LinkMetadata) => {
+    if (kind === "movie")
+      value = { ...value, description: movieSynopsis(value.description) };
     setResult(value);
     setIngredients(
       value.ingredients.map((line) => ({
@@ -169,6 +172,83 @@ export function LinkImport({
         </div>
       ) : (
         <div className="form">
+          <div className="sheet-actions import-save-actions">
+            {kind === "recipe" ? (
+              <>
+                {onRecipe && (
+                  <Button
+                    busy={pending.includes("recipe")}
+                    disabled={
+                      !selected.length ||
+                      selected.some(
+                        (i) =>
+                          !i.name.trim() ||
+                          i.quantity === null ||
+                          !Number.isFinite(i.quantity) ||
+                          i.quantity <= 0,
+                      )
+                    }
+                    onClick={async () => {
+                      if (
+                        await onRecipe?.(
+                          selected.map(
+                            ({ name, quantity, unit, category, price }) => ({
+                              name,
+                              quantity,
+                              unit,
+                              category,
+                              price,
+                            }),
+                          ),
+                        )
+                      )
+                        onClose();
+                    }}
+                  >
+                    Додати {selected.length} до покупок
+                  </Button>
+                )}
+
+                {onResult && (
+                  <Button
+                    disabled={
+                      !selected.length ||
+                      selected.some(
+                        (item) =>
+                          !item.name.trim() ||
+                          item.quantity === null ||
+                          !Number.isFinite(item.quantity) ||
+                          item.quantity <= 0,
+                      )
+                    }
+                    onClick={() =>
+                      onResult({
+                        ...result,
+                        ingredients: ingredients.flatMap((item, index) => {
+                          if (!item.selected) return [];
+                          const original = result.ingredients[index],
+                            parsed = parseIngredient(original);
+                          return [
+                            parsed.name === item.name &&
+                            parsed.quantity === item.quantity &&
+                            parsed.unit === item.unit
+                              ? original
+                              : `${item.quantity} ${item.unit} ${item.name}`,
+                          ];
+                        }),
+                      })
+                    }
+                  >
+                    Перевірити й зберегти рецепт <ArrowRight size={17} />
+                  </Button>
+                )}
+              </>
+            ) : (
+              <Button onClick={() => onResult?.(result)}>
+                Перевірити й зберегти <ArrowRight size={17} />
+              </Button>
+            )}
+          </div>
           <div className="import-success">
             <Check size={17} />
             {result.provider}
@@ -316,7 +396,7 @@ export function LinkImport({
                             type="number"
                             min="0.01"
                             step="any"
-                            value={item.quantity}
+                            value={item.quantity ?? ""}
                             onChange={(e) =>
                               setIngredients((values) =>
                                 values.map((v, i) =>
@@ -353,38 +433,6 @@ export function LinkImport({
                   ))}
                 </div>
               )}
-              {onRecipe && (
-                <Button
-                  busy={pending.includes("recipe")}
-                  disabled={
-                    !selected.length ||
-                    selected.some(
-                      (i) =>
-                        !i.name.trim() ||
-                        !Number.isFinite(i.quantity) ||
-                        i.quantity <= 0,
-                    )
-                  }
-                  onClick={async () => {
-                    if (
-                      await onRecipe?.(
-                        selected.map(
-                          ({ name, quantity, unit, category, price }) => ({
-                            name,
-                            quantity,
-                            unit,
-                            category,
-                            price,
-                          }),
-                        ),
-                      )
-                    )
-                      onClose();
-                  }}
-                >
-                  Додати {selected.length} до покупок
-                </Button>
-              )}
               {onResult && (
                 <>
                   <Field label="Кроки приготування">
@@ -400,36 +448,6 @@ export function LinkImport({
                       }
                     />
                   </Field>
-                  <Button
-                    disabled={
-                      !selected.length ||
-                      selected.some(
-                        (item) =>
-                          !item.name.trim() ||
-                          !Number.isFinite(item.quantity) ||
-                          item.quantity <= 0,
-                      )
-                    }
-                    onClick={() =>
-                      onResult({
-                        ...result,
-                        ingredients: ingredients.flatMap((item, index) => {
-                          if (!item.selected) return [];
-                          const original = result.ingredients[index],
-                            parsed = parseIngredient(original);
-                          return [
-                            parsed.name === item.name &&
-                            parsed.quantity === item.quantity &&
-                            parsed.unit === item.unit
-                              ? original
-                              : `${item.quantity} ${item.unit} ${item.name}`,
-                          ];
-                        }),
-                      })
-                    }
-                  >
-                    Перевірити й зберегти рецепт <ArrowRight size={17} />
-                  </Button>
                 </>
               )}
             </>
@@ -439,7 +457,7 @@ export function LinkImport({
                 <textarea
                   rows={4}
                   value={result.description}
-                  maxLength={kind === "movie" ? 2000 : 1000}
+                  maxLength={kind === "movie" ? 650 : 1000}
                   onChange={(e) =>
                     setResult({ ...result, description: e.target.value })
                   }
@@ -458,9 +476,6 @@ export function LinkImport({
                   ввести на наступному кроці.
                 </p>
               )}
-              <Button onClick={() => onResult?.(result)}>
-                Перевірити й зберегти <ArrowRight size={17} />
-              </Button>
             </>
           )}
           <Button className="ghost" onClick={() => setResult(null)}>

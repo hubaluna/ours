@@ -4,6 +4,7 @@ import { Check } from "lucide-react";
 import type { ShoppingItem } from "../lib/types";
 import { spring } from "../lib/motion";
 import { useApp } from "../hooks/AppContext";
+import { quantityLabel } from "../lib/recipe-catalog";
 export function ShoppingRow({
   item,
   onEdit,
@@ -76,7 +77,7 @@ export function ShoppingRow({
       >
         <span className="item-name">{item.name}</span>
         <span className="item-quantity">
-          {item.quantity} {item.unit}
+          {quantityLabel(item.quantity, item.unit)}
         </span>
       </button>
     </motion.div>

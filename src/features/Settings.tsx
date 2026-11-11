@@ -41,6 +41,11 @@ export default function Settings({
   return (
     <BottomSheet title="Ваш простір" onClose={onClose}>
       <form className="form" onSubmit={submit}>
+        <div className="sheet-actions form-save">
+          <Button type="submit" busy={uploading || pending.includes("profile")}>
+            Зберегти профіль
+          </Button>
+        </div>
         <div className="profile-edit">
           <Avatar name={name || "Я"} path={avatar} size="large" />
           <Button
@@ -85,9 +90,6 @@ export default function Settings({
             maxLength={60}
           />
         </Field>
-        <Button type="submit" busy={uploading || pending.includes("profile")}>
-          Зберегти профіль
-        </Button>
       </form>
       <section className="settings-section">
         <h3>Трохи настрою</h3>
@@ -194,6 +196,7 @@ export default function Settings({
               events: data.events,
               movies: data.movies,
               recipes: data.recipes,
+              meal_plan: data.mealPlan,
             });
             notify("Експорт підготовлено");
           }}

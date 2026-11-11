@@ -1,0 +1,3043 @@
+{
+  "metadata": {
+    "schemaVersion": "1.0.0",
+    "app": "Ours",
+    "language": "uk-UA",
+    "recipeCount": 55,
+    "portionRule": {
+      "baseServings": 1,
+      "minServings": 1,
+      "maxServings": 12,
+      "ingredientQuantityFormula": "quantity * selectedServings / baseServings",
+      "instructions": "Час приготування не масштабувати автоматично. Продукти з одиницями «шт.» та «зубчик» можуть бути дробовими, інтерфейс має показувати ½, ¼ і рекомендації з підготовки.",
+      "seasoning": "Інгредієнти з quantity=null залишаються «за смаком».",
+      "note": "Кількості орієнтовні; сирі продукти зважуються до приготування."
+    },
+    "categories": [
+      {
+        "id": "sides",
+        "title": "Гарніри",
+        "order": 1
+      },
+      {
+        "id": "meat_fish",
+        "title": "М’ясо та риба",
+        "order": 2
+      },
+      {
+        "id": "salads",
+        "title": "Салати",
+        "order": 3
+      },
+      {
+        "id": "full_meals",
+        "title": "Повноцінні страви",
+        "order": 4
+      }
+    ],
+    "imageNotice": "generated_food_illustration — згенерована ілюстрація страви (16); placeholder — стилізована обкладинка без фотографічної точності (39). Для заміни фото вказаний imageSearchUrl."
+  },
+  "recipes": [
+    {
+      "id": "rice",
+      "title": "Рис",
+      "category": "sides",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 20,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Рис",
+          "quantity": 75.0,
+          "unit": "г"
+        },
+        {
+          "name": "Вода",
+          "quantity": 150.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Вершкове масло",
+          "quantity": 10.0,
+          "unit": "г"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Промийте рис до прозорої води.",
+        "Залийте водою у співвідношенні приблизно 1:2, посоліть і доведіть до кипіння.",
+        "Готуйте під кришкою на малому вогні 15–18 хвилин; зніміть з плити й дайте постояти 5 хвилин.",
+        "Додайте масло і розпушіть виделкою."
+      ],
+      "recommendedSideIds": [],
+      "notes": "",
+      "image": "images/rice.jpg",
+      "imageType": "generated_food_illustration",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%A0%D0%B8%D1%81%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "rice_frozen_veg",
+      "title": "Рис із замороженим овочевим міксом",
+      "category": "sides",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 30,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Рис",
+          "quantity": 75.0,
+          "unit": "г"
+        },
+        {
+          "name": "Заморожена овочева суміш",
+          "quantity": 150.0,
+          "unit": "г",
+          "note": "без розморожування"
+        },
+        {
+          "name": "Цибуля",
+          "quantity": 40.0,
+          "unit": "г"
+        },
+        {
+          "name": "Часник",
+          "quantity": 0.5,
+          "unit": "зубчика"
+        },
+        {
+          "name": "Олія",
+          "quantity": 7.5,
+          "unit": "мл"
+        },
+        {
+          "name": "Вода",
+          "quantity": 180.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        },
+        {
+          "name": "Перець",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Промийте рис, дрібно наріжте цибулю та часник.",
+        "Обсмажте цибулю 2–3 хвилини, додайте часник та заморожені овочі, готуйте ще 4–5 хвилин.",
+        "Всипте рис, перемішайте, влийте гарячу воду, посоліть.",
+        "Доведіть до кипіння та готуйте під кришкою 15–18 хвилин; дайте постояти 5 хвилин."
+      ],
+      "recommendedSideIds": [],
+      "notes": "Кількість води уточнюйте за видом рису та вологістю замороженого міксу.",
+      "image": "images/rice_frozen_veg.jpg",
+      "imageType": "generated_food_illustration",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%A0%D0%B8%D1%81%20%D1%96%D0%B7%20%D0%B7%D0%B0%D0%BC%D0%BE%D1%80%D0%BE%D0%B6%D0%B5%D0%BD%D0%B8%D0%BC%20%D0%BE%D0%B2%D0%BE%D1%87%D0%B5%D0%B2%D0%B8%D0%BC%20%D0%BC%D1%96%D0%BA%D1%81%D0%BE%D0%BC%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "buckwheat",
+      "title": "Гречка",
+      "category": "sides",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 20,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Гречка",
+          "quantity": 75.0,
+          "unit": "г"
+        },
+        {
+          "name": "Вода",
+          "quantity": 150.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Вершкове масло",
+          "quantity": 10.0,
+          "unit": "г"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Промийте гречку.",
+        "Залийте водою, посоліть і доведіть до кипіння.",
+        "Готуйте під кришкою на слабкому вогні 15–18 хвилин до вбирання води.",
+        "Додайте масло та дайте постояти 5 хвилин."
+      ],
+      "recommendedSideIds": [],
+      "notes": "",
+      "image": "images/buckwheat.jpg",
+      "imageType": "generated_food_illustration",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%93%D1%80%D0%B5%D1%87%D0%BA%D0%B0%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "mashed_potato",
+      "title": "Картопляне пюре",
+      "category": "sides",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 30,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Картопля",
+          "quantity": 300.0,
+          "unit": "г"
+        },
+        {
+          "name": "Молоко",
+          "quantity": 60.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Вершкове масло",
+          "quantity": 20.0,
+          "unit": "г"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Очистіть картоплю, наріжте однаковими шматками.",
+        "Відваріть у підсоленій воді 20–25 хвилин до м’якості.",
+        "Злийте воду, додайте підігріте молоко й масло.",
+        "Розімніть товкачем до однорідності."
+      ],
+      "recommendedSideIds": [],
+      "notes": "",
+      "image": "images/mashed_potato.jpg",
+      "imageType": "generated_food_illustration",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%9A%D0%B0%D1%80%D1%82%D0%BE%D0%BF%D0%BB%D1%8F%D0%BD%D0%B5%20%D0%BF%D1%8E%D1%80%D0%B5%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "fried_potatoes",
+      "title": "Смажена картопля",
+      "category": "sides",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 30,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Картопля",
+          "quantity": 300.0,
+          "unit": "г"
+        },
+        {
+          "name": "Цибуля",
+          "quantity": 50.0,
+          "unit": "г"
+        },
+        {
+          "name": "Олія",
+          "quantity": 20.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        },
+        {
+          "name": "Перець",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Наріжте очищену картоплю брусочками, промийте й ретельно обсушіть.",
+        "Смажте на розігрітій олії 12–15 хвилин, періодично перевертаючи.",
+        "Додайте нарізану цибулю, смажте ще 7–10 хвилин до рум’яності.",
+        "Наприкінці посоліть і поперчіть."
+      ],
+      "recommendedSideIds": [],
+      "notes": "",
+      "image": "images/fried_potatoes.jpg",
+      "imageType": "generated_food_illustration",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%A1%D0%BC%D0%B0%D0%B6%D0%B5%D0%BD%D0%B0%20%D0%BA%D0%B0%D1%80%D1%82%D0%BE%D0%BF%D0%BB%D1%8F%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "baked_potatoes",
+      "title": "Печена картопля",
+      "category": "sides",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 45,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Картопля",
+          "quantity": 350.0,
+          "unit": "г"
+        },
+        {
+          "name": "Олія",
+          "quantity": 15.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Часник",
+          "quantity": 1.0,
+          "unit": "зубчик"
+        },
+        {
+          "name": "Паприка",
+          "quantity": 2.0,
+          "unit": "г"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        },
+        {
+          "name": "Сухий розмарин",
+          "quantity": 1.0,
+          "unit": "г"
+        }
+      ],
+      "steps": [
+        "Розігрійте духовку до 200 °C.",
+        "Картоплю наріжте часточками, обсушіть і змішайте з олією, спеціями та подрібненим часником.",
+        "Розкладіть одним шаром на деко.",
+        "Запікайте 35–40 хвилин, один раз перевернувши."
+      ],
+      "recommendedSideIds": [],
+      "notes": "",
+      "image": "images/baked_potatoes.jpg",
+      "imageType": "generated_food_illustration",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%9F%D0%B5%D1%87%D0%B5%D0%BD%D0%B0%20%D0%BA%D0%B0%D1%80%D1%82%D0%BE%D0%BF%D0%BB%D1%8F%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "boiled_potatoes",
+      "title": "Варена картопля з кропом",
+      "category": "sides",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 25,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Картопля",
+          "quantity": 300.0,
+          "unit": "г"
+        },
+        {
+          "name": "Вершкове масло",
+          "quantity": 15.0,
+          "unit": "г"
+        },
+        {
+          "name": "Кріп",
+          "quantity": 5.0,
+          "unit": "г"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Почистіть картоплю, великі бульби розріжте навпіл.",
+        "Залийте водою, посоліть і варіть 18–25 хвилин до готовності.",
+        "Злийте воду; додайте масло й подрібнений кріп.",
+        "Акуратно перемішайте."
+      ],
+      "recommendedSideIds": [],
+      "notes": "",
+      "image": "images/boiled_potatoes.jpg",
+      "imageType": "generated_food_illustration",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%92%D0%B0%D1%80%D0%B5%D0%BD%D0%B0%20%D0%BA%D0%B0%D1%80%D1%82%D0%BE%D0%BF%D0%BB%D1%8F%20%D0%B7%20%D0%BA%D1%80%D0%BE%D0%BF%D0%BE%D0%BC%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "deruny",
+      "title": "Деруни",
+      "category": "sides",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 30,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Картопля",
+          "quantity": 300.0,
+          "unit": "г"
+        },
+        {
+          "name": "Цибуля",
+          "quantity": 40.0,
+          "unit": "г"
+        },
+        {
+          "name": "Яйце",
+          "quantity": 0.5,
+          "unit": "шт."
+        },
+        {
+          "name": "Борошно",
+          "quantity": 15.0,
+          "unit": "г"
+        },
+        {
+          "name": "Олія",
+          "quantity": 20.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        },
+        {
+          "name": "Сметана",
+          "quantity": 30.0,
+          "unit": "г",
+          "note": "для подачі"
+        }
+      ],
+      "steps": [
+        "Натріть картоплю та цибулю на дрібній тертці, злегка відіжміть рідину.",
+        "Додайте яйце, борошно та сіль, перемішайте.",
+        "Викладайте ложкою на гарячу сковороду з олією.",
+        "Смажте по 3–4 хвилини з кожного боку до золотистої скоринки. Подавайте зі сметаною."
+      ],
+      "recommendedSideIds": [],
+      "notes": "Для 1 порції використайте половину збитого яйця.",
+      "image": "images/deruny.jpg",
+      "imageType": "generated_food_illustration",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%94%D0%B5%D1%80%D1%83%D0%BD%D0%B8%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "plain_pasta",
+      "title": "Макарони з маслом",
+      "category": "sides",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 15,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Макарони",
+          "quantity": 90.0,
+          "unit": "г"
+        },
+        {
+          "name": "Вершкове масло",
+          "quantity": 10.0,
+          "unit": "г"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Закип’ятіть підсолену воду.",
+        "Відваріть макарони до бажаної готовності за інструкцією на упаковці.",
+        "Злийте воду, залишивши кілька ложок за потреби.",
+        "Перемішайте з маслом."
+      ],
+      "recommendedSideIds": [],
+      "notes": "",
+      "image": "images/plain_pasta.jpg",
+      "imageType": "generated_food_illustration",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%9C%D0%B0%D0%BA%D0%B0%D1%80%D0%BE%D0%BD%D0%B8%20%D0%B7%20%D0%BC%D0%B0%D1%81%D0%BB%D0%BE%D0%BC%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "bulgur",
+      "title": "Булгур",
+      "category": "sides",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 20,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Булгур",
+          "quantity": 75.0,
+          "unit": "г"
+        },
+        {
+          "name": "Вода",
+          "quantity": 150.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Вершкове масло",
+          "quantity": 10.0,
+          "unit": "г"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "За бажанням злегка підсмажте сухий булгур у каструлі 1 хвилину.",
+        "Додайте воду й сіль та доведіть до кипіння.",
+        "Готуйте під кришкою 12–15 хвилин на мінімальному вогні.",
+        "Зніміть з плити, дайте постояти 5 хвилин і додайте масло."
+      ],
+      "recommendedSideIds": [],
+      "notes": "",
+      "image": "images/bulgur.jpg",
+      "imageType": "generated_food_illustration",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%91%D1%83%D0%BB%D0%B3%D1%83%D1%80%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "chashushuli",
+      "title": "Чашушулі зі свинини",
+      "category": "meat_fish",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 60,
+      "difficulty": "medium",
+      "ingredients": [
+        {
+          "name": "Свинина (лопатка)",
+          "quantity": 180.0,
+          "unit": "г"
+        },
+        {
+          "name": "Помідори",
+          "quantity": 150.0,
+          "unit": "г"
+        },
+        {
+          "name": "Цибуля",
+          "quantity": 80.0,
+          "unit": "г"
+        },
+        {
+          "name": "Часник",
+          "quantity": 1.0,
+          "unit": "зубчик"
+        },
+        {
+          "name": "Томатна паста",
+          "quantity": 15.0,
+          "unit": "г"
+        },
+        {
+          "name": "Олія",
+          "quantity": 10.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Кінза або петрушка",
+          "quantity": 8.0,
+          "unit": "г"
+        },
+        {
+          "name": "Хмелі-сунелі",
+          "quantity": 2.0,
+          "unit": "г"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Наріжте свинину невеликими шматочками й обсмажте на олії до легкої скоринки.",
+        "Додайте нарізану цибулю, готуйте 5 хвилин.",
+        "Додайте помідори, пасту, спеції та трохи води; тушкуйте 35–45 хвилин до м’якості.",
+        "Наприкінці додайте часник і зелень, прогрійте 2 хвилини."
+      ],
+      "recommendedSideIds": ["rice", "mashed_potato"],
+      "notes": "Домашня версія чашушулі зі свинини; класичний варіант частіше роблять із яловичини.",
+      "image": "images/chashushuli.jpg",
+      "imageType": "generated_food_illustration",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%A7%D0%B0%D1%88%D1%83%D1%88%D1%83%D0%BB%D1%96%20%D0%B7%D1%96%20%D1%81%D0%B2%D0%B8%D0%BD%D0%B8%D0%BD%D0%B8%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "fried_pork_onion",
+      "title": "Смажена свинина з цибулею",
+      "category": "meat_fish",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 30,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Свинина",
+          "quantity": 200.0,
+          "unit": "г"
+        },
+        {
+          "name": "Цибуля",
+          "quantity": 90.0,
+          "unit": "г"
+        },
+        {
+          "name": "Олія",
+          "quantity": 12.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Часник",
+          "quantity": 1.0,
+          "unit": "зубчик"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        },
+        {
+          "name": "Перець",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Наріжте свинину невеликими шматками, посоліть і поперчіть.",
+        "Обсмажте на добре розігрітій сковороді до рум’яності.",
+        "Додайте цибулю півкільцями; зменште вогонь і готуйте 10–15 хвилин, до м’якості м’яса.",
+        "Наприкінці додайте часник і за потреби кілька ложок води."
+      ],
+      "recommendedSideIds": ["mashed_potato", "buckwheat", "plain_pasta"],
+      "notes": "",
+      "image": "images/fried_pork_onion.jpg",
+      "imageType": "generated_food_illustration",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%A1%D0%BC%D0%B0%D0%B6%D0%B5%D0%BD%D0%B0%20%D1%81%D0%B2%D0%B8%D0%BD%D0%B8%D0%BD%D0%B0%20%D0%B7%20%D1%86%D0%B8%D0%B1%D1%83%D0%BB%D0%B5%D1%8E%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "homemade_cutlets",
+      "title": "Домашні котлети",
+      "category": "meat_fish",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 35,
+      "difficulty": "medium",
+      "ingredients": [
+        {
+          "name": "Фарш свинячий або змішаний",
+          "quantity": 180.0,
+          "unit": "г"
+        },
+        {
+          "name": "Цибуля",
+          "quantity": 40.0,
+          "unit": "г"
+        },
+        {
+          "name": "Хліб білий",
+          "quantity": 25.0,
+          "unit": "г"
+        },
+        {
+          "name": "Молоко",
+          "quantity": 30.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Яйце",
+          "quantity": 0.25,
+          "unit": "шт."
+        },
+        {
+          "name": "Олія",
+          "quantity": 12.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Замочіть хліб у молоці, злегка відіжміть.",
+        "Змішайте фарш із тертою цибулею, хлібом, яйцем та сіллю.",
+        "Сформуйте 2–3 котлети, обсмажте по 4–5 хвилин із кожного боку.",
+        "Накрийте й доведіть до готовності на малому вогні 7–10 хвилин."
+      ],
+      "recommendedSideIds": ["mashed_potato", "buckwheat", "plain_pasta"],
+      "notes": "Порція містить приблизно чверть яйця: зручно готувати 4 порції разом.",
+      "image": "images/homemade_cutlets.jpg",
+      "imageType": "generated_food_illustration",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%94%D0%BE%D0%BC%D0%B0%D1%88%D0%BD%D1%96%20%D0%BA%D0%BE%D1%82%D0%BB%D0%B5%D1%82%D0%B8%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "meat_patties_gravy",
+      "title": "Биточки з підливою",
+      "category": "meat_fish",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 45,
+      "difficulty": "medium",
+      "ingredients": [
+        {
+          "name": "М’ясний фарш",
+          "quantity": 180.0,
+          "unit": "г"
+        },
+        {
+          "name": "Цибуля",
+          "quantity": 50.0,
+          "unit": "г"
+        },
+        {
+          "name": "Яйце",
+          "quantity": 0.25,
+          "unit": "шт."
+        },
+        {
+          "name": "Сметана",
+          "quantity": 40.0,
+          "unit": "г"
+        },
+        {
+          "name": "Томатна паста",
+          "quantity": 10.0,
+          "unit": "г"
+        },
+        {
+          "name": "Вода",
+          "quantity": 100.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Борошно",
+          "quantity": 8.0,
+          "unit": "г"
+        },
+        {
+          "name": "Олія",
+          "quantity": 10.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Змішайте фарш із половиною цибулі, яйцем і спеціями; сформуйте невеликі биточки.",
+        "Швидко обсмажте з обох боків і перекладіть на тарілку.",
+        "На тій самій сковороді спасеруйте решту цибулі, додайте борошно, пасту, сметану й воду.",
+        "Поверніть биточки в соус і тушкуйте під кришкою 15–20 хвилин."
+      ],
+      "recommendedSideIds": ["mashed_potato", "buckwheat", "rice"],
+      "notes": "Для невеликої кількості порцій яйце можна замінити ложкою води або хлібною крихтою.",
+      "image": "images/meat_patties_gravy.jpg",
+      "imageType": "generated_food_illustration",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%91%D0%B8%D1%82%D0%BE%D1%87%D0%BA%D0%B8%20%D0%B7%20%D0%BF%D1%96%D0%B4%D0%BB%D0%B8%D0%B2%D0%BE%D1%8E%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "baked_ribs",
+      "title": "Запечені свинячі ребра",
+      "category": "meat_fish",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 100,
+      "difficulty": "medium",
+      "ingredients": [
+        {
+          "name": "Свинячі ребра",
+          "quantity": 300.0,
+          "unit": "г"
+        },
+        {
+          "name": "Гірчиця",
+          "quantity": 12.0,
+          "unit": "г"
+        },
+        {
+          "name": "Мед",
+          "quantity": 10.0,
+          "unit": "г"
+        },
+        {
+          "name": "Часник",
+          "quantity": 1.0,
+          "unit": "зубчик"
+        },
+        {
+          "name": "Паприка",
+          "quantity": 2.0,
+          "unit": "г"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Розігрійте духовку до 170 °C.",
+        "Натріть ребра сумішшю гірчиці, меду, часнику та спецій.",
+        "Викладіть у форму, накрийте фольгою та запікайте 75–85 хвилин.",
+        "Зніміть фольгу й підрум’яньте при 210 °C ще 10–15 хвилин."
+      ],
+      "recommendedSideIds": ["baked_potatoes", "boiled_potatoes"],
+      "notes": "",
+      "image": "images/baked_ribs.jpg",
+      "imageType": "generated_food_illustration",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%97%D0%B0%D0%BF%D0%B5%D1%87%D0%B5%D0%BD%D1%96%20%D1%81%D0%B2%D0%B8%D0%BD%D1%8F%D1%87%D1%96%20%D1%80%D0%B5%D0%B1%D1%80%D0%B0%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "honey_mustard_pork",
+      "title": "Свинина в медово-гірчичному соусі",
+      "category": "meat_fish",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 35,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Свинина",
+          "quantity": 200.0,
+          "unit": "г"
+        },
+        {
+          "name": "Гірчиця",
+          "quantity": 15.0,
+          "unit": "г"
+        },
+        {
+          "name": "Мед",
+          "quantity": 12.0,
+          "unit": "г"
+        },
+        {
+          "name": "Соєвий соус",
+          "quantity": 15.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Часник",
+          "quantity": 1.0,
+          "unit": "зубчик"
+        },
+        {
+          "name": "Олія",
+          "quantity": 10.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Вода",
+          "quantity": 30.0,
+          "unit": "мл"
+        }
+      ],
+      "steps": [
+        "Наріжте свинину невеликими шматками та обсмажте до рум’яності.",
+        "Змішайте гірчицю, мед, соєвий соус, часник і воду.",
+        "Влийте соус до м’яса та готуйте 10–15 хвилин під кришкою.",
+        "За потреби відкрийте кришку й уваріть соус до помірної густоти."
+      ],
+      "recommendedSideIds": ["rice", "mashed_potato", "bulgur"],
+      "notes": "",
+      "image": "images/honey_mustard_pork.jpg",
+      "imageType": "generated_food_illustration",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%A1%D0%B2%D0%B8%D0%BD%D0%B8%D0%BD%D0%B0%20%D0%B2%20%D0%BC%D0%B5%D0%B4%D0%BE%D0%B2%D0%BE-%D0%B3%D1%96%D1%80%D1%87%D0%B8%D1%87%D0%BD%D0%BE%D0%BC%D1%83%20%D1%81%D0%BE%D1%83%D1%81%D1%96%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "sweet_sour_chicken",
+      "title": "Курка в кисло-солодкому соусі",
+      "category": "meat_fish",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 30,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Куряче філе",
+          "quantity": 180.0,
+          "unit": "г"
+        },
+        {
+          "name": "Соєвий соус",
+          "quantity": 20.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Кетчуп або томатний соус",
+          "quantity": 25.0,
+          "unit": "г"
+        },
+        {
+          "name": "Мед або цукор",
+          "quantity": 12.0,
+          "unit": "г"
+        },
+        {
+          "name": "Яблучний оцет",
+          "quantity": 10.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Часник",
+          "quantity": 1.0,
+          "unit": "зубчик"
+        },
+        {
+          "name": "Крохмаль",
+          "quantity": 6.0,
+          "unit": "г"
+        },
+        {
+          "name": "Олія",
+          "quantity": 10.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Вода",
+          "quantity": 50.0,
+          "unit": "мл"
+        }
+      ],
+      "steps": [
+        "Поріжте курку кубиками, обсмажте на олії 6–8 хвилин.",
+        "Змішайте соєвий соус, кетчуп, мед, оцет, воду та крохмаль.",
+        "Влийте соус до курки, додайте часник.",
+        "Тушкуйте 5–7 хвилин до загустіння соусу й готовності курки."
+      ],
+      "recommendedSideIds": ["rice", "rice_frozen_veg"],
+      "notes": "",
+      "image": "images/sweet_sour_chicken.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%9A%D1%83%D1%80%D0%BA%D0%B0%20%D0%B2%20%D0%BA%D0%B8%D1%81%D0%BB%D0%BE-%D1%81%D0%BE%D0%BB%D0%BE%D0%B4%D0%BA%D0%BE%D0%BC%D1%83%20%D1%81%D0%BE%D1%83%D1%81%D1%96%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "pan_chicken_fillet",
+      "title": "Куряче філе на сковороді",
+      "category": "meat_fish",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 20,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Куряче філе",
+          "quantity": 200.0,
+          "unit": "г"
+        },
+        {
+          "name": "Олія",
+          "quantity": 10.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Часник",
+          "quantity": 1.0,
+          "unit": "зубчик"
+        },
+        {
+          "name": "Паприка",
+          "quantity": 2.0,
+          "unit": "г"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Розріжте філе вздовж на тонші шматки, обсушіть і приправте.",
+        "Розігрійте сковороду з олією, викладіть курку.",
+        "Смажте 4–6 хвилин з кожного боку залежно від товщини.",
+        "Перевірте готовність усередині (не менш як 74 °C), дайте відпочити 3 хвилини."
+      ],
+      "recommendedSideIds": ["mashed_potato", "rice", "bulgur"],
+      "notes": "",
+      "image": "images/pan_chicken_fillet.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%9A%D1%83%D1%80%D1%8F%D1%87%D0%B5%20%D1%84%D1%96%D0%BB%D0%B5%20%D0%BD%D0%B0%20%D1%81%D0%BA%D0%BE%D0%B2%D0%BE%D1%80%D0%BE%D0%B4%D1%96%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "baked_thighs",
+      "title": "Запечені курячі стегна",
+      "category": "meat_fish",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 50,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Курячі стегна",
+          "quantity": 260.0,
+          "unit": "г"
+        },
+        {
+          "name": "Гірчиця",
+          "quantity": 10.0,
+          "unit": "г"
+        },
+        {
+          "name": "Часник",
+          "quantity": 1.0,
+          "unit": "зубчик"
+        },
+        {
+          "name": "Олія",
+          "quantity": 10.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Паприка",
+          "quantity": 2.0,
+          "unit": "г"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Розігрійте духовку до 200 °C.",
+        "Натріть стегна гірчицею, олією, часником і спеціями.",
+        "Викладіть у форму шкіркою догори.",
+        "Запікайте 35–45 хвилин до рум’яності та готовності всередині."
+      ],
+      "recommendedSideIds": ["baked_potatoes", "rice"],
+      "notes": "",
+      "image": "images/baked_thighs.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%97%D0%B0%D0%BF%D0%B5%D1%87%D0%B5%D0%BD%D1%96%20%D0%BA%D1%83%D1%80%D1%8F%D1%87%D1%96%20%D1%81%D1%82%D0%B5%D0%B3%D0%BD%D0%B0%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "baked_drumsticks",
+      "title": "Запечені курячі ніжки",
+      "category": "meat_fish",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 50,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Курячі гомілки",
+          "quantity": 300.0,
+          "unit": "г"
+        },
+        {
+          "name": "Часник",
+          "quantity": 1.0,
+          "unit": "зубчик"
+        },
+        {
+          "name": "Паприка",
+          "quantity": 2.0,
+          "unit": "г"
+        },
+        {
+          "name": "Олія",
+          "quantity": 10.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Розігрійте духовку до 200 °C.",
+        "Змішайте гомілки з олією, спеціями та подрібненим часником.",
+        "Розкладіть у формі без щільного накладання.",
+        "Запікайте 35–45 хвилин, один раз переверніть; перевірте готовність біля кістки."
+      ],
+      "recommendedSideIds": ["baked_potatoes", "mashed_potato"],
+      "notes": "",
+      "image": "images/baked_drumsticks.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%97%D0%B0%D0%BF%D0%B5%D1%87%D0%B5%D0%BD%D1%96%20%D0%BA%D1%83%D1%80%D1%8F%D1%87%D1%96%20%D0%BD%D1%96%D0%B6%D0%BA%D0%B8%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "baked_wings",
+      "title": "Запечені курячі крильця",
+      "category": "meat_fish",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 50,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Курячі крильця",
+          "quantity": 350.0,
+          "unit": "г"
+        },
+        {
+          "name": "Соєвий соус",
+          "quantity": 20.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Мед",
+          "quantity": 12.0,
+          "unit": "г"
+        },
+        {
+          "name": "Часник",
+          "quantity": 1.0,
+          "unit": "зубчик"
+        },
+        {
+          "name": "Паприка",
+          "quantity": 2.0,
+          "unit": "г"
+        }
+      ],
+      "steps": [
+        "Обсушіть крильця.",
+        "Перемішайте із соєвим соусом, медом, часником і паприкою.",
+        "Розкладіть на решітці або пергаменті.",
+        "Запікайте за 200 °C 35–45 хвилин, перевернувши посередині, до повної готовності."
+      ],
+      "recommendedSideIds": ["baked_potatoes", "rice_frozen_veg"],
+      "notes": "",
+      "image": "images/baked_wings.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%97%D0%B0%D0%BF%D0%B5%D1%87%D0%B5%D0%BD%D1%96%20%D0%BA%D1%83%D1%80%D1%8F%D1%87%D1%96%20%D0%BA%D1%80%D0%B8%D0%BB%D1%8C%D1%86%D1%8F%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "chopped_chicken_cutlets",
+      "title": "Рублені курячі котлети із сиром і кукурудзою",
+      "category": "meat_fish",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 35,
+      "difficulty": "medium",
+      "ingredients": [
+        {
+          "name": "Куряче філе",
+          "quantity": 180.0,
+          "unit": "г"
+        },
+        {
+          "name": "Твердий сир",
+          "quantity": 35.0,
+          "unit": "г"
+        },
+        {
+          "name": "Кукурудза консервована",
+          "quantity": 40.0,
+          "unit": "г",
+          "note": "необов’язково"
+        },
+        {
+          "name": "Яйце",
+          "quantity": 0.5,
+          "unit": "шт."
+        },
+        {
+          "name": "Крохмаль або борошно",
+          "quantity": 15.0,
+          "unit": "г"
+        },
+        {
+          "name": "Сметана",
+          "quantity": 15.0,
+          "unit": "г"
+        },
+        {
+          "name": "Олія",
+          "quantity": 12.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Наріжте куряче філе дрібними кубиками.",
+        "Змішайте з тертим сиром, кукурудзою за бажанням, яйцем, сметаною та крохмалем.",
+        "Викладайте масу ложкою на сковороду з олією.",
+        "Обсмажуйте з обох боків до рум’яності, потім доведіть до готовності під кришкою."
+      ],
+      "recommendedSideIds": ["mashed_potato", "rice", "buckwheat"],
+      "notes": "На 1 порцію використайте половину збитого яйця.",
+      "image": "images/chopped_chicken_cutlets.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%A0%D1%83%D0%B1%D0%BB%D0%B5%D0%BD%D1%96%20%D0%BA%D1%83%D1%80%D1%8F%D1%87%D1%96%20%D0%BA%D0%BE%D1%82%D0%BB%D0%B5%D1%82%D0%B8%20%D1%96%D0%B7%20%D1%81%D0%B8%D1%80%D0%BE%D0%BC%20%D1%96%20%D0%BA%D1%83%D0%BA%D1%83%D1%80%D1%83%D0%B4%D0%B7%D0%BE%D1%8E%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "chakhokhbili",
+      "title": "Чахохбілі з курки",
+      "category": "meat_fish",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 55,
+      "difficulty": "medium",
+      "ingredients": [
+        {
+          "name": "Курячі стегна або гомілки",
+          "quantity": 250.0,
+          "unit": "г"
+        },
+        {
+          "name": "Помідори",
+          "quantity": 180.0,
+          "unit": "г"
+        },
+        {
+          "name": "Цибуля",
+          "quantity": 100.0,
+          "unit": "г"
+        },
+        {
+          "name": "Болгарський перець",
+          "quantity": 60.0,
+          "unit": "г"
+        },
+        {
+          "name": "Часник",
+          "quantity": 1.0,
+          "unit": "зубчик"
+        },
+        {
+          "name": "Томатна паста",
+          "quantity": 10.0,
+          "unit": "г"
+        },
+        {
+          "name": "Зелень",
+          "quantity": 10.0,
+          "unit": "г"
+        },
+        {
+          "name": "Хмелі-сунелі",
+          "quantity": 2.0,
+          "unit": "г"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "На сухій або злегка змащеній сковороді підрум’яньте курку 5–7 хвилин.",
+        "Додайте цибулю та перець, готуйте ще 5 хвилин.",
+        "Додайте нарізані помідори, пасту й спеції; накрийте й тушкуйте 25–35 хвилин.",
+        "Наприкінці додайте часник та зелень, перевірте готовність курки."
+      ],
+      "recommendedSideIds": ["rice", "mashed_potato", "baked_potatoes"],
+      "notes": "",
+      "image": "images/chakhokhbili.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%A7%D0%B0%D1%85%D0%BE%D1%85%D0%B1%D1%96%D0%BB%D1%96%20%D0%B7%20%D0%BA%D1%83%D1%80%D0%BA%D0%B8%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "battered_hake",
+      "title": "Хек у клярі",
+      "category": "meat_fish",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 30,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Філе хека",
+          "quantity": 200.0,
+          "unit": "г"
+        },
+        {
+          "name": "Яйце",
+          "quantity": 0.5,
+          "unit": "шт."
+        },
+        {
+          "name": "Борошно",
+          "quantity": 25.0,
+          "unit": "г"
+        },
+        {
+          "name": "Молоко",
+          "quantity": 25.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Олія",
+          "quantity": 20.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Обсушіть рибу, наріжте шматками, посоліть.",
+        "Збийте яйце з молоком і борошном до однорідного кляру.",
+        "Занурюйте шматки риби в кляр та викладайте на сковороду з олією.",
+        "Смажте по 3–5 хвилин із кожного боку до золотистої скоринки та повної готовності риби."
+      ],
+      "recommendedSideIds": ["mashed_potato", "rice", "boiled_potatoes"],
+      "notes": "",
+      "image": "images/battered_hake.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%A5%D0%B5%D0%BA%20%D1%83%20%D0%BA%D0%BB%D1%8F%D1%80%D1%96%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "fried_crucian",
+      "title": "Смажений карась",
+      "category": "meat_fish",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 25,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Карась очищений",
+          "quantity": 300.0,
+          "unit": "г"
+        },
+        {
+          "name": "Борошно",
+          "quantity": 20.0,
+          "unit": "г"
+        },
+        {
+          "name": "Олія",
+          "quantity": 20.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        },
+        {
+          "name": "Лимон",
+          "quantity": 20.0,
+          "unit": "г"
+        }
+      ],
+      "steps": [
+        "Очистіть рибу, видаліть зябра та нутрощі; зробіть часті неглибокі надрізи на боках.",
+        "Обсушіть, посоліть та обваляйте в борошні.",
+        "Смажте на середньому вогні в розігрітій олії приблизно по 6–8 хвилин з кожного боку, залежно від розміру.",
+        "Подавайте з лимоном; уважно перевіряйте наявність дрібних кісток."
+      ],
+      "recommendedSideIds": ["boiled_potatoes", "mashed_potato"],
+      "notes": "",
+      "image": "images/fried_crucian.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%A1%D0%BC%D0%B0%D0%B6%D0%B5%D0%BD%D0%B8%D0%B9%20%D0%BA%D0%B0%D1%80%D0%B0%D1%81%D1%8C%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "trout_steak",
+      "title": "Стейк із форелі",
+      "category": "meat_fish",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 25,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Стейк форелі",
+          "quantity": 220.0,
+          "unit": "г"
+        },
+        {
+          "name": "Лимон",
+          "quantity": 30.0,
+          "unit": "г"
+        },
+        {
+          "name": "Оливкова олія",
+          "quantity": 10.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        },
+        {
+          "name": "Перець",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Промокніть стейк паперовим рушником, приправте сіллю й перцем.",
+        "Злегка змастіть олією, додайте скибочки лимона.",
+        "Запікайте за 190 °C приблизно 15–20 хвилин залежно від товщини.",
+        "Подавайте відразу, не пересушуючи рибу."
+      ],
+      "recommendedSideIds": ["rice_frozen_veg", "baked_potatoes"],
+      "notes": "",
+      "image": "images/trout_steak.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%A1%D1%82%D0%B5%D0%B9%D0%BA%20%D1%96%D0%B7%20%D1%84%D0%BE%D1%80%D0%B5%D0%BB%D1%96%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "sea_bream_bass",
+      "title": "Запечена дорадо або сібас",
+      "category": "meat_fish",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 35,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Дорадо або сібас очищений",
+          "quantity": 350.0,
+          "unit": "г",
+          "note": "1 невелика рибина"
+        },
+        {
+          "name": "Лимон",
+          "quantity": 40.0,
+          "unit": "г"
+        },
+        {
+          "name": "Часник",
+          "quantity": 1.0,
+          "unit": "зубчик"
+        },
+        {
+          "name": "Оливкова олія",
+          "quantity": 12.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Петрушка",
+          "quantity": 6.0,
+          "unit": "г"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Зробіть 2–3 надрізи на боках очищеної риби.",
+        "Натріть олією, сіллю й часником, покладіть у черевце зелень і лимон.",
+        "Запікайте у духовці за 200 °C 20–25 хвилин, залежно від розміру.",
+        "Перевірте, що м’ясо легко відділяється від кісток."
+      ],
+      "recommendedSideIds": ["baked_potatoes", "rice_frozen_veg"],
+      "notes": "",
+      "image": "images/sea_bream_bass.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%97%D0%B0%D0%BF%D0%B5%D1%87%D0%B5%D0%BD%D0%B0%20%D0%B4%D0%BE%D1%80%D0%B0%D0%B4%D0%BE%20%D0%B0%D0%B1%D0%BE%20%D1%81%D1%96%D0%B1%D0%B0%D1%81%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "baked_mackerel",
+      "title": "Запечена скумбрія",
+      "category": "meat_fish",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 40,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Скумбрія очищена",
+          "quantity": 300.0,
+          "unit": "г"
+        },
+        {
+          "name": "Лимон",
+          "quantity": 30.0,
+          "unit": "г"
+        },
+        {
+          "name": "Цибуля",
+          "quantity": 60.0,
+          "unit": "г"
+        },
+        {
+          "name": "Олія",
+          "quantity": 8.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        },
+        {
+          "name": "Перець",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Почистіть скумбрію, видаліть голову за бажанням і обсушіть.",
+        "Натріть рибу сіллю та спеціями, покладіть усередину лимон і цибулю.",
+        "Загорніть у пергамент або викладіть у форму.",
+        "Запікайте за 190 °C 25–30 хвилин до готовності."
+      ],
+      "recommendedSideIds": ["boiled_potatoes", "baked_potatoes"],
+      "notes": "",
+      "image": "images/baked_mackerel.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%97%D0%B0%D0%BF%D0%B5%D1%87%D0%B5%D0%BD%D0%B0%20%D1%81%D0%BA%D1%83%D0%BC%D0%B1%D1%80%D1%96%D1%8F%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "green_salad",
+      "title": "Легкий зелений салат",
+      "category": "salads",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 10,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Мікс салатного листя",
+          "quantity": 50.0,
+          "unit": "г"
+        },
+        {
+          "name": "Рукола",
+          "quantity": 20.0,
+          "unit": "г"
+        },
+        {
+          "name": "Огірок",
+          "quantity": 80.0,
+          "unit": "г",
+          "note": "або авокадо"
+        },
+        {
+          "name": "Авокадо",
+          "quantity": 0.0,
+          "unit": "г",
+          "note": "альтернатива огірку: 60 г на порцію"
+        },
+        {
+          "name": "Адигейський сир",
+          "quantity": 60.0,
+          "unit": "г"
+        },
+        {
+          "name": "Лимонний сік",
+          "quantity": 10.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Оливкова олія",
+          "quantity": 10.0,
+          "unit": "мл"
+        }
+      ],
+      "steps": [
+        "Вимийте та обсушіть зелень.",
+        "Наріжте огірок або авокадо та адигейський сир.",
+        "Перемішайте листя з овочами й сиром.",
+        "Заправте соком лимона та олією безпосередньо перед подачею."
+      ],
+      "recommendedSideIds": [],
+      "notes": "",
+      "image": "images/green_salad.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%9B%D0%B5%D0%B3%D0%BA%D0%B8%D0%B9%20%D0%B7%D0%B5%D0%BB%D0%B5%D0%BD%D0%B8%D0%B9%20%D1%81%D0%B0%D0%BB%D0%B0%D1%82%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "vegetable_salad",
+      "title": "Овочевий салат",
+      "category": "salads",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 10,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Помідори",
+          "quantity": 120.0,
+          "unit": "г"
+        },
+        {
+          "name": "Огірок",
+          "quantity": 100.0,
+          "unit": "г"
+        },
+        {
+          "name": "Болгарський перець",
+          "quantity": 60.0,
+          "unit": "г"
+        },
+        {
+          "name": "Цибуля",
+          "quantity": 25.0,
+          "unit": "г"
+        },
+        {
+          "name": "Кріп",
+          "quantity": 5.0,
+          "unit": "г"
+        },
+        {
+          "name": "Олія",
+          "quantity": 10.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Вимийте та обсушіть овочі.",
+        "Наріжте помідори, огірок і перець, цибулю — тонко.",
+        "Додайте зелень, олію й сіль.",
+        "Обережно перемішайте перед подачею."
+      ],
+      "recommendedSideIds": [],
+      "notes": "Олію можна замінити 30 г сметани.",
+      "image": "images/vegetable_salad.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%9E%D0%B2%D0%BE%D1%87%D0%B5%D0%B2%D0%B8%D0%B9%20%D1%81%D0%B0%D0%BB%D0%B0%D1%82%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "greek_salad",
+      "title": "Грецький салат",
+      "category": "salads",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 12,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Помідори",
+          "quantity": 120.0,
+          "unit": "г"
+        },
+        {
+          "name": "Огірок",
+          "quantity": 100.0,
+          "unit": "г"
+        },
+        {
+          "name": "Болгарський перець",
+          "quantity": 60.0,
+          "unit": "г"
+        },
+        {
+          "name": "Фета",
+          "quantity": 60.0,
+          "unit": "г"
+        },
+        {
+          "name": "Маслини",
+          "quantity": 25.0,
+          "unit": "г"
+        },
+        {
+          "name": "Червона цибуля",
+          "quantity": 25.0,
+          "unit": "г"
+        },
+        {
+          "name": "Оливкова олія",
+          "quantity": 12.0,
+          "unit": "мл"
+        }
+      ],
+      "steps": [
+        "Наріжте овочі великими шматочками, цибулю — кільцями.",
+        "Додайте маслини й кубики фети.",
+        "Полийте олією та за бажанням посипте орегано.",
+        "Подавайте відразу."
+      ],
+      "recommendedSideIds": [],
+      "notes": "",
+      "image": "images/greek_salad.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%93%D1%80%D0%B5%D1%86%D1%8C%D0%BA%D0%B8%D0%B9%20%D1%81%D0%B0%D0%BB%D0%B0%D1%82%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "caprese",
+      "title": "Капрезе",
+      "category": "salads",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 10,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Помідори",
+          "quantity": 150.0,
+          "unit": "г"
+        },
+        {
+          "name": "Моцарела",
+          "quantity": 100.0,
+          "unit": "г"
+        },
+        {
+          "name": "Базилік",
+          "quantity": 5.0,
+          "unit": "г"
+        },
+        {
+          "name": "Оливкова олія",
+          "quantity": 10.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Наріжте помідори й моцарелу кружальцями.",
+        "Викладіть по черзі на тарілку.",
+        "Додайте листя базиліка.",
+        "Збризніть олією та за бажанням посоліть."
+      ],
+      "recommendedSideIds": [],
+      "notes": "",
+      "image": "images/caprese.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%9A%D0%B0%D0%BF%D1%80%D0%B5%D0%B7%D0%B5%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "fresh_cabbage_salad",
+      "title": "Салат зі свіжої капусти",
+      "category": "salads",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 15,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Капуста білокачанна",
+          "quantity": 150.0,
+          "unit": "г"
+        },
+        {
+          "name": "Морква",
+          "quantity": 50.0,
+          "unit": "г"
+        },
+        {
+          "name": "Огірок",
+          "quantity": 70.0,
+          "unit": "г"
+        },
+        {
+          "name": "Кріп",
+          "quantity": 5.0,
+          "unit": "г"
+        },
+        {
+          "name": "Олія",
+          "quantity": 10.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Лимонний сік",
+          "quantity": 8.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Тонко нашаткуйте капусту, злегка помніть із сіллю.",
+        "Натріть моркву, наріжте огірок соломкою.",
+        "Додайте кріп, олію й лимонний сік.",
+        "Перемішайте та дайте постояти 5 хвилин."
+      ],
+      "recommendedSideIds": [],
+      "notes": "",
+      "image": "images/fresh_cabbage_salad.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%A1%D0%B0%D0%BB%D0%B0%D1%82%20%D0%B7%D1%96%20%D1%81%D0%B2%D1%96%D0%B6%D0%BE%D1%97%20%D0%BA%D0%B0%D0%BF%D1%83%D1%81%D1%82%D0%B8%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "beet_feta_salad",
+      "title": "Салат із фетою та буряком",
+      "category": "salads",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 15,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Буряк запечений або варений",
+          "quantity": 150.0,
+          "unit": "г"
+        },
+        {
+          "name": "Фета",
+          "quantity": 60.0,
+          "unit": "г"
+        },
+        {
+          "name": "Рукола",
+          "quantity": 30.0,
+          "unit": "г"
+        },
+        {
+          "name": "Гарбузове насіння",
+          "quantity": 12.0,
+          "unit": "г"
+        },
+        {
+          "name": "Оливкова олія",
+          "quantity": 10.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Бальзамічний соус",
+          "quantity": 7.0,
+          "unit": "мл"
+        }
+      ],
+      "steps": [
+        "Наріжте готовий охолоджений буряк кубиками.",
+        "Викладіть на тарілку руколу, буряк та розкришену фету.",
+        "Посипте гарбузовим насінням.",
+        "Полийте олією та бальзамічним соусом."
+      ],
+      "recommendedSideIds": [],
+      "notes": "Час наведено для вже звареного або запеченого буряка.",
+      "image": "images/beet_feta_salad.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%A1%D0%B0%D0%BB%D0%B0%D1%82%20%D1%96%D0%B7%20%D1%84%D0%B5%D1%82%D0%BE%D1%8E%20%D1%82%D0%B0%20%D0%B1%D1%83%D1%80%D1%8F%D0%BA%D0%BE%D0%BC%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "beet_garlic_salad",
+      "title": "Салат із буряка та часнику",
+      "category": "salads",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 12,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Буряк варений",
+          "quantity": 180.0,
+          "unit": "г"
+        },
+        {
+          "name": "Часник",
+          "quantity": 1.0,
+          "unit": "зубчик"
+        },
+        {
+          "name": "Волоські горіхи",
+          "quantity": 15.0,
+          "unit": "г"
+        },
+        {
+          "name": "Сметана або майонез",
+          "quantity": 25.0,
+          "unit": "г"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Натріть охолоджений варений буряк.",
+        "Додайте подрібнений часник і горіхи.",
+        "Заправте сметаною або майонезом, посоліть.",
+        "Перемішайте й охолодіть перед подачею."
+      ],
+      "recommendedSideIds": [],
+      "notes": "Час наведено для готового буряка.",
+      "image": "images/beet_garlic_salad.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%A1%D0%B0%D0%BB%D0%B0%D1%82%20%D1%96%D0%B7%20%D0%B1%D1%83%D1%80%D1%8F%D0%BA%D0%B0%20%D1%82%D0%B0%20%D1%87%D0%B0%D1%81%D0%BD%D0%B8%D0%BA%D1%83%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "home_chicken_salad",
+      "title": "Домашній салат із куркою",
+      "category": "salads",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 25,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Куряче філе",
+          "quantity": 120.0,
+          "unit": "г"
+        },
+        {
+          "name": "Кукурудза консервована",
+          "quantity": 60.0,
+          "unit": "г"
+        },
+        {
+          "name": "Огірок",
+          "quantity": 90.0,
+          "unit": "г"
+        },
+        {
+          "name": "Яйце",
+          "quantity": 1.0,
+          "unit": "шт."
+        },
+        {
+          "name": "Цибуля",
+          "quantity": 20.0,
+          "unit": "г"
+        },
+        {
+          "name": "Йогурт або сметана або майонез",
+          "quantity": 30.0,
+          "unit": "г"
+        },
+        {
+          "name": "Гірчиця",
+          "quantity": 5.0,
+          "unit": "г"
+        }
+      ],
+      "steps": [
+        "Відваріть або обсмажте філе до готовності, охолодіть; яйце зваріть круто.",
+        "Наріжте курку, яйце, огірок і цибулю однаковими кубиками.",
+        "Додайте кукурудзу.",
+        "Змішайте заправку з гірчицею й перемішайте салат."
+      ],
+      "recommendedSideIds": [],
+      "notes": "",
+      "image": "images/home_chicken_salad.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%94%D0%BE%D0%BC%D0%B0%D1%88%D0%BD%D1%96%D0%B9%20%D1%81%D0%B0%D0%BB%D0%B0%D1%82%20%D1%96%D0%B7%20%D0%BA%D1%83%D1%80%D0%BA%D0%BE%D1%8E%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "georgian_chicken_salad",
+      "title": "Грузинський салат із куркою",
+      "category": "salads",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 25,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Куряче філе",
+          "quantity": 120.0,
+          "unit": "г"
+        },
+        {
+          "name": "Огірок",
+          "quantity": 80.0,
+          "unit": "г"
+        },
+        {
+          "name": "Болгарський перець",
+          "quantity": 80.0,
+          "unit": "г"
+        },
+        {
+          "name": "Червона цибуля",
+          "quantity": 35.0,
+          "unit": "г"
+        },
+        {
+          "name": "Волоські горіхи",
+          "quantity": 20.0,
+          "unit": "г"
+        },
+        {
+          "name": "Зелень",
+          "quantity": 8.0,
+          "unit": "г"
+        },
+        {
+          "name": "Часник",
+          "quantity": 1.0,
+          "unit": "зубчик"
+        },
+        {
+          "name": "Майонез",
+          "quantity": 25.0,
+          "unit": "г"
+        }
+      ],
+      "steps": [
+        "Приготуйте куряче філе до готовності й дайте охолонути.",
+        "Наріжте курку, огірок, перець і червону цибулю тонкою соломкою.",
+        "Подрібніть горіхи, часник і зелень.",
+        "Змішайте всі інгредієнти з майонезом."
+      ],
+      "recommendedSideIds": [],
+      "notes": "medium",
+      "image": "images/georgian_chicken_salad.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%93%D1%80%D1%83%D0%B7%D0%B8%D0%BD%D1%81%D1%8C%D0%BA%D0%B8%D0%B9%20%D1%81%D0%B0%D0%BB%D0%B0%D1%82%20%D1%96%D0%B7%20%D0%BA%D1%83%D1%80%D0%BA%D0%BE%D1%8E%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "home_caesar",
+      "title": "Домашній салат із куркою та сухариками",
+      "category": "salads",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 25,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Куряче філе",
+          "quantity": 120.0,
+          "unit": "г"
+        },
+        {
+          "name": "Пекінська капуста",
+          "quantity": 100.0,
+          "unit": "г"
+        },
+        {
+          "name": "Помідори",
+          "quantity": 80.0,
+          "unit": "г"
+        },
+        {
+          "name": "Білий хліб",
+          "quantity": 35.0,
+          "unit": "г"
+        },
+        {
+          "name": "Твердий сир",
+          "quantity": 25.0,
+          "unit": "г"
+        },
+        {
+          "name": "Йогурт або сметана",
+          "quantity": 35.0,
+          "unit": "г"
+        },
+        {
+          "name": "Гірчиця",
+          "quantity": 5.0,
+          "unit": "г"
+        },
+        {
+          "name": "Часник",
+          "quantity": 0.5,
+          "unit": "зубчика"
+        }
+      ],
+      "steps": [
+        "Курку приправте та обсмажте до готовності, наріжте.",
+        "Хліб наріжте кубиками й підсушіть на сковороді або в духовці.",
+        "Наріжте капусту й помідори, натріть сир.",
+        "Змішайте заправку з гірчицею й часником; перед подачею змішайте з салатом і додайте сухарики."
+      ],
+      "recommendedSideIds": [],
+      "notes": "",
+      "image": "images/home_caesar.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%94%D0%BE%D0%BC%D0%B0%D1%88%D0%BD%D1%96%D0%B9%20%D1%81%D0%B0%D0%BB%D0%B0%D1%82%20%D1%96%D0%B7%20%D0%BA%D1%83%D1%80%D0%BA%D0%BE%D1%8E%20%D1%82%D0%B0%20%D1%81%D1%83%D1%85%D0%B0%D1%80%D0%B8%D0%BA%D0%B0%D0%BC%D0%B8%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "pineapple_chicken_salad",
+      "title": "Салат із куркою та ананасами",
+      "category": "salads",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 25,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Куряче філе",
+          "quantity": 120.0,
+          "unit": "г"
+        },
+        {
+          "name": "Ананаси консервовані",
+          "quantity": 80.0,
+          "unit": "г"
+        },
+        {
+          "name": "Твердий сир",
+          "quantity": 40.0,
+          "unit": "г"
+        },
+        {
+          "name": "Яйце",
+          "quantity": 1.0,
+          "unit": "шт."
+        },
+        {
+          "name": "Майонез",
+          "quantity": 30.0,
+          "unit": "г"
+        }
+      ],
+      "steps": [
+        "Відваріть курку та яйце, повністю охолодіть.",
+        "Курку, яйце й ананаси наріжте невеликими кубиками.",
+        "Сир натріть на тертці.",
+        "Заправте майонезом і перемішайте."
+      ],
+      "recommendedSideIds": [],
+      "notes": "",
+      "image": "images/pineapple_chicken_salad.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%A1%D0%B0%D0%BB%D0%B0%D1%82%20%D1%96%D0%B7%20%D0%BA%D1%83%D1%80%D0%BA%D0%BE%D1%8E%20%D1%82%D0%B0%20%D0%B0%D0%BD%D0%B0%D0%BD%D0%B0%D1%81%D0%B0%D0%BC%D0%B8%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "ham_salad",
+      "title": "Салат із шинкою",
+      "category": "salads",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 15,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Шинка",
+          "quantity": 100.0,
+          "unit": "г"
+        },
+        {
+          "name": "Огірок",
+          "quantity": 100.0,
+          "unit": "г"
+        },
+        {
+          "name": "Твердий сир",
+          "quantity": 40.0,
+          "unit": "г"
+        },
+        {
+          "name": "Яйце",
+          "quantity": 1.0,
+          "unit": "шт."
+        },
+        {
+          "name": "Майонез",
+          "quantity": 25.0,
+          "unit": "г"
+        }
+      ],
+      "steps": [
+        "Зваріть яйце круто, охолодіть.",
+        "Наріжте шинку, огірок і яйце соломкою або кубиками.",
+        "Додайте натертий сир.",
+        "Заправте майонезом і перемішайте."
+      ],
+      "recommendedSideIds": [],
+      "notes": "",
+      "image": "images/ham_salad.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%A1%D0%B0%D0%BB%D0%B0%D1%82%20%D1%96%D0%B7%20%D1%88%D0%B8%D0%BD%D0%BA%D0%BE%D1%8E%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "olivier",
+      "title": "Олів’є",
+      "category": "salads",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 35,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Картопля",
+          "quantity": 120.0,
+          "unit": "г"
+        },
+        {
+          "name": "Морква",
+          "quantity": 50.0,
+          "unit": "г"
+        },
+        {
+          "name": "Яйце",
+          "quantity": 1.0,
+          "unit": "шт."
+        },
+        {
+          "name": "Горошок консервований",
+          "quantity": 60.0,
+          "unit": "г"
+        },
+        {
+          "name": "Солоні огірки",
+          "quantity": 60.0,
+          "unit": "г"
+        },
+        {
+          "name": "Варена ковбаса або курка",
+          "quantity": 100.0,
+          "unit": "г"
+        },
+        {
+          "name": "Майонез",
+          "quantity": 35.0,
+          "unit": "г"
+        }
+      ],
+      "steps": [
+        "Відваріть картоплю, моркву й яйце до готовності та остудіть.",
+        "Очистіть інгредієнти й наріжте дрібними кубиками.",
+        "Додайте горошок, огірки та ковбасу або курку.",
+        "Заправте майонезом; зберігайте охолодженим."
+      ],
+      "recommendedSideIds": [],
+      "notes": "",
+      "image": "images/olivier.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%9E%D0%BB%D1%96%D0%B2%E2%80%99%D1%94%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "herring_shuba",
+      "title": "Оселедець під шубою",
+      "category": "salads",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 45,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Оселедець філе",
+          "quantity": 90.0,
+          "unit": "г"
+        },
+        {
+          "name": "Буряк варений",
+          "quantity": 120.0,
+          "unit": "г"
+        },
+        {
+          "name": "Картопля варена",
+          "quantity": 100.0,
+          "unit": "г"
+        },
+        {
+          "name": "Морква варена",
+          "quantity": 50.0,
+          "unit": "г"
+        },
+        {
+          "name": "Цибуля",
+          "quantity": 30.0,
+          "unit": "г"
+        },
+        {
+          "name": "Яйце",
+          "quantity": 0.5,
+          "unit": "шт."
+        },
+        {
+          "name": "Майонез",
+          "quantity": 45.0,
+          "unit": "г"
+        }
+      ],
+      "steps": [
+        "Відваріть картоплю, моркву, буряк і яйце, якщо вони ще сирі, та охолодіть.",
+        "Наріжте оселедець і цибулю дрібно; овочі та яйце натріть.",
+        "Викладіть шарами картоплю, оселедець із цибулею, моркву, яйце й буряк, змащуючи тонко майонезом.",
+        "Охолодіть щонайменше 1 годину перед подачею."
+      ],
+      "recommendedSideIds": [],
+      "notes": "medium",
+      "image": "images/herring_shuba.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%9E%D1%81%D0%B5%D0%BB%D0%B5%D0%B4%D0%B5%D1%86%D1%8C%20%D0%BF%D1%96%D0%B4%20%D1%88%D1%83%D0%B1%D0%BE%D1%8E%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "peking_cabbage_salad",
+      "title": "Салат із пекінської капусти",
+      "category": "salads",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 12,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Пекінська капуста",
+          "quantity": 120.0,
+          "unit": "г"
+        },
+        {
+          "name": "Огірок",
+          "quantity": 90.0,
+          "unit": "г"
+        },
+        {
+          "name": "Кукурудза консервована",
+          "quantity": 60.0,
+          "unit": "г"
+        },
+        {
+          "name": "Яйце",
+          "quantity": 1.0,
+          "unit": "шт."
+        },
+        {
+          "name": "Сметана",
+          "quantity": 30.0,
+          "unit": "г"
+        }
+      ],
+      "steps": [
+        "Зваріть яйце круто й охолодіть.",
+        "Наріжте капусту, огірок та яйце.",
+        "Додайте кукурудзу і сметану.",
+        "Обережно перемішайте."
+      ],
+      "recommendedSideIds": [],
+      "notes": "",
+      "image": "images/peking_cabbage_salad.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%A1%D0%B0%D0%BB%D0%B0%D1%82%20%D1%96%D0%B7%20%D0%BF%D0%B5%D0%BA%D1%96%D0%BD%D1%81%D1%8C%D0%BA%D0%BE%D1%97%20%D0%BA%D0%B0%D0%BF%D1%83%D1%81%D1%82%D0%B8%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "crab_salad",
+      "title": "Крабовий салат без рису",
+      "category": "salads",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 15,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Крабові палички",
+          "quantity": 100.0,
+          "unit": "г"
+        },
+        {
+          "name": "Кукурудза консервована",
+          "quantity": 70.0,
+          "unit": "г"
+        },
+        {
+          "name": "Огірок",
+          "quantity": 100.0,
+          "unit": "г"
+        },
+        {
+          "name": "Яйце",
+          "quantity": 1.0,
+          "unit": "шт."
+        },
+        {
+          "name": "Зелена цибуля",
+          "quantity": 15.0,
+          "unit": "г"
+        },
+        {
+          "name": "Майонез або сметана",
+          "quantity": 30.0,
+          "unit": "г"
+        }
+      ],
+      "steps": [
+        "Зваріть яйце круто, остудіть.",
+        "Наріжте крабові палички, огірок і яйце кубиками.",
+        "Додайте кукурудзу та подрібнену зелену цибулю.",
+        "Заправте й перемішайте."
+      ],
+      "recommendedSideIds": [],
+      "notes": "",
+      "image": "images/crab_salad.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%9A%D1%80%D0%B0%D0%B1%D0%BE%D0%B2%D0%B8%D0%B9%20%D1%81%D0%B0%D0%BB%D0%B0%D1%82%20%D0%B1%D0%B5%D0%B7%20%D1%80%D0%B8%D1%81%D1%83%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "mushroom_salad",
+      "title": "Салат із печерицями",
+      "category": "salads",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 25,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Печериці",
+          "quantity": 150.0,
+          "unit": "г"
+        },
+        {
+          "name": "Цибуля",
+          "quantity": 50.0,
+          "unit": "г"
+        },
+        {
+          "name": "Яйце",
+          "quantity": 1.0,
+          "unit": "шт."
+        },
+        {
+          "name": "Солоні огірки",
+          "quantity": 70.0,
+          "unit": "г"
+        },
+        {
+          "name": "Сметана або майонез",
+          "quantity": 30.0,
+          "unit": "г"
+        },
+        {
+          "name": "Олія",
+          "quantity": 10.0,
+          "unit": "мл"
+        }
+      ],
+      "steps": [
+        "Наріжте печериці й цибулю, обсмажте на олії до випаровування рідини, охолодіть.",
+        "Зваріть яйце круто, наріжте кубиками.",
+        "Наріжте солоні огірки.",
+        "Змішайте інгредієнти та заправте сметаною або майонезом."
+      ],
+      "recommendedSideIds": [],
+      "notes": "",
+      "image": "images/mushroom_salad.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%A1%D0%B0%D0%BB%D0%B0%D1%82%20%D1%96%D0%B7%20%D0%BF%D0%B5%D1%87%D0%B5%D1%80%D0%B8%D1%86%D1%8F%D0%BC%D0%B8%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "pilaf",
+      "title": "Плов із м’ясом",
+      "category": "full_meals",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 55,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Рис",
+          "quantity": 90.0,
+          "unit": "г"
+        },
+        {
+          "name": "Свинина або курка",
+          "quantity": 180.0,
+          "unit": "г"
+        },
+        {
+          "name": "Морква",
+          "quantity": 80.0,
+          "unit": "г"
+        },
+        {
+          "name": "Цибуля",
+          "quantity": 70.0,
+          "unit": "г"
+        },
+        {
+          "name": "Часник",
+          "quantity": 2.0,
+          "unit": "зубчики"
+        },
+        {
+          "name": "Олія",
+          "quantity": 15.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Вода",
+          "quantity": 180.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Зіра",
+          "quantity": 1.0,
+          "unit": "г"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Наріжте м’ясо невеликими шматками, моркву соломкою, цибулю півкільцями.",
+        "Обсмажте м’ясо, додайте цибулю та моркву і готуйте 8 хвилин.",
+        "Всипте промитий рис, додайте часник, зіру, сіль і гарячу воду; не перемішуйте шари.",
+        "Готуйте під кришкою 20–25 хвилин, потім дайте постояти 10 хвилин."
+      ],
+      "recommendedSideIds": [],
+      "notes": "medium",
+      "image": "images/pilaf.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%9F%D0%BB%D0%BE%D0%B2%20%D1%96%D0%B7%20%D0%BC%E2%80%99%D1%8F%D1%81%D0%BE%D0%BC%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "buckwheat_meat_mushroom",
+      "title": "Гречка зі смаженим м’ясом, грибами та цибулею",
+      "category": "full_meals",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 35,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Гречка",
+          "quantity": 85.0,
+          "unit": "г"
+        },
+        {
+          "name": "Свинина",
+          "quantity": 160.0,
+          "unit": "г"
+        },
+        {
+          "name": "Печериці",
+          "quantity": 100.0,
+          "unit": "г"
+        },
+        {
+          "name": "Цибуля",
+          "quantity": 70.0,
+          "unit": "г"
+        },
+        {
+          "name": "Олія",
+          "quantity": 12.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Вершкове масло",
+          "quantity": 10.0,
+          "unit": "г"
+        },
+        {
+          "name": "Вода",
+          "quantity": 170.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Відваріть гречку у воді до готовності.",
+        "Свинину наріжте невеликими шматочками й обсмажте до готовності.",
+        "Додайте цибулю та гриби, готуйте до рум’яності й випаровування зайвої вологи.",
+        "З’єднайте з гречкою, додайте масло й прогрійте 2 хвилини."
+      ],
+      "recommendedSideIds": [],
+      "notes": "medium",
+      "image": "images/buckwheat_meat_mushroom.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%93%D1%80%D0%B5%D1%87%D0%BA%D0%B0%20%D0%B7%D1%96%20%D1%81%D0%BC%D0%B0%D0%B6%D0%B5%D0%BD%D0%B8%D0%BC%20%D0%BC%E2%80%99%D1%8F%D1%81%D0%BE%D0%BC%2C%20%D0%B3%D1%80%D0%B8%D0%B1%D0%B0%D0%BC%D0%B8%20%D1%82%D0%B0%20%D1%86%D0%B8%D0%B1%D1%83%D0%BB%D0%B5%D1%8E%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "pork_potato_roast",
+      "title": "Печеня з картоплею та свининою в духовці",
+      "category": "full_meals",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 95,
+      "difficulty": "medium",
+      "ingredients": [
+        {
+          "name": "Свинина (лопатка)",
+          "quantity": 220.0,
+          "unit": "г"
+        },
+        {
+          "name": "Картопля",
+          "quantity": 320.0,
+          "unit": "г"
+        },
+        {
+          "name": "Цибуля",
+          "quantity": 70.0,
+          "unit": "г"
+        },
+        {
+          "name": "Печериці",
+          "quantity": 80.0,
+          "unit": "г",
+          "note": "за бажанням"
+        },
+        {
+          "name": "Часник",
+          "quantity": 1.0,
+          "unit": "зубчик"
+        },
+        {
+          "name": "Бульйон або вода",
+          "quantity": 70.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Олія",
+          "quantity": 10.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Паприка",
+          "quantity": 2.0,
+          "unit": "г"
+        },
+        {
+          "name": "Лавровий лист",
+          "quantity": 0.5,
+          "unit": "шт."
+        }
+      ],
+      "steps": [
+        "Розігрійте духовку до 180 °C.",
+        "Наріжте свинину й картоплю середніми шматками, цибулю півкільцями, гриби скибками.",
+        "Змішайте все в одній формі з олією, часником і спеціями; влийте бульйон.",
+        "Накрийте форму фольгою, запікайте 70–85 хвилин до м’якості м’яса й картоплі.",
+        "За бажанням відкрийте форму на останні 10 хвилин для рум’яної скоринки."
+      ],
+      "recommendedSideIds": [],
+      "notes": "Без моркви; невелика кількість бульйону дає соковитість без надлишку підливи.",
+      "image": "images/pork_potato_roast.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%9F%D0%B5%D1%87%D0%B5%D0%BD%D1%8F%20%D0%B7%20%D0%BA%D0%B0%D1%80%D1%82%D0%BE%D0%BF%D0%BB%D0%B5%D1%8E%20%D1%82%D0%B0%20%D1%81%D0%B2%D0%B8%D0%BD%D0%B8%D0%BD%D0%BE%D1%8E%20%D0%B2%20%D0%B4%D1%83%D1%85%D0%BE%D0%B2%D1%86%D1%96%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "creamy_chicken_mushroom_pasta",
+      "title": "Паста у вершково-сирному соусі з куркою та грибами",
+      "category": "full_meals",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 30,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Макарони",
+          "quantity": 90.0,
+          "unit": "г"
+        },
+        {
+          "name": "Куряче філе",
+          "quantity": 130.0,
+          "unit": "г"
+        },
+        {
+          "name": "Печериці",
+          "quantity": 100.0,
+          "unit": "г"
+        },
+        {
+          "name": "Вершки 15–20%",
+          "quantity": 80.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Твердий сир",
+          "quantity": 35.0,
+          "unit": "г"
+        },
+        {
+          "name": "Часник",
+          "quantity": 1.0,
+          "unit": "зубчик"
+        },
+        {
+          "name": "Олія",
+          "quantity": 10.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Відваріть пасту до стану аль денте, збережіть трохи води від варіння.",
+        "Наріжте й обсмажте курку, додайте гриби, готуйте до випаровування рідини.",
+        "Додайте часник і вершки, прогрійте без сильного кипіння.",
+        "Змішайте з пастою, сиром і невеликою кількістю води від пасти до потрібної консистенції."
+      ],
+      "recommendedSideIds": [],
+      "notes": "medium",
+      "image": "images/creamy_chicken_mushroom_pasta.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%9F%D0%B0%D1%81%D1%82%D0%B0%20%D1%83%20%D0%B2%D0%B5%D1%80%D1%88%D0%BA%D0%BE%D0%B2%D0%BE-%D1%81%D0%B8%D1%80%D0%BD%D0%BE%D0%BC%D1%83%20%D1%81%D0%BE%D1%83%D1%81%D1%96%20%D0%B7%20%D0%BA%D1%83%D1%80%D0%BA%D0%BE%D1%8E%20%D1%82%D0%B0%20%D0%B3%D1%80%D0%B8%D0%B1%D0%B0%D0%BC%D0%B8%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "carbonara",
+      "title": "Паста карбонара",
+      "category": "full_meals",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 25,
+      "difficulty": "medium",
+      "ingredients": [
+        {
+          "name": "Спагеті",
+          "quantity": 100.0,
+          "unit": "г"
+        },
+        {
+          "name": "Бекон",
+          "quantity": 65.0,
+          "unit": "г"
+        },
+        {
+          "name": "Яйце",
+          "quantity": 1.0,
+          "unit": "шт."
+        },
+        {
+          "name": "Твердий витриманий сир",
+          "quantity": 35.0,
+          "unit": "г"
+        },
+        {
+          "name": "Чорний перець",
+          "quantity": null,
+          "unit": "за смаком"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Відваріть спагеті до аль денте; збережіть 80 мл води від варіння.",
+        "Обсмажте бекон до рум’яності.",
+        "Окремо збийте яйце з тертим сиром і перцем.",
+        "Зніміть сковороду з вогню, додайте спагеті та яєчно-сирну суміш, швидко перемішайте з теплою водою від пасти до кремової консистенції."
+      ],
+      "recommendedSideIds": [],
+      "notes": "Не нагрівайте яєчний соус на сильному вогні, щоб він не згорнувся.",
+      "image": "images/carbonara.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%9F%D0%B0%D1%81%D1%82%D0%B0%20%D0%BA%D0%B0%D1%80%D0%B1%D0%BE%D0%BD%D0%B0%D1%80%D0%B0%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "bolognese",
+      "title": "Паста болоньєзе",
+      "category": "full_meals",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 50,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Макарони",
+          "quantity": 90.0,
+          "unit": "г"
+        },
+        {
+          "name": "М’ясний фарш",
+          "quantity": 150.0,
+          "unit": "г"
+        },
+        {
+          "name": "Томати у власному соку",
+          "quantity": 150.0,
+          "unit": "г"
+        },
+        {
+          "name": "Цибуля",
+          "quantity": 60.0,
+          "unit": "г"
+        },
+        {
+          "name": "Морква",
+          "quantity": 50.0,
+          "unit": "г"
+        },
+        {
+          "name": "Часник",
+          "quantity": 1.0,
+          "unit": "зубчик"
+        },
+        {
+          "name": "Томатна паста",
+          "quantity": 12.0,
+          "unit": "г"
+        },
+        {
+          "name": "Олія",
+          "quantity": 10.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Твердий сир",
+          "quantity": 20.0,
+          "unit": "г"
+        }
+      ],
+      "steps": [
+        "Дрібно наріжте цибулю, моркву та часник; обсмажте на олії 5 хвилин.",
+        "Додайте фарш і розбийте його лопаткою, смажте до зміни кольору.",
+        "Додайте томати й пасту, тушкуйте на малому вогні 25–30 хвилин.",
+        "Окремо відваріть макарони, змішайте із соусом і посипте сиром."
+      ],
+      "recommendedSideIds": [],
+      "notes": "medium",
+      "image": "images/bolognese.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%9F%D0%B0%D1%81%D1%82%D0%B0%20%D0%B1%D0%BE%D0%BB%D0%BE%D0%BD%D1%8C%D1%94%D0%B7%D0%B5%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "chicken_wok_noodles",
+      "title": "Локшина вок із куркою та овочами",
+      "category": "full_meals",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 25,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Локшина",
+          "quantity": 90.0,
+          "unit": "г"
+        },
+        {
+          "name": "Куряче філе",
+          "quantity": 150.0,
+          "unit": "г"
+        },
+        {
+          "name": "Болгарський перець",
+          "quantity": 70.0,
+          "unit": "г"
+        },
+        {
+          "name": "Морква",
+          "quantity": 50.0,
+          "unit": "г"
+        },
+        {
+          "name": "Цибуля",
+          "quantity": 40.0,
+          "unit": "г"
+        },
+        {
+          "name": "Соєвий соус",
+          "quantity": 25.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Олія",
+          "quantity": 12.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Часник",
+          "quantity": 1.0,
+          "unit": "зубчик"
+        }
+      ],
+      "steps": [
+        "Приготуйте локшину за інструкцією й відкиньте на друшляк.",
+        "Наріжте курку та овочі тонкими смужками.",
+        "Швидко обсмажте курку на сильному вогні 5–6 хвилин, додайте овочі й готуйте ще 4 хвилини.",
+        "Додайте часник, локшину та соєвий соус, перемішайте й прогрійте 1–2 хвилини."
+      ],
+      "recommendedSideIds": [],
+      "notes": "",
+      "image": "images/chicken_wok_noodles.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%9B%D0%BE%D0%BA%D1%88%D0%B8%D0%BD%D0%B0%20%D0%B2%D0%BE%D0%BA%20%D1%96%D0%B7%20%D0%BA%D1%83%D1%80%D0%BA%D0%BE%D1%8E%20%D1%82%D0%B0%20%D0%BE%D0%B2%D0%BE%D1%87%D0%B0%D0%BC%D0%B8%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "pelmeni",
+      "title": "Домашні пельмені",
+      "category": "full_meals",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 65,
+      "difficulty": "hard",
+      "ingredients": [
+        {
+          "name": "Борошно",
+          "quantity": 105.0,
+          "unit": "г"
+        },
+        {
+          "name": "Вода",
+          "quantity": 50.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Яйце",
+          "quantity": 0.25,
+          "unit": "шт."
+        },
+        {
+          "name": "М’ясний фарш",
+          "quantity": 140.0,
+          "unit": "г"
+        },
+        {
+          "name": "Цибуля",
+          "quantity": 40.0,
+          "unit": "г"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        },
+        {
+          "name": "Перець",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Замісіть тісто з борошна, води, яйця й солі, накрийте та залиште на 20 хвилин.",
+        "Змішайте фарш із дуже дрібно нарізаною цибулею та спеціями.",
+        "Розкачайте тісто, виріжте кружечки, розкладіть начинку й зліпіть пельмені.",
+        "Відваріть у киплячій підсоленій воді 5–7 хвилин після спливання, залежно від розміру."
+      ],
+      "recommendedSideIds": [],
+      "notes": "Зручніше замішувати тісто відразу на 4 порції, щоб використати ціле яйце.",
+      "image": "images/pelmeni.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%94%D0%BE%D0%BC%D0%B0%D1%88%D0%BD%D1%96%20%D0%BF%D0%B5%D0%BB%D1%8C%D0%BC%D0%B5%D0%BD%D1%96%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "cottage_cheese_varenyky",
+      "title": "Вареники з кисломолочним сиром",
+      "category": "full_meals",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 55,
+      "difficulty": "hard",
+      "ingredients": [
+        {
+          "name": "Борошно",
+          "quantity": 110.0,
+          "unit": "г"
+        },
+        {
+          "name": "Вода",
+          "quantity": 55.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Яйце",
+          "quantity": 0.25,
+          "unit": "шт."
+        },
+        {
+          "name": "Кисломолочний сир",
+          "quantity": 160.0,
+          "unit": "г"
+        },
+        {
+          "name": "Цукор",
+          "quantity": 10.0,
+          "unit": "г",
+          "note": "за бажанням"
+        },
+        {
+          "name": "Сметана",
+          "quantity": 30.0,
+          "unit": "г",
+          "note": "для подачі"
+        },
+        {
+          "name": "Сіль",
+          "quantity": null,
+          "unit": "за смаком"
+        }
+      ],
+      "steps": [
+        "Замісіть еластичне тісто з борошна, води, яйця та дрібки солі, залиште на 20 хвилин.",
+        "Розітріть сир із цукром або дрібкою солі за власним смаком.",
+        "Розкачайте тісто, виріжте кружечки, викладіть начинку й ретельно защипніть краї.",
+        "Варіть у киплячій воді приблизно 3–5 хвилин після спливання, подавайте зі сметаною."
+      ],
+      "recommendedSideIds": [],
+      "notes": "Можна робити солону або солодку начинку; на 4 порції зручно взяти одне яйце.",
+      "image": "images/cottage_cheese_varenyky.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%92%D0%B0%D1%80%D0%B5%D0%BD%D0%B8%D0%BA%D0%B8%20%D0%B7%20%D0%BA%D0%B8%D1%81%D0%BB%D0%BE%D0%BC%D0%BE%D0%BB%D0%BE%D1%87%D0%BD%D0%B8%D0%BC%20%D1%81%D0%B8%D1%80%D0%BE%D0%BC%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "stuffed_peppers",
+      "title": "Фаршировані перці",
+      "category": "full_meals",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 70,
+      "difficulty": "easy",
+      "ingredients": [
+        {
+          "name": "Болгарський перець",
+          "quantity": 2.0,
+          "unit": "шт.",
+          "note": "невеликі"
+        },
+        {
+          "name": "М’ясний фарш",
+          "quantity": 150.0,
+          "unit": "г"
+        },
+        {
+          "name": "Рис",
+          "quantity": 45.0,
+          "unit": "г"
+        },
+        {
+          "name": "Цибуля",
+          "quantity": 50.0,
+          "unit": "г"
+        },
+        {
+          "name": "Морква",
+          "quantity": 40.0,
+          "unit": "г"
+        },
+        {
+          "name": "Томатний соус",
+          "quantity": 120.0,
+          "unit": "г"
+        },
+        {
+          "name": "Сметана",
+          "quantity": 30.0,
+          "unit": "г"
+        },
+        {
+          "name": "Вода",
+          "quantity": 100.0,
+          "unit": "мл"
+        },
+        {
+          "name": "Олія",
+          "quantity": 10.0,
+          "unit": "мл"
+        }
+      ],
+      "steps": [
+        "Відваріть рис до напівготовності, охолодіть.",
+        "Змішайте фарш із рисом, дрібно нарізаною цибулею, натертою морквою та спеціями.",
+        "Видаліть насіння з перців і нещільно наповніть начинкою.",
+        "Поставте у форму, залийте томатним соусом зі сметаною та водою; тушкуйте під кришкою або фольгою за 180 °C 45–55 хвилин до повної готовності фаршу."
+      ],
+      "recommendedSideIds": [],
+      "notes": "medium",
+      "image": "images/stuffed_peppers.jpg",
+      "imageType": "placeholder",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%A4%D0%B0%D1%80%D1%88%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D1%96%20%D0%BF%D0%B5%D1%80%D1%86%D1%96%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    }
+  ]
+}

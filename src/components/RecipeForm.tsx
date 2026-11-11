@@ -3,6 +3,7 @@ import { useApp } from "../hooks/AppContext";
 import type { Recipe, RecipeCategory, NewRecipe } from "../lib/types";
 import type { LinkMetadata } from "../../supabase/functions/_shared/metadata";
 import { publicUrl } from "../../supabase/functions/_shared/urls";
+import { structuredIngredients } from "../lib/recipe-catalog";
 import { BottomSheet, Button, ConfirmDelete, Field } from "./ui";
 export const courseLabels = {
   side: "Гарнір",
@@ -43,6 +44,11 @@ export function RecipeForm({
       source_url: source,
       ingredients: lines("ingredients"),
       instructions: lines("instructions"),
+      structured_ingredients: structuredIngredients(lines("ingredients")),
+      base_servings: Number(f.get("base_servings") || 1),
+      total_time_minutes: f.get("total_time_minutes")
+        ? Number(f.get("total_time_minutes"))
+        : null,
     };
     if (
       !image_url ||
@@ -69,6 +75,14 @@ export function RecipeForm({
       onClose={onClose}
     >
       <form className="form" onSubmit={submit}>
+        <div className="sheet-actions form-save">
+          <Button
+            type="submit"
+            busy={pending.includes(recipe?.id ?? "add-recipe")}
+          >
+            Зберегти рецепт
+          </Button>
+        </div>
         <Field label="Назва страви">
           <input
             name="title"
@@ -77,6 +91,29 @@ export function RecipeForm({
             defaultValue={seed?.title}
           />
         </Field>
+        <div className="form-grid">
+          <Field label="Базових порцій у рецепті">
+            <input
+              name="base_servings"
+              type="number"
+              min={1}
+              max={12}
+              step={1}
+              required
+              defaultValue={recipe?.base_servings ?? 1}
+            />
+          </Field>
+          <Field label="Час приготування, хв">
+            <input
+              name="total_time_minutes"
+              type="number"
+              min={1}
+              max={2880}
+              step={1}
+              defaultValue={recipe?.total_time_minutes ?? ""}
+            />
+          </Field>
+        </div>
         <Field label="Тип страви">
           <select
             name="category"
@@ -134,12 +171,6 @@ export function RecipeForm({
             {error}
           </p>
         )}
-        <Button
-          type="submit"
-          busy={pending.includes(recipe?.id ?? "add-recipe")}
-        >
-          Зберегти рецепт
-        </Button>
       </form>
       {recipe && (
         <ConfirmDelete

@@ -13,6 +13,7 @@ import {
 } from "../lib/types";
 import { kyivDate } from "../lib/utils";
 import { groceryCategory } from "../../supabase/functions/_shared/grocery-category";
+import { quantityLabel } from "../lib/recipe-catalog";
 import { BottomSheet, Button, ConfirmDelete, Field } from "./ui";
 const textSchema = z
   .string()
@@ -32,6 +33,7 @@ export function ShoppingForm({
     [manualCategory, setManualCategory] = useState<string | null>(null),
     [error, setError] = useState(""),
     [another, setAnother] = useState(false);
+  const [unit, setUnit] = useState(item?.unit ?? "шт.");
   const input = useRef<HTMLInputElement>(null);
   const category =
     manualCategory ??
@@ -62,14 +64,16 @@ export function ShoppingForm({
     const f = new FormData(e.currentTarget);
     const value = {
       name: parsed.data,
-      quantity: Number(f.get("quantity")),
-      unit: String(f.get("unit")),
+      quantity: ["за смаком", "за рецептом"].includes(unit)
+        ? null
+        : Number(f.get("quantity")),
+      unit,
       category,
       price: price(String(f.get("price"))),
     };
     if (
-      !Number.isFinite(value.quantity) ||
-      value.quantity <= 0 ||
+      (value.quantity !== null &&
+        (!Number.isFinite(value.quantity) || value.quantity <= 0)) ||
       (value.price !== null &&
         (!Number.isFinite(value.price) || value.price < 0))
     ) {
@@ -88,6 +92,30 @@ export function ShoppingForm({
       } else onClose();
     }
   };
+  if (item?.menu_key)
+    return (
+      <BottomSheet title="Продукт із меню" onClose={onClose}>
+        <div className="form">
+          <strong>
+            {item.name} · {quantityLabel(item.quantity, item.unit)}
+          </strong>
+          <p>
+            Кількість перераховується автоматично. Щоб її змінити, змініть
+            порції страви в меню.
+          </p>
+          <Button
+            onClick={async () => {
+              if (await remove("shopping_items", item.id)) onClose();
+            }}
+          >
+            Є вдома · прибрати з покупок
+          </Button>
+          <p className="subtle-note">
+            Повернути прибрані продукти можна кнопкою в меню.
+          </p>
+        </div>
+      </BottomSheet>
+    );
   return (
     <BottomSheet
       title={item ? "Трохи деталей" : "Що купуємо?"}
@@ -100,6 +128,15 @@ export function ShoppingForm({
         </p>
       )}
       <form onSubmit={submit} className="form">
+        <div className="sheet-actions form-save">
+          <Button
+            type="submit"
+            busy={pending.includes(item?.id ?? "add-shopping")}
+          >
+            <Plus size={18} />
+            {item ? "Зберегти зміни" : "Додати до списку"}
+          </Button>
+        </div>
         <Field label="Назва товару">
           <input
             ref={input}
@@ -145,12 +182,27 @@ export function ShoppingForm({
                   min="0.01"
                   step="any"
                   defaultValue={item?.quantity ?? 1}
-                  required
+                  required={!["за смаком", "за рецептом"].includes(unit)}
+                  disabled={["за смаком", "за рецептом"].includes(unit)}
                 />
               </Field>
               <Field label="Одиниці">
-                <select name="unit" defaultValue={item?.unit ?? "шт."}>
-                  {["шт.", "кг", "г", "л", "мл", "уп."].map((u) => (
+                <select
+                  name="unit"
+                  value={unit}
+                  onChange={(e) => setUnit(e.target.value)}
+                >
+                  {[
+                    "шт.",
+                    "кг",
+                    "г",
+                    "л",
+                    "мл",
+                    "уп.",
+                    "зубчик",
+                    "за смаком",
+                    "за рецептом",
+                  ].map((u) => (
                     <option key={u}>{u}</option>
                   ))}
                 </select>
@@ -199,13 +251,6 @@ export function ShoppingForm({
             Додати ще один після збереження
           </label>
         )}
-        <Button
-          type="submit"
-          busy={pending.includes(item?.id ?? "add-shopping")}
-        >
-          <Plus size={18} />
-          {item ? "Зберегти зміни" : "Додати до списку"}
-        </Button>
       </form>
       {item && (
         <ConfirmDelete
@@ -266,6 +311,14 @@ export function WishForm({
       onClose={onClose}
     >
       <form className="form" onSubmit={submit}>
+        <div className="sheet-actions form-save">
+          <Button
+            type="submit"
+            busy={uploading || pending.includes(wish?.id ?? "add-wish")}
+          >
+            {wish ? "Зберегти" : "Зберегти бажання"}
+          </Button>
+        </div>
         <Field label="Назва">
           <input
             data-autofocus
@@ -352,12 +405,6 @@ export function WishForm({
             {error}
           </p>
         )}
-        <Button
-          type="submit"
-          busy={uploading || pending.includes(wish?.id ?? "add-wish")}
-        >
-          {wish ? "Зберегти" : "Зберегти бажання"}
-        </Button>
       </form>
       {wish && (
         <ConfirmDelete
@@ -410,6 +457,14 @@ export function EventForm({
       onClose={onClose}
     >
       <form className="form" onSubmit={submit}>
+        <div className="sheet-actions form-save">
+          <Button
+            type="submit"
+            busy={pending.includes(event?.id ?? "add-event")}
+          >
+            {event ? "Зберегти зміни" : "Додати план"}
+          </Button>
+        </div>
         <Field label="Назва">
           <input
             data-autofocus
@@ -474,9 +529,6 @@ export function EventForm({
             {error}
           </p>
         )}
-        <Button type="submit" busy={pending.includes(event?.id ?? "add-event")}>
-          {event ? "Зберегти зміни" : "Додати план"}
-        </Button>
       </form>
       {event && (
         <ConfirmDelete

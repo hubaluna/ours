@@ -197,24 +197,28 @@ describe("Compact six-tab app", () => {
       saved().shopping.find((i: { name: string }) => i.name === "рису"),
     ).toMatchObject({ quantity: 200, unit: "г" });
   });
-  it("generates and preserves a three-course dinner idea", async () => {
+  it("opens a random recipe preview without forcing a multi-course menu", async () => {
     const user = userEvent.setup();
     await user.click(nav().getByText("Меню"));
-    await screen.findByRole("heading", { name: "Меню" });
-    const before = [...document.querySelectorAll(".menu-course h2")].map(
-      (el) => el.textContent,
-    );
     await user.click(
-      screen.getByRole("button", { name: "Згенерувати вечерю" }),
+      await screen.findByRole("button", { name: "Згенерувати вечерю" }),
     );
-    const after = [...document.querySelectorAll(".menu-course h2")].map(
-      (el) => el.textContent,
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByRole("button", { name: "Додати до меню" }),
+    ).toBeInTheDocument();
+    expect(localStorage.getItem("ours-dinner-idea-demo-anna")).toMatch(
+      /^catalog:/,
     );
-    expect(after).toHaveLength(3);
-    expect(after).not.toEqual(before);
-    expect(JSON.parse(localStorage.getItem("ours-menu-demo-anna")!).side).toBe(
-      after[0],
+    expect(saved().mealPlan).toHaveLength(0);
+    await user.click(
+      within(dialog).getByRole("button", { name: "Додати до меню" }),
     );
+    await closed();
+    expect(saved().mealPlan).toHaveLength(1);
+    expect(
+      saved().shopping.some((i: { menu_key?: string }) => i.menu_key),
+    ).toBe(true);
   });
   it("switches themes and preserves the preference", async () => {
     const user = userEvent.setup();

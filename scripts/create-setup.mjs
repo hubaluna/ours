@@ -4,6 +4,7 @@ const migrations = [
   "002_storage_realtime.sql",
   "003_compact_movies_activity.sql",
   "004_recipes_movie_ratings.sql",
+  "005_recipe_catalog_shared_menu.sql",
 ];
 const body = migrations
   .map(

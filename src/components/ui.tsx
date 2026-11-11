@@ -158,17 +158,22 @@ export function BottomSheet({
   title,
   onClose,
   children,
+  wide = false,
+  guardChanges = true,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  wide?: boolean;
+  guardChanges?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null),
     previous = useRef<HTMLElement | null>(null),
     [dirty, setDirty] = useState(false),
     [confirm, setConfirm] = useState(false);
   const titleId = useId();
-  const requestClose = () => (dirty ? setConfirm(true) : onClose());
+  const requestClose = () =>
+    guardChanges && dirty ? setConfirm(true) : onClose();
   const closeRef = useRef(requestClose);
   useEffect(() => {
     closeRef.current = requestClose;
@@ -238,6 +243,21 @@ export function BottomSheet({
       viewport.removeEventListener("scroll", resize);
     };
   }, []);
+  useEffect(() => {
+    const sheet = ref.current,
+      header = sheet?.querySelector<HTMLElement>(".sheet-header");
+    if (!sheet || !header) return;
+    const measure = () =>
+      sheet.style.setProperty(
+        "--sheet-header-height",
+        `${header.getBoundingClientRect().height}px`,
+      );
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, [title]);
   return createPortal(
     <motion.div
       className="sheet-backdrop"
@@ -251,30 +271,34 @@ export function BottomSheet({
         aria-modal="true"
         aria-labelledby={titleId}
         ref={ref}
-        className="sheet glass"
+        className={`sheet glass ${wide ? "sheet-wide" : ""}`}
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
         transition={spring}
         onClick={(e) => e.stopPropagation()}
-        onChange={() => setDirty(true)}
+        onChange={() => {
+          if (guardChanges) setDirty(true);
+        }}
       >
-        <motion.div
-          className="sheet-handle-area"
-          drag="y"
-          dragConstraints={{ top: 0, bottom: 0 }}
-          dragElastic={0.1}
-          onDragEnd={(_e, info) => {
-            if (info.offset.y > 65 || info.velocity.y > 500) requestClose();
-          }}
-        >
-          <div className="sheet-handle" />
-        </motion.div>
-        <div className="sheet-title">
-          <h2 id={titleId}>{title}</h2>
-          <IconButton label="Закрити" onClick={requestClose}>
-            <X size={20} />
-          </IconButton>
+        <div className="sheet-header">
+          <motion.div
+            className="sheet-handle-area"
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={0.1}
+            onDragEnd={(_e, info) => {
+              if (info.offset.y > 65 || info.velocity.y > 500) requestClose();
+            }}
+          >
+            <div className="sheet-handle" />
+          </motion.div>
+          <div className="sheet-title">
+            <h2 id={titleId}>{title}</h2>
+            <IconButton label="Закрити" onClick={requestClose}>
+              <X size={20} />
+            </IconButton>
+          </div>
         </div>
         {confirm && (
           <div className="discard">

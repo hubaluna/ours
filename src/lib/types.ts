@@ -21,7 +21,8 @@ export type ShoppingItem = {
   id: string;
   couple_id: string;
   name: string;
-  quantity: number;
+  quantity: number | null;
+  menu_key?: string | null;
   unit: string;
   category: string;
   price: number | null;
@@ -120,6 +121,11 @@ export type NewMovie = Pick<
 >;
 export type RecipeCategory = "side" | "protein" | "salad" | "main";
 export type Recipe = {
+  base_servings?: number;
+  total_time_minutes?: number | null;
+  difficulty?: string;
+  notes?: string;
+  structured_ingredients?: RecipeIngredient[] | null;
   id: string;
   couple_id: string;
   title: string;
@@ -139,8 +145,54 @@ export type NewRecipe = Pick<
   | "source_url"
   | "ingredients"
   | "instructions"
+  | "base_servings"
+  | "total_time_minutes"
+  | "difficulty"
+  | "notes"
+  | "structured_ingredients"
 >;
+export type RecipeIngredient = {
+  note?: string;
+  name: string;
+  quantity: number | null;
+  unit: string;
+  category: string;
+};
+export type MealPlanItem = {
+  id: string;
+  couple_id: string;
+  catalog_id: string | null;
+  recipe_id: string | null;
+  servings: number;
+  base_servings: number;
+  ingredients: RecipeIngredient[];
+  shopping_completed: boolean;
+  added_by: string;
+  created_at: string;
+};
+export type RecipeView = {
+  key: string;
+  catalogId?: string;
+  customId?: string;
+  sourceId?: string;
+  sourceCategory?: string;
+  title: string;
+  category: RecipeCategory;
+  image_url: string;
+  source_url: string;
+  baseServings: number;
+  totalTimeMinutes: number | null;
+  difficulty: string;
+  ingredients: RecipeIngredient[];
+  instructions: string[];
+  notes: string;
+  imageType: string;
+  recommendedSideIds: string[];
+  custom?: Recipe;
+};
 export type Data = {
+  mealPlan: MealPlanItem[];
+  menuExcludedKeys?: string[];
   recipes: Recipe[];
   profiles: Profile[];
   movies: Movie[];

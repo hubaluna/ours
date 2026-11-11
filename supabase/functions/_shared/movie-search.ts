@@ -1,4 +1,5 @@
 import { parseHTML } from "linkedom";
+import { movieSynopsis } from "./movie-synopsis.ts";
 import { publicUrl } from "./urls.ts";
 import type { LinkMetadata, MovieCandidate } from "./metadata.ts";
 type PageLoader = (url: string) => Promise<{ html: string; url: string }>;
@@ -253,6 +254,7 @@ export async function enrichMovie(
   load: PageLoader,
   query?: string,
 ): Promise<LinkMetadata> {
+  metadata = {...metadata,description:movieSynopsis(metadata.description)};
   if (
     !query &&
     /^(?:TikTok(?:\s*[-–|].*)?|Make Your Day)$/i.test(metadata.title.trim())
@@ -281,7 +283,7 @@ export async function enrichMovie(
   return {
     ...metadata,
     title: match.title,
-    description: await moviePlot(match, load),
+    description: movieSynopsis(await moviePlot(match, load)),
     image_url: match.image_url || metadata.image_url,
     year: match.year ?? metadata.year,
     genres: match.genres.length ? match.genres : metadata.genres,

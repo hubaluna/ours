@@ -21,8 +21,12 @@ import type {
   NewWish,
   Profile,
   Table,
+  RecipeView,
+  MealPlanItem,
 } from "../lib/types";
+import { customRecipeView, syncDemoMenuShopping } from "../lib/recipe-catalog";
 const empty: Data = {
+  mealPlan: [],
   recipes: [],
   profiles: [],
   movies: [],
@@ -138,6 +142,7 @@ function useStore() {
         activities,
         reads,
         recipes,
+        mealPlan,
       ] = await Promise.all([
         readAll<Profile>("profiles"),
         readAll<Data["shopping"][number]>("shopping_items", {
@@ -180,10 +185,12 @@ function useStore() {
         ),
         readAll<Data["reads"][number]>("activity_reads", { user_id: userId }),
         readAll<Data["recipes"][number]>("recipes", { couple_id: couple }),
+        readAll<MealPlanItem>("meal_plan_items", { couple_id: couple }),
       ]);
       if (current !== revision.current) return;
       setCoupleId(couple);
       setData({
+        mealPlan,
         recipes,
         profiles,
         shopping,
@@ -232,6 +239,7 @@ function useStore() {
       "couple_members",
       "movies",
       "recipes",
+      "meal_plan_items",
       "activity_events",
     ]) {
       for (const event of ["INSERT", "UPDATE"] as const)
@@ -420,6 +428,37 @@ function useStore() {
                 [field]: d[field].map((row) =>
                   row.id === id ? { ...row, ...patch } : row,
                 ),
+                ...(table === "recipes"
+                  ? (() => {
+                      const recipe = d.recipes.find((row) => row.id === id);
+                      if (!recipe) return {};
+                      const updated = customRecipeView({ ...recipe, ...patch });
+                      const mealPlan = d.mealPlan.map((item) =>
+                        item.recipe_id === id
+                          ? {
+                              ...item,
+                              ingredients: updated.ingredients,
+                              base_servings: updated.baseServings,
+                              shopping_completed:
+                                item.shopping_completed &&
+                                JSON.stringify(item.ingredients) ===
+                                  JSON.stringify(updated.ingredients) &&
+                                item.base_servings === updated.baseServings,
+                            }
+                          : item,
+                      );
+                      return {
+                        mealPlan,
+                        shopping: syncDemoMenuShopping(
+                          mealPlan,
+                          d.shopping,
+                          d.menuExcludedKeys ?? [],
+                          userId,
+                          DEMO_COUPLE,
+                        ),
+                      };
+                    })()
+                  : {}),
               },
               table,
               { ...d[field].find((row) => row.id === id), ...patch },
@@ -454,6 +493,29 @@ function useStore() {
               {
                 ...d,
                 [field]: d[field].filter((row) => row.id !== id),
+                ...(table === "shopping_items" &&
+                d.shopping.find((row) => row.id === id)?.menu_key
+                  ? {
+                      menuExcludedKeys: [
+                        ...(d.menuExcludedKeys ?? []),
+                        d.shopping.find((row) => row.id === id)!.menu_key!,
+                      ],
+                    }
+                  : {}),
+                ...(table === "recipes"
+                  ? {
+                      mealPlan: d.mealPlan.filter(
+                        (row) => row.recipe_id !== id,
+                      ),
+                      shopping: syncDemoMenuShopping(
+                        d.mealPlan.filter((row) => row.recipe_id !== id),
+                        d.shopping,
+                        d.menuExcludedKeys ?? [],
+                        userId,
+                        DEMO_COUPLE,
+                      ),
+                    }
+                  : {}),
                 ...(table === "wishes"
                   ? {
                       reservations: d.reservations.filter(
@@ -511,6 +573,113 @@ function useStore() {
       { ...value, couple_id: coupleId, added_by: userId },
       "add-recipe",
       "Рецепт збережено",
+    );
+  const upsertMenu = (
+    choices: { recipe: RecipeView; servings: number; reopen?: boolean }[],
+  ) =>
+    run(
+      "menu",
+      async () => {
+        if (supabase)
+          await checked(
+            supabase.rpc("upsert_menu_items", {
+              p_items: choices.map(({ recipe, servings, reopen }) => ({
+                catalog_id: recipe.catalogId ?? null,
+                recipe_id: recipe.customId ?? null,
+                servings,
+                ingredients: recipe.ingredients,
+                reopen: reopen ?? false,
+              })),
+            }),
+          );
+        else
+          setData((d) => {
+            const mealPlan = [...d.mealPlan];
+            for (const { recipe, servings, reopen } of choices) {
+              const index = mealPlan.findIndex((item) =>
+                recipe.catalogId
+                  ? item.catalog_id === recipe.catalogId
+                  : item.recipe_id === recipe.customId,
+              );
+              const old = mealPlan[index];
+              const row: MealPlanItem = {
+                id: old?.id ?? crypto.randomUUID(),
+                couple_id: DEMO_COUPLE,
+                catalog_id: recipe.catalogId ?? null,
+                recipe_id: recipe.customId ?? null,
+                servings,
+                base_servings: recipe.baseServings,
+                ingredients: recipe.ingredients,
+                shopping_completed:
+                  !!old?.shopping_completed &&
+                  !reopen &&
+                  old.servings === servings &&
+                  JSON.stringify(old.ingredients) ===
+                    JSON.stringify(recipe.ingredients),
+                added_by: old?.added_by ?? userId,
+                created_at: old?.created_at ?? new Date().toISOString(),
+              };
+              if (index >= 0) mealPlan[index] = row;
+              else mealPlan.push(row);
+            }
+            return {
+              ...d,
+              mealPlan,
+              shopping: syncDemoMenuShopping(
+                mealPlan,
+                d.shopping,
+                d.menuExcludedKeys ?? [],
+                userId,
+                DEMO_COUPLE,
+              ),
+            };
+          });
+      },
+      "Меню та покупки оновлено",
+    );
+  const removeMenuItem = (id: string) =>
+    run(
+      "menu",
+      async () => {
+        if (supabase)
+          await checked(supabase.rpc("remove_menu_item", { p_id: id }));
+        else
+          setData((d) => {
+            const mealPlan = d.mealPlan.filter((item) => item.id !== id);
+            return {
+              ...d,
+              mealPlan,
+              shopping: syncDemoMenuShopping(
+                mealPlan,
+                d.shopping,
+                d.menuExcludedKeys ?? [],
+                userId,
+                DEMO_COUPLE,
+              ),
+            };
+          });
+      },
+      "Страву прибрано з меню",
+    );
+  const restoreMenuProducts = () =>
+    run(
+      "menu",
+      async () => {
+        if (supabase) await checked(supabase.rpc("restore_menu_products"));
+        else
+          setData((d) => ({
+            ...d,
+            menuExcludedKeys: [],
+            shopping: syncDemoMenuShopping(
+              d.mealPlan,
+              d.shopping,
+              [],
+              userId,
+              DEMO_COUPLE,
+            ),
+          }));
+      },
+      "Продукти меню перераховано",
     );
   const markRead = (ids: string[]) =>
     run("mark-read", async () => {
@@ -573,6 +742,10 @@ function useStore() {
           const id = crypto.randomUUID();
           setData((d) => ({
             ...d,
+            mealPlan: d.mealPlan.map((item) => ({
+              ...item,
+              shopping_completed: true,
+            })),
             sessions: [
               {
                 id,
@@ -681,6 +854,9 @@ function useStore() {
     addEvent,
     addMovie,
     addRecipe,
+    upsertMenu,
+    removeMenuItem,
+    restoreMenuProducts,
     markRead,
     addShoppingBatch,
     update,

@@ -3,6 +3,7 @@ import type { Movie, NewMovie } from "../lib/types";
 import { useApp } from "../hooks/AppContext";
 import { BottomSheet, Button, ConfirmDelete, Field } from "./ui";
 import { publicUrl } from "../../supabase/functions/_shared/urls";
+import { movieSynopsis } from "../../supabase/functions/_shared/movie-synopsis";
 export function MovieForm({
   movie,
   initial,
@@ -33,7 +34,7 @@ export function MovieForm({
       poster_url: poster,
       year: year ? Number(year) : null,
       genres: String(f.get("genres")),
-      description: String(f.get("description")),
+      description: movieSynopsis(String(f.get("description"))),
       status: String(f.get("status")) as Movie["status"],
       rating: status === "watched" ? Number(f.get("rating")) : null,
       metadata_url: seed?.metadata_url ?? "",
@@ -49,6 +50,14 @@ export function MovieForm({
       onClose={onClose}
     >
       <form className="form" onSubmit={submit}>
+        <div className="sheet-actions form-save">
+          <Button
+            type="submit"
+            busy={pending.includes(movie?.id ?? "add-movie")}
+          >
+            Зберегти фільм
+          </Button>
+        </div>
         <Field label="Назва">
           <input
             data-autofocus
@@ -106,8 +115,8 @@ export function MovieForm({
           <textarea
             name="description"
             rows={4}
-            maxLength={2000}
-            defaultValue={seed?.description}
+            maxLength={650}
+            defaultValue={movieSynopsis(seed?.description ?? "")}
           />
         </Field>
         <Field label="Фільм або трейлер">
@@ -131,9 +140,6 @@ export function MovieForm({
             {error}
           </p>
         )}
-        <Button type="submit" busy={pending.includes(movie?.id ?? "add-movie")}>
-          Зберегти фільм
-        </Button>
       </form>
       {movie && (
         <ConfirmDelete

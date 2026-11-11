@@ -27,6 +27,7 @@ import {
   ScreenHeader,
 } from "../components/Compact";
 import { MovieForm } from "../components/MovieForm";
+import { movieSynopsis } from "../../supabase/functions/_shared/movie-synopsis";
 import { LinkImport } from "../components/LinkImportLoader";
 export function Poster({ url, title }: { url: string; title: string }) {
   const [failedUrl, setFailedUrl] = useState("");
@@ -63,7 +64,7 @@ export default function Movies() {
       poster_url: r.image_url,
       year: r.year,
       genres: r.genres.join(", "),
-      description: r.description,
+      description: movieSynopsis(r.description),
       status: "planned",
       metadata_url: r.metadata_url ?? "",
     });
@@ -142,6 +143,25 @@ export default function Movies() {
             onClose={() => setRatingMovie(null)}
           >
             <div className="form">
+              <div className="sheet-actions form-save">
+                <Button
+                  disabled={rating === null}
+                  busy={pending.includes(ratingMovie.id)}
+                  onClick={async () => {
+                    if (
+                      await update(
+                        "movies",
+                        ratingMovie.id,
+                        { status: "watched", rating },
+                        "Фільм переглянуто й оцінено",
+                      )
+                    )
+                      setRatingMovie(null);
+                  }}
+                >
+                  Зберегти оцінку
+                </Button>
+              </div>
               <p>{ratingMovie.title}</p>
               <fieldset className="rating-picker">
                 <legend>Ваша оцінка від 1 до 10</legend>
@@ -158,23 +178,6 @@ export default function Movies() {
                   ))}
                 </div>
               </fieldset>
-              <Button
-                disabled={rating === null}
-                busy={pending.includes(ratingMovie.id)}
-                onClick={async () => {
-                  if (
-                    await update(
-                      "movies",
-                      ratingMovie.id,
-                      { status: "watched", rating },
-                      "Фільм переглянуто й оцінено",
-                    )
-                  )
-                    setRatingMovie(null);
-                }}
-              >
-                Зберегти оцінку
-              </Button>
             </div>
           </BottomSheet>
         ) : form ? (
@@ -204,7 +207,7 @@ export default function Movies() {
                 {detail.genres || "Жанр не вказаний"}
               </p>
               <p className="full-description">
-                {detail.description ||
+                {movieSynopsis(detail.description) ||
                   "Можна додати кілька слів про цей фільм."}
               </p>
               {detail.rating != null && (

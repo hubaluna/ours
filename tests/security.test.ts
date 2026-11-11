@@ -1,5 +1,9 @@
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
+import {
+  catalogRows,
+  catalogImportSQL,
+} from "../scripts/import-recipe-catalog.mjs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 let db: PGlite, couple: string, token: string, wish: string, session: string;
 const a = "00000000-0000-4000-8000-000000000001",
@@ -38,6 +42,12 @@ beforeAll(async () => {
   );
   await db.exec(
     readFileSync("supabase/migrations/004_recipes_movie_ratings.sql", "utf8"),
+  );
+  await db.exec(
+    readFileSync(
+      "supabase/migrations/005_recipe_catalog_shared_menu.sql",
+      "utf8",
+    ),
   );
   await asUser(a);
 }, 60000);
@@ -409,6 +419,237 @@ describe("Real PostgreSQL RLS and RPC, under authenticated roles", () => {
       /permission denied/,
     );
     await expect(rows("select * from public.wishes")).rejects.toThrow(
+      /permission denied/,
+    );
+  });
+});
+
+describe("Shared recipe catalog, menu and atomic shopping", () => {
+  const archive = JSON.parse(
+    readFileSync("src/data/ours-recipes.json", "utf8"),
+  );
+  const sql = catalogImportSQL(catalogRows(archive));
+  const menu = (items: object[]) =>
+    rows(
+      `select public.upsert_menu_items('${JSON.stringify(items).replace(/'/g, "''")}'::jsonb)`,
+    );
+  const generated = () =>
+    rows<{
+      name: string;
+      quantity: number | null;
+      unit: string;
+      purchased: boolean;
+    }>(
+      "select name,quantity,unit,purchased from public.shopping_items where session_id is null and menu_key is not null order by name,unit",
+    );
+  it("imports 55 records idempotently, preserving all original fields", async () => {
+    await db.exec("reset role");
+    await db.exec(sql);
+    const before = await rows(
+      "select id,original_data,updated_at from public.recipe_catalog order by id",
+    );
+    expect(before).toHaveLength(55);
+    await db.exec(sql);
+    expect(
+      await rows(
+        "select id,original_data,updated_at from public.recipe_catalog order by id",
+      ),
+    ).toEqual(before);
+    await asUser(a);
+    expect(await rows("select id from public.recipe_catalog")).toHaveLength(55);
+    await expect(rows("delete from public.recipe_catalog")).rejects.toThrow(
+      /permission denied/,
+    );
+  });
+  it("adds only a salad, shares it with the partner and respects portions without duplicate menu or shopping rows", async () => {
+    await asUser(a);
+    await menu([{ catalog_id: "ours55/green_salad", servings: 2 }]);
+    const before = await generated();
+    expect(before.length).toBeGreaterThan(2);
+    const cucumber = archive.recipes
+      .find((r: { id: string }) => r.id === "green_salad")
+      .ingredients.find((i: { name: string }) => i.name.includes("Огір"));
+    expect(Number(before.find((i) => i.name === cucumber.name)?.quantity)).toBe(
+      cucumber.quantity * 2,
+    );
+    await menu([{ catalog_id: "ours55/green_salad", servings: 2 }]);
+    expect(await generated()).toEqual(before);
+    expect(await rows("select id from public.meal_plan_items")).toHaveLength(1);
+    await asUser(b);
+    expect(
+      (await rows("select servings from public.meal_plan_items"))[0].servings,
+    ).toBe(2);
+    await menu([{ catalog_id: "ours55/green_salad", servings: 3 }]);
+    expect(
+      Number(
+        (await generated()).find((i) => i.name === cucumber.name)?.quantity,
+      ),
+    ).toBe(cucumber.quantity * 3);
+  });
+  it("atomically adds a protein and side, merges common products, and rolls back an invalid pair", async () => {
+    await asUser(a);
+    await menu([
+      { catalog_id: "ours55/pan_chicken_fillet", servings: 2 },
+      { catalog_id: "ours55/rice", servings: 2 },
+    ]);
+    expect(await rows("select id from public.meal_plan_items")).toHaveLength(3);
+    const plans = await rows<{
+      ingredients: { name: string; quantity: number | null; unit: string }[];
+      servings: number;
+      base_servings: number;
+    }>("select ingredients,servings,base_servings from public.meal_plan_items");
+    const expected = new Map<string, number | null>();
+    for (const plan of plans)
+      for (const i of plan.ingredients) {
+        if (i.quantity === 0) continue;
+        const key = i.name.toLowerCase() + "|" + i.unit;
+        expected.set(
+          key,
+          i.quantity === null
+            ? null
+            : (expected.get(key) ?? 0) +
+                (i.quantity * plan.servings) / plan.base_servings,
+        );
+      }
+    const actual = await generated();
+    expect(actual).toHaveLength(expected.size);
+    actual.forEach((i) =>
+      expect(i.quantity === null ? null : Number(i.quantity)).toBe(
+        expected.get(i.name.toLowerCase() + "|" + i.unit),
+      ),
+    );
+    await expect(
+      menu([
+        { catalog_id: "ours55/bulgur", servings: 2 },
+        { catalog_id: "ours55/nonexistent", servings: 2 },
+      ]),
+    ).rejects.toThrow(/not found/);
+    expect(await rows("select id from public.meal_plan_items")).toHaveLength(3);
+    expect(await generated()).toEqual(actual);
+    for (const servings of [0, 13, 1.5])
+      await expect(
+        menu([{ catalog_id: "ours55/rice", servings }]),
+      ).rejects.toThrow();
+  });
+  it("keeps manual products, supports pantry exclusions and prevents forged generated rows", async () => {
+    const before = (
+      await rows("select id from public.shopping_items where menu_key is null")
+    ).length;
+    await rows(
+      "delete from public.shopping_items where menu_key is not null and name='Сіль'",
+    );
+    expect((await generated()).some((i) => i.name === "Сіль")).toBe(false);
+    await menu([{ catalog_id: "ours55/rice", servings: 3 }]);
+    expect((await generated()).some((i) => i.name === "Сіль")).toBe(false);
+    await rows("select public.restore_menu_products()");
+    expect((await generated()).some((i) => i.name === "Сіль")).toBe(true);
+    expect(
+      await rows("select id from public.shopping_items where menu_key is null"),
+    ).toHaveLength(before);
+    await expect(
+      rows(
+        "update public.shopping_items set quantity=1 where menu_key is not null and quantity is not null",
+      ),
+    ).rejects.toThrow(/portions/);
+    await expect(
+      rows(
+        `insert into public.shopping_items(couple_id,name,added_by,menu_key) values('${couple}','Forged','${a}','fake')`,
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+  it("rejects access from another couple and direct mutation of menu rows", async () => {
+    await asUser(c);
+    expect(await rows("select id from public.meal_plan_items")).toHaveLength(0);
+    await expect(
+      rows(
+        `insert into public.meal_plan_items(couple_id,catalog_id,servings,base_servings,ingredients,added_by) values('${couple}','ours55/rice',1,1,'[]','${c}')`,
+      ),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      rows(`select public.sync_menu_shopping('${couple}')`),
+    ).rejects.toThrow(/permission denied/);
+    await asUser(a);
+    const privateId = String(
+      (await rows("select id from public.recipes limit 1"))[0].id,
+    );
+    await asUser(c);
+    await expect(
+      menu([
+        {
+          recipe_id: privateId,
+          servings: 1,
+          ingredients: [
+            { name: "Рис", quantity: 1, unit: "г", category: "Бакалія" },
+          ],
+        },
+      ]),
+    ).rejects.toThrow(/private recipe/);
+  });
+  it("updates private recipe quantities and cleans up its menu without damaging manual purchases", async () => {
+    await asUser(a);
+    const privateId = String(
+      (await rows("select id from public.recipes limit 1"))[0].id,
+    );
+    await menu([
+      {
+        recipe_id: privateId,
+        servings: 3,
+        ingredients: [
+          {
+            name: "Унікальний рис",
+            quantity: 100,
+            unit: "г",
+            category: "Бакалія",
+          },
+        ],
+      },
+    ]);
+    expect(
+      Number(
+        (await generated()).find((i) => i.name === "Унікальний рис")?.quantity,
+      ),
+    ).toBe(300);
+    await rows(
+      `update public.recipes set base_servings=2,structured_ingredients='[{"name":"Унікальний рис","quantity":200,"unit":"г","category":"Бакалія"}]' where id='${privateId}'`,
+    );
+    expect(
+      Number(
+        (await generated()).find((i) => i.name === "Унікальний рис")?.quantity,
+      ),
+    ).toBe(300);
+    await rows(`delete from public.recipes where id='${privateId}'`);
+    expect((await generated()).some((i) => i.name === "Унікальний рис")).toBe(
+      false,
+    );
+    expect(
+      await rows(
+        `select id from public.meal_plan_items where recipe_id='${privateId}'`,
+      ),
+    ).toHaveLength(0);
+  });
+  it("archives bought menu products once, then reopens explicitly without multiplying requirements", async () => {
+    await asUser(a);
+    await rows(
+      "update public.shopping_items set purchased=true where session_id is null",
+    );
+    await rows("select public.finish_shopping()");
+    expect(await generated()).toHaveLength(0);
+    expect(
+      (
+        await rows(
+          "select bool_and(shopping_completed) as done from public.meal_plan_items",
+        )
+      )[0].done,
+    ).toBe(true);
+    await menu([{ catalog_id: "ours55/rice", servings: 3 }]);
+    expect(await generated()).toHaveLength(0);
+    await menu([{ catalog_id: "ours55/rice", servings: 3, reopen: true }]);
+    expect((await generated()).length).toBeGreaterThan(0);
+    const before = await generated();
+    await menu([{ catalog_id: "ours55/rice", servings: 3 }]);
+    expect(await generated()).toEqual(before);
+    await db.exec("reset role;set role anon");
+    await expect(rows("select public.upsert_menu_items('[]')")).rejects.toThrow(
       /permission denied/,
     );
   });

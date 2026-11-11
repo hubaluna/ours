@@ -13,7 +13,8 @@
     "format": "prettier --write src tests *.ts *.js *.json *.html .github docs README.md",
     "setup:sql": "node scripts/create-setup.mjs",
     "setup:edge": "node scripts/create-edge-dashboard.mjs",
-    "setup:supabase": "node --use-env-proxy scripts/supabase-setup.mjs"
+    "setup:supabase": "node --use-env-proxy scripts/supabase-setup.mjs",
+    "import:recipes": "node --use-env-proxy scripts/import-recipe-catalog.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.119.0",

@@ -922,6 +922,7 @@ export async function enrichMovie(
   load: PageLoader,
   query?: string,
 ): Promise<LinkMetadata> {
+  metadata = {...metadata,description:movieSynopsis(metadata.description)};
   if (
     !query &&
     /^(?:TikTok(?:\s*[-–|].*)?|Make Your Day)$/i.test(metadata.title.trim())
@@ -950,7 +951,7 @@ export async function enrichMovie(
   return {
     ...metadata,
     title: match.title,
-    description: await moviePlot(match, load),
+    description: movieSynopsis(await moviePlot(match, load)),
     image_url: match.image_url || metadata.image_url,
     year: match.year ?? metadata.year,
     genres: match.genres.length ? match.genres : metadata.genres,
@@ -959,6 +960,24 @@ export async function enrichMovie(
     movie_query: terms,
     candidates,
   };
+}
+
+// _shared/movie-synopsis.ts
+// A readable plot paragraph, without copying an entire Wikipedia section.
+export function movieSynopsis(text: string, limit = 650): string {
+  const clean = text.replace(/\[\d+\]/g, "").replace(/\s+/g, " ").trim();
+  if (!clean) return "";
+  const sentences = clean.match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g) ?? [clean];
+  let paragraph = "";
+  for (const sentence of sentences.slice(0, 3)) {
+    const next = `${paragraph} ${sentence.trim()}`.trim();
+    if (next.length > limit) break;
+    paragraph = next;
+  }
+  if (paragraph) return paragraph;
+  if (clean.length <= limit) return clean;
+  const clipped = clean.slice(0, limit - 1);
+  return clipped.slice(0, Math.max(clipped.lastIndexOf(" "), limit - 80)).trimEnd() + "…";
 }
 
 // link-preview/index.ts

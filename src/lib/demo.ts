@@ -11,6 +11,8 @@ export function createDemo(): Data {
     return kyivDate(d);
   };
   return {
+    mealPlan: [],
+    menuExcludedKeys: [],
     recipes: [],
     profiles: [
       { id: DEMO_USER, name: "Анна", avatar_path: null },
@@ -202,6 +204,10 @@ export function readDemo(): Data {
       )
         return {
           ...data,
+          mealPlan: Array.isArray(data.mealPlan) ? data.mealPlan : [],
+          menuExcludedKeys: Array.isArray(data.menuExcludedKeys)
+            ? data.menuExcludedKeys
+            : [],
           recipes: Array.isArray(data.recipes) ? data.recipes : [],
           movies: Array.isArray(data.movies)
             ? data.movies

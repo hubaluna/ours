@@ -27,20 +27,17 @@ async function fit(page: Page) {
       page.evaluate(() => {
         const menu = document.querySelector(".menu-screen");
         if (!menu) return true;
-        const mode = menu.querySelector(".segmented")!.getBoundingClientRect();
-        const grid = menu.querySelector(".menu-grid")!.getBoundingClientRect();
         const footer = menu
-          .querySelector(".menu-footer")!
+          .querySelector(".menu-toolbar")!
           .getBoundingClientRect();
         const main = document
           .querySelector("#main-content")!
           .getBoundingClientRect();
         return (
-          grid.top >= mode.bottom - 1 &&
           footer.bottom <= main.bottom + 1 &&
-          Array.from(menu.querySelectorAll(".menu-course")).every(
+          Array.from(menu.querySelectorAll(".meal-row")).every(
             (card) =>
-              card.querySelector(".course-actions")!.getBoundingClientRect()
+              card.querySelector(".meal-row-actions")!.getBoundingClientRect()
                 .bottom <=
               card.getBoundingClientRect().bottom + 1,
           )
@@ -89,6 +86,7 @@ async function shot(page: Page, name: string) {
 test("six tabs, unseen updates, shopping, movies, calendar and appearance", async ({
   page,
 }) => {
+  test.setTimeout(90_000);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
@@ -127,11 +125,16 @@ test("six tabs, unseen updates, shopping, movies, calendar and appearance", asyn
   await expect(page.locator(".shopping-row")).toHaveCount(6);
   await shot(page, "shopping");
   await choose(page, "Меню");
-  const dinner = await page.locator(".menu-course h2").allTextContents();
   await page.getByRole("button", { name: "Згенерувати вечерю" }).click();
-  expect(await page.locator(".menu-course h2").allTextContents()).not.toEqual(
-    dinner,
-  );
+  await expect(
+    page.getByRole("dialog").getByRole("button", { name: "Додати до меню" }),
+  ).toBeVisible();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Додати до меню" })
+    .click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await expect(page.locator(".meal-row")).toHaveCount(1);
   await fit(page);
   await shot(page, "menu");
   await choose(page, "Кіно");
@@ -265,7 +268,7 @@ test("grocery categories are automatic and additional fields stay collapsed", as
   expect(item.quantity).toBe(2);
 });
 
-test("a complete recipe is selectable, readable and adds all products atomically", async ({
+test("a private recipe joins the shared catalog and scales automatically into shopping", async ({
   page,
 }) => {
   await page.goto("/");
@@ -286,40 +289,35 @@ test("a complete recipe is selectable, readable and adds all products atomically
     .getByLabel("Рецепт · кожен крок із нового рядка")
     .fill("Промийте рис.\nЗваріть із морквою.");
   await dialog.getByRole("button", { name: "Зберегти рецепт" }).click();
+  await expect(
+    dialog.getByRole("heading", { name: "Каталог рецептів" }),
+  ).toBeVisible();
+  await dialog
+    .locator(".catalog-card")
+    .filter({
+      has: page.getByRole("heading", { name: "Наш рис", exact: true }),
+    })
+    .click();
+  await expect(
+    dialog.getByText("Зваріть із морквою.", { exact: true }),
+  ).toBeVisible();
+  await dialog
+    .getByRole("button", { name: "Збільшити порції · Кількість порцій" })
+    .click();
+  await expect(dialog.locator(".scaled-ingredients")).toContainText("400 г");
+  await dialog.getByRole("button", { name: "Додати до меню" }).click();
   await expect(dialog).not.toBeVisible();
-  const card = page.locator(".menu-course").filter({
-    has: page.getByRole("heading", { name: "Наш рис", exact: true }),
-  });
-  await expect(card.getByRole("combobox")).toHaveValue("Наш рис");
-  await card.getByRole("button", { name: "Рецепт", exact: true }).click();
-  await expect(
-    page.getByText("Зваріть із морквою.", { exact: true }),
-  ).toBeVisible();
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "Продукти", exact: true })
-    .click();
-  await page.getByRole("button", { name: "Усі продукти до покупок" }).click();
-  await expect(page.getByRole("dialog")).not.toBeVisible();
-  await choose(page, "Покупки");
-  await expect(
-    page.getByRole("button", { name: "Потрібно · 7" }),
-  ).toBeVisible();
-  const ingredients = await page.evaluate(() =>
-    JSON.parse(localStorage.getItem("ours-demo-v1")!).shopping.filter(
-      (i: { name: string }) => ["рису", "морква"].includes(i.name),
-    ),
+  await expect(page.locator(".meal-row h2")).toHaveText("Наш рис");
+  const data = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("ours-demo-v1")!),
   );
-  expect(ingredients).toHaveLength(2);
-  expect(ingredients.map((i: { category: string }) => i.category)).toEqual([
-    "Бакалія",
-    "Овочі та фрукти",
-  ]);
-  await choose(page, "Меню");
-  await page
-    .getByRole("button", { name: "Повноцінна страва", exact: true })
-    .click();
-  await expect(page.locator(".menu-course")).toHaveCount(1);
+  expect(data.mealPlan).toHaveLength(1);
+  expect(
+    data.shopping
+      .filter((i: { menu_key?: string }) => i.menu_key)
+      .map((i: { quantity: number }) => i.quantity),
+  ).toEqual([400, 2]);
+  await choose(page, "Покупки");
   await fit(page);
 });
 
@@ -366,42 +364,103 @@ test("calendar shows upcoming events and countdown when today is empty", async (
   await fit(page);
 });
 
-test("a complete dish photo card fits every compact viewport", async ({
+test("55 recipes, filters, ranked pairings, one-click pair and portion changes survive reload", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.evaluate(() => {
-    const data = JSON.parse(localStorage.getItem("ours-demo-v1")!);
-    data.recipes = [
-      {
-        id: "photo-recipe",
-        couple_id: "demo-couple",
-        title: "Плов із фото",
-        category: "main",
-        image_url: "https://example.com/plov.jpg",
-        source_url: "",
-        ingredients: ["200 г рису"],
-        instructions: ["Зваріть рис."],
-        added_by: "demo-anna",
-        created_at: new Date().toISOString(),
-      },
-    ];
-    localStorage.setItem("ours-demo-v1", JSON.stringify(data));
-    localStorage.setItem(
-      "ours-menu-demo-anna",
-      JSON.stringify({
-        side: "Картопляне пюре",
-        protein: "Курка з травами",
-        salad: "Огірок, помідор і зелень",
-        main: "Плов із фото",
-      }),
-    );
-  });
-  await page.reload();
   await choose(page, "Меню");
   await page
-    .getByRole("button", { name: "Повноцінна страва", exact: true })
+    .getByRole("button", { name: "Каталог рецептів", exact: true })
     .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.locator(".catalog-card")).toHaveCount(55);
+  await dialog.getByRole("button", { name: "Гарніри", exact: true }).click();
+  await expect(dialog.locator(".catalog-card")).toHaveCount(10);
+  const originalViewport = page.viewportSize()!;
+  await page.setViewportSize({ width: 844, height: 390 });
+  await dialog.locator(".catalog-card").last().scrollIntoViewIfNeeded();
+  await expect(dialog.locator(".catalog-card").last()).toBeInViewport();
+  await page.setViewportSize(originalViewport);
+
+  await dialog
+    .getByRole("button", { name: "М’ясо та риба", exact: true })
+    .click();
+  await expect(dialog.locator(".catalog-card")).toHaveCount(18);
+  await dialog.getByLabel("Пошук страви або продукту").fill("кисло");
+  await expect(dialog.locator(".catalog-card")).toHaveCount(1);
+  await dialog.locator(".catalog-card").click();
+  await expect(
+    dialog.getByRole("heading", { name: "Гарніри, які пасують" }),
+  ).toBeVisible();
+  await expect(dialog.locator(".pairing-card h4").first()).toContainText("Рис");
+  await dialog
+    .getByRole("button", { name: "Збільшити порції · Кількість порцій" })
+    .click();
+  await dialog
+    .locator(".pairing-card")
+    .first()
+    .getByRole("button", { name: "Додати пару" })
+    .click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.locator(".meal-row")).toHaveCount(2);
+  const before = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("ours-demo-v1")!),
+  );
+  expect(before.mealPlan).toHaveLength(2);
+  expect(
+    before.mealPlan.every((i: { servings: number }) => i.servings === 2),
+  ).toBe(true);
+  expect(
+    new Set(
+      before.shopping
+        .filter((i: { menu_key?: string }) => i.menu_key)
+        .map((i: { menu_key: string }) => i.menu_key),
+    ).size,
+  ).toBe(
+    before.shopping.filter((i: { menu_key?: string }) => i.menu_key).length,
+  );
+  await page.reload();
+  await choose(page, "Меню");
+  await expect(page.locator(".meal-row")).toHaveCount(2);
+  const rice = page
+    .locator(".meal-row")
+    .filter({ has: page.getByRole("heading", { name: "Рис", exact: true }) });
+  await rice.getByRole("button", { name: "Рецепт", exact: true }).click();
+  await expect(
+    dialog.getByRole("heading", { name: "До цього гарніру пасуватиме" }),
+  ).toBeVisible();
+  await dialog.getByRole("button", { name: "Зберегти порції" }).click();
+  await expect(dialog).not.toBeVisible();
+  await rice
+    .getByRole("button", { name: "Збільшити порції · Рис", exact: true })
+    .click();
+  await expect(rice.getByRole("status")).toContainText("3");
+  const after = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("ours-demo-v1")!),
+  );
+  expect(after.mealPlan).toHaveLength(2);
+  expect(
+    after.mealPlan.find(
+      (i: { catalog_id: string }) => i.catalog_id === "ours55/rice",
+    ).servings,
+  ).toBe(3);
+  await fit(page);
+  await shot(page, "catalog-pair-menu");
+});
+
+test("a salad alone fits every compact viewport and uses its original image", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await choose(page, "Меню");
+  await page
+    .getByRole("button", { name: "Каталог рецептів", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Пошук страви або продукту").fill("Зелений салат");
+  await dialog.locator(".catalog-card").first().click();
+  await dialog.getByRole("button", { name: "Додати до меню" }).click();
+  await expect(dialog).not.toBeVisible();
   for (const viewport of [
     { width: 320, height: 568 },
     { width: 390, height: 664 },
@@ -410,7 +469,50 @@ test("a complete dish photo card fits every compact viewport", async ({
     { width: 1280, height: 800 },
   ]) {
     await page.setViewportSize(viewport);
-    await expect(page.locator(".menu-course")).toHaveCount(1);
+    await expect(page.locator(".meal-row")).toHaveCount(1);
     await fit(page);
+    expect(
+      await page
+        .locator(".meal-row img")
+        .evaluate(
+          (img: HTMLImageElement) => img.complete && img.naturalWidth > 0,
+        ),
+    ).toBe(true);
+    await shot(page, `salad-menu-${viewport.width}x${viewport.height}`);
+  }
+  expect(
+    await page.evaluate(() =>
+      JSON.parse(localStorage.getItem("ours-demo-v1")!).shopping.some(
+        (i: { name: string; menu_key?: string }) =>
+          i.menu_key && i.name === "Авокадо",
+      ),
+    ),
+  ).toBe(false);
+});
+
+test("save controls stay at the top before and after scrolling long forms", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 664 });
+  await page.goto("/");
+  for (const [tab, add, save] of [
+    ["Кіно", "Додати фільм", "Зберегти фільм"],
+    ["Меню", "Додати рецепт", "Зберегти рецепт"],
+    ["Бажання", "Додати бажання", "Зберегти бажання"],
+    ["Календар", "Додати план", "Додати план"],
+    ["Покупки", "Додати товар", "Додати до списку"],
+  ]) {
+    await choose(page, tab);
+    await page.getByRole("button", { name: add, exact: true }).click();
+    const dialog = page.getByRole("dialog"),
+      button = dialog.getByRole("button", { name: save, exact: true });
+    await expect(button).toBeInViewport();
+    await dialog.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    const b = await button.boundingBox(),
+      header = await dialog.locator(".sheet-header").boundingBox();
+    expect(b!.y).toBeGreaterThanOrEqual(header!.y + header!.height - 2);
+    expect(b!.y + b!.height).toBeLessThan(664);
+    await dialog.getByRole("button", { name: "Закрити", exact: true }).click();
+    await expect(dialog).not.toBeVisible();
   }
 });
