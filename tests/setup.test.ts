@@ -1,6 +1,7 @@
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
+import { guardedSetupSQL } from "../scripts/supabase-setup.mjs";
 it("applies the one-query mobile setup atomically to a fresh project", async () => {
   const db = new PGlite();
   try {
@@ -12,7 +13,8 @@ it("applies the one-query mobile setup atomically to a fresh project", async () 
  alter table storage.objects enable row level security;
  create function storage.foldername(name text) returns text[] language sql immutable as $$ select (string_to_array(name,'/'))[1:array_length(string_to_array(name,'/'),1)-1] $$;
  create publication supabase_realtime;`);
-    await db.exec(readFileSync("supabase/setup.sql", "utf8"));
+    const sql = guardedSetupSQL(readFileSync("supabase/setup.sql", "utf8"));
+    await db.exec(sql);
     const tables = await db.query(
       "select tablename from pg_tables where schemaname='public'",
     );
@@ -25,6 +27,18 @@ it("applies the one-query mobile setup atomically to a fresh project", async () 
       "select relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r'",
     );
     expect(security.rows.every((r) => r.relrowsecurity)).toBe(true);
+    // A second initial setup must fail before touching the existing tables.
+    await expect(db.exec(sql)).rejects.toThrow(
+      "requires an empty public schema",
+    );
+    await db.exec("rollback;");
+    expect(
+      (
+        await db.query(
+          "select tablename from pg_tables where schemaname='public'",
+        )
+      ).rows,
+    ).toHaveLength(14);
   } finally {
     await db.close();
   }

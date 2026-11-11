@@ -12,7 +12,8 @@
     "preview": "vite preview --host 0.0.0.0",
     "format": "prettier --write src tests *.ts *.js *.json *.html .github docs README.md",
     "setup:sql": "node scripts/create-setup.mjs",
-    "setup:edge": "node scripts/create-edge-dashboard.mjs"
+    "setup:edge": "node scripts/create-edge-dashboard.mjs",
+    "setup:supabase": "node --use-env-proxy scripts/supabase-setup.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.119.0",
