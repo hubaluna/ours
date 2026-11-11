@@ -193,6 +193,7 @@ export default function Settings({
               wishes: data.wishes,
               events: data.events,
               movies: data.movies,
+              recipes: data.recipes,
             });
             notify("Експорт підготовлено");
           }}

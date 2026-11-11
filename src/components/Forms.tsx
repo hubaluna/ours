@@ -12,6 +12,7 @@ import {
   type Plan,
 } from "../lib/types";
 import { kyivDate } from "../lib/utils";
+import { groceryCategory } from "../../supabase/functions/_shared/grocery-category";
 import { BottomSheet, Button, ConfirmDelete, Field } from "./ui";
 const textSchema = z
   .string()
@@ -28,10 +29,19 @@ export function ShoppingForm({
 }) {
   const { addShopping, update, remove, pending, data } = useApp();
   const [name, setName] = useState(item?.name ?? ""),
-    [category, setCategory] = useState(item?.category ?? "Інше"),
+    [manualCategory, setManualCategory] = useState<string | null>(null),
     [error, setError] = useState(""),
     [another, setAnother] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const category =
+    manualCategory ??
+    (item?.name === name ? item.category : undefined) ??
+    [...data.history, ...data.shopping].find(
+      (value) =>
+        value.name.trim().toLocaleLowerCase("uk") ===
+        name.trim().toLocaleLowerCase("uk"),
+    )?.category ??
+    groceryCategory(name);
   const suggestions = [
     ...new Map(
       [...data.history, ...data.shopping].map((i) => [i.name.toLowerCase(), i]),
@@ -72,6 +82,7 @@ export function ShoppingForm({
     if (ok) {
       if (another && !item) {
         setName("");
+        setManualCategory(null);
         setError("");
         input.current?.focus();
       } else onClose();
@@ -108,7 +119,7 @@ export function ShoppingForm({
                 key={s.id}
                 onClick={() => {
                   setName(s.name);
-                  setCategory(s.category);
+                  setManualCategory(s.category);
                 }}
               >
                 {s.name}
@@ -116,47 +127,63 @@ export function ShoppingForm({
             ))}
           </div>
         )}
-        <div className="form-grid">
-          <Field label="Кількість">
-            <input
-              name="quantity"
-              type="number"
-              inputMode="decimal"
-              min="0.01"
-              step="any"
-              defaultValue={item?.quantity ?? 1}
-              required
-            />
-          </Field>
-          <Field label="Одиниці">
-            <select name="unit" defaultValue={item?.unit ?? "шт."}>
-              {["шт.", "кг", "г", "л", "мл", "уп."].map((u) => (
-                <option key={u}>{u}</option>
-              ))}
-            </select>
-          </Field>
-        </div>
-        <Field label="Категорія">
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-          >
-            {categories.map((c) => (
-              <option key={c}>{c}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Приблизна ціна, ₴ · необов’язково">
-          <input
-            name="price"
-            type="number"
-            inputMode="decimal"
-            min="0"
-            step="0.01"
-            defaultValue={item?.price ?? ""}
-            placeholder="0"
-          />
-        </Field>
+        {name.trim() && (
+          <p className="category-hint">
+            {category} ·{" "}
+            {manualCategory ? "обрано вами" : "визначено автоматично"}
+          </p>
+        )}
+        <details className="additional-fields">
+          <summary>Додатково</summary>
+          <div className="form">
+            <div className="form-grid">
+              <Field label="Кількість">
+                <input
+                  name="quantity"
+                  type="number"
+                  inputMode="decimal"
+                  min="0.01"
+                  step="any"
+                  defaultValue={item?.quantity ?? 1}
+                  required
+                />
+              </Field>
+              <Field label="Одиниці">
+                <select name="unit" defaultValue={item?.unit ?? "шт."}>
+                  {["шт.", "кг", "г", "л", "мл", "уп."].map((u) => (
+                    <option key={u}>{u}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            <Field label="Категорія">
+              <select
+                value={manualCategory ?? "auto"}
+                onChange={(e) =>
+                  setManualCategory(
+                    e.target.value === "auto" ? null : e.target.value,
+                  )
+                }
+              >
+                <option value="auto">Автоматично · {category}</option>
+                {categories.map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Приблизна ціна, ₴ · необов’язково">
+              <input
+                name="price"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                defaultValue={item?.price ?? ""}
+                placeholder="0"
+              />
+            </Field>
+          </div>
+        </details>
         {error && (
           <p className="form-error" role="alert">
             {error}

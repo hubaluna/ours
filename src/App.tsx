@@ -18,12 +18,20 @@ import { Avatar, Button, Skeleton, Toast } from "./components/ui";
 import { spring, enter } from "./lib/motion";
 import type { Tab } from "./lib/types";
 import { useRegisterSW } from "virtual:pwa-register/react";
-const Home = lazy(() => import("./features/Home")),
-  Shopping = lazy(() => import("./features/Shopping")),
-  Menu = lazy(() => import("./features/Menu")),
-  Movies = lazy(() => import("./features/Movies")),
-  Wishes = lazy(() => import("./features/Wishes")),
-  Plans = lazy(() => import("./features/Plans")),
+const screens = {
+  home: () => import("./features/Home"),
+  shopping: () => import("./features/Shopping"),
+  menu: () => import("./features/Menu"),
+  movies: () => import("./features/Movies"),
+  wishes: () => import("./features/Wishes"),
+  plans: () => import("./features/Plans"),
+};
+const Home = lazy(screens.home),
+  Shopping = lazy(screens.shopping),
+  Menu = lazy(screens.menu),
+  Movies = lazy(screens.movies),
+  Wishes = lazy(screens.wishes),
+  Plans = lazy(screens.plans),
   Settings = lazy(() => import("./features/Settings"));
 const tabs = [
   { id: "home", label: "Головна", icon: House },
@@ -58,6 +66,17 @@ export default function App() {
     setSettings(false);
     setTab("home");
   }, [userId]);
+  useEffect(() => {
+    if (!demo && !coupleId) return;
+    const connection = (
+      navigator as Navigator & { connection?: { saveData?: boolean } }
+    ).connection;
+    if (connection?.saveData) return;
+    const timer = setTimeout(() => {
+      void Promise.allSettled(Object.values(screens).map((load) => load()));
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [demo, coupleId]);
   useEffect(() => {
     document.body.classList.toggle(
       "app-mode",
@@ -173,6 +192,12 @@ export default function App() {
                 key={id}
                 aria-current={tab === id ? "page" : undefined}
                 onClick={() => setTab(id)}
+                onPointerEnter={() => {
+                  void screens[id]().catch(() => {});
+                }}
+                onFocus={() => {
+                  void screens[id]().catch(() => {});
+                }}
                 className={tab === id ? "active" : ""}
               >
                 {tab === id && (

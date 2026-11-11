@@ -22,6 +22,32 @@ async function fit(page: Page) {
       ),
     )
     .toBe(true);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const menu = document.querySelector(".menu-screen");
+        if (!menu) return true;
+        const mode = menu.querySelector(".segmented")!.getBoundingClientRect();
+        const grid = menu.querySelector(".menu-grid")!.getBoundingClientRect();
+        const footer = menu
+          .querySelector(".menu-footer")!
+          .getBoundingClientRect();
+        const main = document
+          .querySelector("#main-content")!
+          .getBoundingClientRect();
+        return (
+          grid.top >= mode.bottom - 1 &&
+          footer.bottom <= main.bottom + 1 &&
+          Array.from(menu.querySelectorAll(".menu-course")).every(
+            (card) =>
+              card.querySelector(".course-actions")!.getBoundingClientRect()
+                .bottom <=
+              card.getBoundingClientRect().bottom + 1,
+          )
+        );
+      }),
+    )
+    .toBe(true);
   const bounds = await nav(page).boundingBox(),
     main = await page.locator("#main-content").boundingBox();
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(
@@ -123,6 +149,8 @@ test("six tabs, unseen updates, shopping, movies, calendar and appearance", asyn
   await seek(page, movie);
   await movie.click();
   await page.getByRole("button", { name: "Подивились", exact: true }).click();
+  await page.getByRole("button", { name: "8", exact: true }).click();
+  await page.getByRole("button", { name: "Зберегти оцінку" }).click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
   await page.getByRole("button", { name: "Переглянули", exact: true }).click();
   await expect(movie).toBeVisible();
@@ -207,5 +235,133 @@ test("recipe text imports selected ingredients with editable preview", async ({
   await expect(
     page.getByRole("button", { name: "Потрібно · 7" }),
   ).toBeVisible();
+  await fit(page);
+});
+
+test("grocery categories are automatic and additional fields stay collapsed", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await choose(page, "Покупки");
+  await page.getByRole("button", { name: "Додати товар", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Назва товару").fill("Індиче філе");
+  await expect(
+    dialog.getByText("М’ясо та риба · визначено автоматично"),
+  ).toBeVisible();
+  await expect(
+    dialog.getByLabel("Кількість", { exact: true }),
+  ).not.toBeVisible();
+  await dialog.getByText("Додатково", { exact: true }).click();
+  await dialog.getByLabel("Кількість", { exact: true }).fill("2");
+  await dialog.getByRole("button", { name: "Додати до списку" }).click();
+  await expect(dialog).not.toBeVisible();
+  const item = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("ours-demo-v1")!).shopping.find(
+      (i: { name: string }) => i.name === "Індиче філе",
+    ),
+  );
+  expect(item.category).toBe("М’ясо та риба");
+  expect(item.quantity).toBe(2);
+});
+
+test("a complete recipe is selectable, readable and adds all products atomically", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await choose(page, "Меню");
+  await page
+    .getByRole("button", { name: "Додати рецепт", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Назва страви").fill("Наш рис");
+  await dialog.getByLabel("Тип страви").selectOption("side");
+  await dialog
+    .getByLabel("Фото готової страви · HTTPS-посилання")
+    .fill("https://example.com/rice.jpg");
+  await dialog
+    .getByLabel("Продукти · кожен із нового рядка")
+    .fill("200 г рису\n1 шт. морква");
+  await dialog
+    .getByLabel("Рецепт · кожен крок із нового рядка")
+    .fill("Промийте рис.\nЗваріть із морквою.");
+  await dialog.getByRole("button", { name: "Зберегти рецепт" }).click();
+  await expect(dialog).not.toBeVisible();
+  const card = page.locator(".menu-course").filter({
+    has: page.getByRole("heading", { name: "Наш рис", exact: true }),
+  });
+  await expect(card.getByRole("combobox")).toHaveValue("Наш рис");
+  await card.getByRole("button", { name: "Рецепт", exact: true }).click();
+  await expect(
+    page.getByText("Зваріть із морквою.", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Продукти", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Усі продукти до покупок" }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await choose(page, "Покупки");
+  await expect(
+    page.getByRole("button", { name: "Потрібно · 7" }),
+  ).toBeVisible();
+  const ingredients = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("ours-demo-v1")!).shopping.filter(
+      (i: { name: string }) => ["рису", "морква"].includes(i.name),
+    ),
+  );
+  expect(ingredients).toHaveLength(2);
+  expect(ingredients.map((i: { category: string }) => i.category)).toEqual([
+    "Бакалія",
+    "Овочі та фрукти",
+  ]);
+  await choose(page, "Меню");
+  await page
+    .getByRole("button", { name: "Повноцінна страва", exact: true })
+    .click();
+  await expect(page.locator(".menu-course")).toHaveCount(1);
+  await fit(page);
+});
+
+test("calendar shows upcoming events and countdown when today is empty", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.evaluate(() => {
+    const data = JSON.parse(localStorage.getItem("ours-demo-v1")!);
+    const date = new Date();
+    date.setDate(date.getDate() + 2);
+    const day = new Intl.DateTimeFormat("sv-SE", {
+      timeZone: "Europe/Kyiv",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(date);
+    data.events = [
+      {
+        id: "future-test",
+        couple_id: "demo-couple",
+        title: "Найближча зустріч",
+        date: day,
+        time: null,
+        all_day: true,
+        location: "",
+        description: "",
+        category: "Інше",
+        created_by: "demo-anna",
+        created_at: new Date().toISOString(),
+      },
+    ];
+    localStorage.setItem("ours-demo-v1", JSON.stringify(data));
+  });
+  await page.reload();
+  await choose(page, "Календар");
+  await expect(
+    page.getByRole("heading", { name: /Найближчі події/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Найближча зустріч", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(/Через 2 дні/)).toBeVisible();
   await fit(page);
 });

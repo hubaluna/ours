@@ -7,6 +7,7 @@ type Dependencies = {
     url: string,
     kind: ImportKind,
     signal: AbortSignal,
+    query?: string,
   ) => Promise<LinkMetadata>;
 };
 async function readBody(req: Request) {
@@ -69,7 +70,7 @@ export function createPreviewHandler({
                 ? "SPACE_REQUIRED"
                 : "TRY_LATER",
         });
-      let input: { url?: string; kind?: ImportKind };
+      let input: { url?: string; kind?: ImportKind; query?: string };
       try {
         input = JSON.parse(await readBody(req));
       } catch (e) {
@@ -82,14 +83,21 @@ export function createPreviewHandler({
         !input ||
         typeof input.url !== "string" ||
         !["movie", "wish", "recipe"].includes(input.kind || "") ||
-        !publicUrl(input.url)
+        !publicUrl(input.url) ||
+        (input.query !== undefined &&
+          (typeof input.query !== "string" || input.query.length > 160))
       )
         return reply(400, { error: "INVALID_URL" });
       const controller = new AbortController(),
-        timer = setTimeout(() => controller.abort(), 12000);
+        timer = setTimeout(() => controller.abort(), 20000);
       try {
         return reply(200, {
-          data: await load(input.url, input.kind!, controller.signal),
+          data: await load(
+            input.url,
+            input.kind!,
+            controller.signal,
+            input.query,
+          ),
         });
       } finally {
         clearTimeout(timer);

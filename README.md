@@ -10,17 +10,17 @@
 
 ## Оновлення ours. 2
 
-[План оновлення](docs/REDESIGN-PLAN.md) · [Реалізовані зміни](docs/REDESIGN-STATUS.md) · [Імпорт посилань](docs/LINK-IMPORT.md)
+[План оновлення](docs/REDESIGN-PLAN.md) · [Реалізовані зміни](docs/REDESIGN-STATUS.md) · [Імпорт посилань](docs/LINK-IMPORT.md) · [Оновлення кіно та меню](docs/CINEMA-MENU-UPDATE.md)
 
 Шість компактних вкладок без прокрутки основного документа: **Головна, Покупки, Меню, Кіно, Бажання, Календар**. Довгі списки мають сторінки, опис і форми розгортаються в sheets. Головна містить тільки непрочитані зміни партнера. Меню — початковий генератор вечері; власний каталог визначимо згодом. Шрифт — локальний e-Ukraine, нова графіка створена спеціально для застосунку.
 
-Якщо базу вже підключали до попередньої версії, застосуйте **лише [міграцію 003](supabase/migrations/003_compact_movies_activity.sql)**. Автоматичне читання довільних посилань потребує [Edge Function](docs/LINK-IMPORT.md); у demo працює вставлення тексту/HTML без удаваної синхронізації.
+Для бази з міграціями 001–003 наступна — **[004: рецепти й оцінки](supabase/migrations/004_recipes_movie_ratings.sql)**. У поточному розгортанні вона вже застосована; повторно запускати міграції не потрібно. Автоматичне читання довільних посилань потребує [Edge Function](docs/LINK-IMPORT.md); у demo працює вставлення тексту/HTML без удаваної синхронізації.
 
 ## Що вже працює
 
 - Шість вкладок, головна з непрочитаними оновленнями, світла / темна / системна тема.
 - Покупки: додавання, редагування, кількість, категорії, ціна, відмітка / повернення з Undo, підтвердження видалення, підказки попередніх товарів, фільтр категорій.
-- Меню: генератор гарніру, м’яса/риби та салату з невеликого початкового набору; локальне збереження останньої ідеї.
+- Меню: генератор гарніру, м’яса/риби та салату з невеликого початкового набору; вибір кожної страви, режим повноцінної страви, спільні рецепти з фото й продуктами та додавання інгредієнтів у покупки.
 - Кіно: спільний список, постер, рік, жанри, опис, посилання, редагування та позначка перегляду.
 - Імпорт рецептів, фільмів і бажань з редагованим preview. Вставлення тексту працює одразу; читання URL — після підключення Edge Function.
 - Завершення купленого списку як атомарної сесії, історія, повторення списку. Одночасні зміни серіалізуються сервером.
@@ -55,9 +55,9 @@
 1. На [supabase.com/dashboard](https://supabase.com/dashboard) створіть новий проєкт на Free-плані. Оберіть зручний європейський регіон. Пароль бази зберігайте у власному менеджері паролів.
 2. Дочекайтеся готовності проєкту. Відкрийте **SQL Editor → New query**.
 3. Скопіюйте весь вміст [`supabase/migrations/001_core.sql`](supabase/migrations/001_core.sql), натисніть **Run**.
-4. В окремих запитах послідовно запустіть весь [`002_storage_realtime.sql`](supabase/migrations/002_storage_realtime.sql), потім [`003_compact_movies_activity.sql`](supabase/migrations/003_compact_movies_activity.sql). Для нового проєкту простіше виконати один [`setup.sql`](supabase/setup.sql) **замість** трьох міграцій.
+4. В окремих запитах послідовно запустіть весь [`002_storage_realtime.sql`](supabase/migrations/002_storage_realtime.sql), потім [`003_compact_movies_activity.sql`](supabase/migrations/003_compact_movies_activity.sql) і [`004_recipes_movie_ratings.sql`](supabase/migrations/004_recipes_movie_ratings.sql). Для нового проєкту простіше виконати один [`setup.sql`](supabase/setup.sql) **замість** трьох міграцій.
 5. Міграції розраховані на одноразове застосування у цьому порядку. Не запускайте їх повторно поверх створеної схеми. Наступні зміни слід оформлювати новими міграціями.
-6. Переконайтеся, що є 14 таблиць: `profiles`, `couples`, `couple_members`, `couple_invites`, `shopping_sessions`, `shopping_items`, `shopping_product_history`, `wishes`, `gift_reservations`, `events`, `movies`, `activity_events`, `activity_reads`, `link_import_limits`. На всіх увімкнено RLS.
+6. Переконайтеся, що є 15 таблиць: `profiles`, `couples`, `couple_members`, `couple_invites`, `shopping_sessions`, `shopping_items`, `shopping_product_history`, `wishes`, `gift_reservations`, `events`, `movies`, `activity_events`, `activity_reads`, `link_import_limits`, `recipes`. На всіх увімкнено RLS.
 
 ### 2. Authentication
 

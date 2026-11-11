@@ -36,6 +36,9 @@ beforeAll(async () => {
   await db.exec(
     readFileSync("supabase/migrations/003_compact_movies_activity.sql", "utf8"),
   );
+  await db.exec(
+    readFileSync("supabase/migrations/004_recipes_movie_ratings.sql", "utf8"),
+  );
   await asUser(a);
 }, 60000);
 afterAll(async () => {
@@ -371,6 +374,34 @@ describe("Real PostgreSQL RLS and RPC, under authenticated roles", () => {
     await expect(
       rows("select * from public.link_import_limits"),
     ).rejects.toThrow(/permission denied/);
+  });
+  it("shares complete recipes only inside the space and validates movie ratings", async () => {
+    await asUser(a);
+    const recipe = String(
+      (
+        await rows(
+          `insert into public.recipes(couple_id,title,category,image_url,ingredients,instructions,added_by) values('${couple}','Рис','main','https://example.com/rice.jpg','["200 г рису"]','["Зварити рис."]','${a}') returning id`,
+        )
+      )[0].id,
+    );
+    await asUser(b);
+    expect(
+      await rows(`select id from public.recipes where id='${recipe}'`),
+    ).toHaveLength(1);
+    await rows(
+      `update public.recipes set title='Наш рис' where id='${recipe}'`,
+    );
+    await rows(`update public.movies set rating=8,status='watched'`);
+    await expect(rows(`update public.movies set rating=11`)).rejects.toThrow();
+    await asUser(c);
+    expect(
+      await rows(`select id from public.recipes where id='${recipe}'`),
+    ).toHaveLength(0);
+    await expect(
+      rows(
+        `insert into public.recipes(couple_id,title,category,image_url,ingredients,instructions,added_by) values('${couple}','Чуже','main','https://example.com/rice.jpg','["Рис"]','["Зварити"]','${c}')`,
+      ),
+    ).rejects.toThrow(/row-level security/);
   });
   it("denies anonymous RPC and table access", async () => {
     await db.exec("reset role;set role anon;");

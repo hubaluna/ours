@@ -15,6 +15,7 @@ import type {
   Data,
   NewPlan,
   NewMovie,
+  NewRecipe,
   Activity,
   NewShopping,
   NewWish,
@@ -22,6 +23,7 @@ import type {
   Table,
 } from "../lib/types";
 const empty: Data = {
+  recipes: [],
   profiles: [],
   movies: [],
   activities: [],
@@ -135,6 +137,7 @@ function useStore() {
         movies,
         activities,
         reads,
+        recipes,
       ] = await Promise.all([
         readAll<Profile>("profiles"),
         readAll<Data["shopping"][number]>("shopping_items", {
@@ -176,10 +179,12 @@ function useStore() {
           false,
         ),
         readAll<Data["reads"][number]>("activity_reads", { user_id: userId }),
+        readAll<Data["recipes"][number]>("recipes", { couple_id: couple }),
       ]);
       if (current !== revision.current) return;
       setCoupleId(couple);
       setData({
+        recipes,
         profiles,
         shopping,
         sessions,
@@ -226,6 +231,7 @@ function useStore() {
       "events",
       "couple_members",
       "movies",
+      "recipes",
       "activity_events",
     ]) {
       for (const event of ["INSERT", "UPDATE"] as const)
@@ -363,6 +369,7 @@ function useStore() {
               events: "events",
               gift_reservations: "reservations",
               movies: "movies",
+              recipes: "recipes",
             } as const
           )[table];
           setData((d) =>
@@ -403,6 +410,7 @@ function useStore() {
               events: "events",
               gift_reservations: "reservations",
               movies: "movies",
+              recipes: "recipes",
             } as const
           )[table];
           setData((d) =>
@@ -438,6 +446,7 @@ function useStore() {
               events: "events",
               gift_reservations: "reservations",
               movies: "movies",
+              recipes: "recipes",
             } as const
           )[table];
           setData((d) =>
@@ -495,6 +504,13 @@ function useStore() {
       { ...value, couple_id: coupleId, added_by: userId },
       "add-movie",
       "Фільм збережено",
+    );
+  const addRecipe = (value: NewRecipe) =>
+    insert(
+      "recipes",
+      { ...value, couple_id: coupleId, added_by: userId },
+      "add-recipe",
+      "Рецепт збережено",
     );
   const markRead = (ids: string[]) =>
     run("mark-read", async () => {
@@ -664,6 +680,7 @@ function useStore() {
     addWish,
     addEvent,
     addMovie,
+    addRecipe,
     markRead,
     addShoppingBatch,
     update,

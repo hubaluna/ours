@@ -71,7 +71,7 @@ export async function requestPinnedPage(
     );
     if (signal.aborted) throw new Error("TIMEOUT");
     const request = new TextEncoder().encode(
-      `GET ${url.pathname}${url.search} HTTP/1.1\r\nHost: ${url.host}\r\nAccept: text/html,application/xhtml+xml,application/json\r\nAccept-Encoding: identity\r\nUser-Agent: ours-link-preview/2.0\r\nConnection: close\r\n\r\n`,
+      `GET ${url.pathname}${url.search} HTTP/1.1\r\nHost: ${url.host}\r\nAccept: text/html,application/xhtml+xml,application/json\r\nAccept-Encoding: identity\r\nUser-Agent: ours/2.1 (https://hubaluna.github.io/ours/; movie and recipe organizer)\r\nConnection: close\r\n\r\n`,
     );
     for (let offset = 0; offset < request.length;) {
       const written = await connection.write(request.subarray(offset));
@@ -152,7 +152,13 @@ export async function fetchPublicPage(
     const { url, addresses } = await resolvePublicUrl(next, resolve);
     if (signal.aborted) throw new Error("TIMEOUT");
     const address = addresses.find((a) => !a.includes(":")) || addresses[0];
-    const result = await requestPinnedPage(url, address, signal);
+    const result = await requestPinnedPage(url, address, signal).catch(
+      (error) => {
+        if (error instanceof Error)
+          Object.assign(error, { sourceUrl: url.href });
+        throw error;
+      },
+    );
     if (result.status >= 300 && result.status < 400) {
       if (!result.location || redirects === 4)
         throw new Error("REDIRECT_LIMIT");

@@ -76,6 +76,8 @@ export type ProductHistory = {
   unit: string;
 };
 export type Movie = {
+  rating?: number | null;
+  metadata_url?: string;
   id: string;
   couple_id: string;
   title: string;
@@ -92,7 +94,7 @@ export type Activity = {
   id: string;
   couple_id: string;
   actor_id: string;
-  kind: "shopping" | "wishes" | "movies" | "events";
+  kind: "shopping" | "wishes" | "movies" | "events" | "recipes";
   action: "added" | "updated" | "deleted" | "purchased";
   entity_id: string | null;
   title: string;
@@ -106,9 +108,40 @@ export type ActivityRead = {
 };
 export type NewMovie = Pick<
   Movie,
-  "title" | "url" | "poster_url" | "year" | "genres" | "description" | "status"
+  | "title"
+  | "url"
+  | "poster_url"
+  | "year"
+  | "genres"
+  | "description"
+  | "status"
+  | "rating"
+  | "metadata_url"
+>;
+export type RecipeCategory = "side" | "protein" | "salad" | "main";
+export type Recipe = {
+  id: string;
+  couple_id: string;
+  title: string;
+  category: RecipeCategory;
+  image_url: string;
+  source_url: string;
+  ingredients: string[];
+  instructions: string[];
+  added_by: string;
+  created_at: string;
+};
+export type NewRecipe = Pick<
+  Recipe,
+  | "title"
+  | "category"
+  | "image_url"
+  | "source_url"
+  | "ingredients"
+  | "instructions"
 >;
 export type Data = {
+  recipes: Recipe[];
   profiles: Profile[];
   movies: Movie[];
   activities: Activity[];
@@ -121,7 +154,12 @@ export type Data = {
   history: ProductHistory[];
 };
 export type Table =
-  "shopping_items" | "wishes" | "events" | "gift_reservations" | "movies";
+  | "recipes"
+  | "shopping_items"
+  | "wishes"
+  | "events"
+  | "gift_reservations"
+  | "movies";
 export type NewShopping = Pick<
   ShoppingItem,
   "name" | "quantity" | "unit" | "category" | "price"

@@ -7,6 +7,7 @@ import {
   Film,
   Gift,
   ShoppingBag,
+  Utensils,
 } from "lucide-react";
 import { useApp } from "../hooks/AppContext";
 import type { Activity, Tab } from "../lib/types";
@@ -14,12 +15,14 @@ import { greeting } from "../lib/utils";
 import { BottomSheet, Button, EmptyState } from "../components/ui";
 import { PagedList, ScreenHeader } from "../components/Compact";
 const icons = {
+  recipes: Utensils,
   shopping: ShoppingBag,
   wishes: Gift,
   movies: Film,
   events: CalendarDays,
 };
 const labels = {
+  recipes: "меню",
   shopping: "покупки",
   wishes: "бажання",
   movies: "кіно",
@@ -128,7 +131,13 @@ export default function Home({ navigate }: { navigate: (tab: Tab) => void }) {
               </p>
               <Button
                 onClick={() => {
-                  navigate(detail.kind === "events" ? "plans" : detail.kind);
+                  navigate(
+                    detail.kind === "events"
+                      ? "plans"
+                      : detail.kind === "recipes"
+                        ? "menu"
+                        : detail.kind,
+                  );
                   setDetail(null);
                 }}
               >

@@ -11,6 +11,7 @@ export function createDemo(): Data {
     return kyivDate(d);
   };
   return {
+    recipes: [],
     profiles: [
       { id: DEMO_USER, name: "Анна", avatar_path: null },
       { id: "demo-mark", name: "Марк", avatar_path: null },
@@ -201,6 +202,7 @@ export function readDemo(): Data {
       )
         return {
           ...data,
+          recipes: Array.isArray(data.recipes) ? data.recipes : [],
           movies: Array.isArray(data.movies)
             ? data.movies
             : createDemo().movies,

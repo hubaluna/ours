@@ -15,6 +15,7 @@ export function MovieForm({
   const { addMovie, update, remove, pending } = useApp();
   const seed = movie ?? initial;
   const [error, setError] = useState("");
+  const [status, setStatus] = useState(seed?.status ?? "planned");
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
@@ -34,6 +35,8 @@ export function MovieForm({
       genres: String(f.get("genres")),
       description: String(f.get("description")),
       status: String(f.get("status")) as Movie["status"],
+      rating: status === "watched" ? Number(f.get("rating")) : null,
+      metadata_url: seed?.metadata_url ?? "",
     };
     const ok = movie
       ? await update("movies", movie.id, value, "Фільм оновлено")
@@ -68,12 +71,29 @@ export function MovieForm({
             />
           </Field>
           <Field label="Статус">
-            <select name="status" defaultValue={seed?.status ?? "planned"}>
+            <select
+              name="status"
+              value={status}
+              onChange={(e) => setStatus(e.target.value as Movie["status"])}
+            >
               <option value="planned">Хочемо подивитись</option>
               <option value="watched">Переглянули</option>
             </select>
           </Field>
         </div>
+        {status === "watched" && (
+          <Field label="Оцінка від 1 до 10">
+            <input
+              name="rating"
+              type="number"
+              min={1}
+              max={10}
+              step={1}
+              required
+              defaultValue={seed?.rating ?? ""}
+            />
+          </Field>
+        )}
         <Field label="Жанр">
           <input
             name="genres"

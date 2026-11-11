@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   CalendarDays,
@@ -18,6 +18,11 @@ import { AddButton, PagedList, ScreenHeader } from "../components/Compact";
 export default function Plans() {
   const { data } = useApp(),
     today = kyivDate();
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => tick((n) => n + 1), 60000);
+    return () => clearInterval(timer);
+  }, []);
   const [selected, setSelected] = useState(today),
     [month, setMonth] = useState(
       () => new Date(`${today.slice(0, 7)}-01T12:00:00`),
@@ -37,6 +42,25 @@ export default function Plans() {
   const events = data.events
     .filter((e) => e.date === selected)
     .sort((a, b) => (a.time ?? "").localeCompare(b.time ?? ""));
+  const showUpcoming = selected === today && events.length === 0;
+  const shownEvents = showUpcoming
+    ? data.events
+        .filter((e) => e.date > today)
+        .sort(
+          (a, b) =>
+            a.date.localeCompare(b.date) ||
+            (a.time ?? "").localeCompare(b.time ?? ""),
+        )
+    : events;
+  const remaining = (date: string) => {
+    const days = Math.round(
+      (Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) /
+        86400000,
+    );
+    if (days === 1) return "Завтра";
+    const ending = new Intl.PluralRules("uk").select(days);
+    return `Через ${days} ${ending === "one" ? "день" : ending === "few" ? "дні" : "днів"}`;
+  };
   const change = (n: number) => setMonth(new Date(year, mo + n, 1, 12));
   const calendar = (
     <>
@@ -125,13 +149,15 @@ export default function Plans() {
         <section className="day-plans">
           <div className="day-heading">
             <h2>
-              {selected === today
-                ? "Сьогодні"
-                : new Intl.DateTimeFormat("uk-UA", {
-                    day: "numeric",
-                    month: "long",
-                  }).format(new Date(`${selected}T12:00:00`))}
-              <span className="count">{events.length}</span>
+              {showUpcoming && shownEvents.length
+                ? "Найближчі події"
+                : selected === today
+                  ? "Сьогодні"
+                  : new Intl.DateTimeFormat("uk-UA", {
+                      day: "numeric",
+                      month: "long",
+                    }).format(new Date(`${selected}T12:00:00`))}
+              <span className="count">{shownEvents.length}</span>
             </h2>
             <button
               className="text-button"
@@ -145,7 +171,7 @@ export default function Plans() {
           </div>
           <div className="screen-panel">
             <PagedList
-              items={events}
+              items={shownEvents}
               rowHeight={70}
               empty={
                 <EmptyState
@@ -165,6 +191,15 @@ export default function Plans() {
                   <div>
                     <strong>{event.title}</strong>
                     <p>
+                      {showUpcoming && (
+                        <span className="event-countdown">
+                          {remaining(event.date)} ·{" "}
+                          {new Intl.DateTimeFormat("uk-UA", {
+                            day: "numeric",
+                            month: "short",
+                          }).format(new Date(`${event.date}T12:00:00`))}
+                        </span>
+                      )}
                       <Clock3 size={12} />
                       {event.all_day
                         ? "Увесь день"

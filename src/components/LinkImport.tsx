@@ -9,6 +9,7 @@ import {
   type LinkMetadata,
 } from "../../supabase/functions/_shared/metadata";
 import type { NewShopping } from "../lib/types";
+import { groceryCategory } from "../../supabase/functions/_shared/grocery-category";
 import { useApp } from "../hooks/AppContext";
 export function LinkImport({
   kind,
@@ -23,6 +24,7 @@ export function LinkImport({
 }) {
   const { pending } = useApp();
   const [url, setUrl] = useState(""),
+    [movieQuery, setMovieQuery] = useState(""),
     [text, setText] = useState(""),
     [paste, setPaste] = useState(false),
     [busy, setBusy] = useState(false),
@@ -54,10 +56,18 @@ export function LinkImport({
         return;
       }
       const { data, error } = await supabase.functions.invoke("link-preview", {
-        body: { url, kind },
+        body: {
+          url: url || (kind === "movie" ? "https://uk.wikipedia.org/" : ""),
+          kind,
+          ...(kind === "movie" && movieQuery.trim()
+            ? { query: movieQuery.trim() }
+            : {}),
+        },
       });
       if (error || !data?.data) throw new Error();
       receive(data.data);
+      if (kind === "movie" && !movieQuery)
+        setMovieQuery(data.data.movie_query || "");
     } catch {
       setPaste(true);
       setError(
@@ -70,7 +80,13 @@ export function LinkImport({
   const selected = ingredients.filter((i) => i.selected);
   return (
     <BottomSheet
-      title={kind === "recipe" ? "Покупки з рецепта" : "Додати з посилання"}
+      title={
+        kind === "recipe"
+          ? onResult
+            ? "Рецепт із посилання"
+            : "Покупки з рецепта"
+          : "Додати з посилання"
+      }
       onClose={onClose}
     >
       {!result ? (
@@ -84,7 +100,21 @@ export function LinkImport({
               placeholder="https://…"
             />
           </Field>
-          <Button busy={busy} disabled={!url} onClick={() => void load()}>
+          {kind === "movie" && (
+            <Field label="Назва фільму · якщо відома">
+              <input
+                value={movieQuery}
+                onChange={(e) => setMovieQuery(e.target.value)}
+                maxLength={160}
+                placeholder="Наприклад, Початок"
+              />
+            </Field>
+          )}
+          <Button
+            busy={busy}
+            disabled={!url && !movieQuery.trim()}
+            onClick={() => void load()}
+          >
             <Link2 size={17} />
             Знайти інформацію
           </Button>
@@ -143,6 +173,87 @@ export function LinkImport({
             <Check size={17} />
             {result.provider}
           </div>
+          {kind === "movie" && (
+            <>
+              <Field label="Знайти фільм за назвою">
+                <input
+                  value={movieQuery}
+                  onChange={(e) => setMovieQuery(e.target.value)}
+                  maxLength={160}
+                  placeholder="Назва з відео або опису"
+                />
+              </Field>
+              <Button
+                className="secondary"
+                busy={busy}
+                disabled={!movieQuery.trim()}
+                onClick={() => void load()}
+              >
+                Знайти опис і постер
+              </Button>
+              {!!result.candidates?.length && (
+                <div className="movie-candidates" aria-label="Знайдені фільми">
+                  {result.candidates.map((candidate) => (
+                    <button
+                      key={candidate.url}
+                      type="button"
+                      aria-pressed={result.metadata_url === candidate.url}
+                      onClick={() =>
+                        receive({
+                          ...result,
+                          title: candidate.title,
+                          description: candidate.description,
+                          image_url: candidate.image_url || result.image_url,
+                          year: candidate.year,
+                          genres: candidate.genres,
+                          metadata_url: candidate.url,
+                          provider: "Wikipedia",
+                        })
+                      }
+                    >
+                      {candidate.image_url && (
+                        <img
+                          src={candidate.image_url}
+                          alt=""
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                        />
+                      )}
+                      <span>
+                        {candidate.title}
+                        <small>{candidate.year ?? ""}</small>
+                      </span>
+                      <Check size={14} />
+                    </button>
+                  ))}
+                </div>
+              )}
+              {!result.metadata_url && (
+                <p className="subtle-note">
+                  Для відео потрібна назва фільму в описі. Якщо її немає,
+                  введіть назву вище — оберіть відповідний результат.
+                </p>
+              )}
+            </>
+          )}
+          {result.image_url && (
+            <img
+              className="import-preview-image"
+              src={result.image_url}
+              alt={result.title}
+              referrerPolicy="no-referrer"
+            />
+          )}
+          {result.metadata_url && (
+            <a
+              className="source-credit text-button"
+              href={result.metadata_url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Джерело опису та зображення · Wikipedia
+            </a>
+          )}
           <Field label={kind === "recipe" ? "Назва рецепта" : "Назва"}>
             <input
               value={result.title}
@@ -186,76 +297,141 @@ export function LinkImport({
                         onChange={(e) =>
                           setIngredients((values) =>
                             values.map((v, i) =>
-                              i === index ? { ...v, name: e.target.value } : v,
-                            ),
-                          )
-                        }
-                      />
-                      <input
-                        aria-label={`Кількість ${index + 1}`}
-                        type="number"
-                        min="0.01"
-                        step="any"
-                        value={item.quantity}
-                        onChange={(e) =>
-                          setIngredients((values) =>
-                            values.map((v, i) =>
                               i === index
-                                ? { ...v, quantity: Number(e.target.value) }
+                                ? {
+                                    ...v,
+                                    name: e.target.value,
+                                    category: groceryCategory(e.target.value),
+                                  }
                                 : v,
                             ),
                           )
                         }
                       />
-                      <select
-                        aria-label={`Одиниця ${index + 1}`}
-                        value={item.unit}
-                        onChange={(e) =>
-                          setIngredients((values) =>
-                            values.map((v, i) =>
-                              i === index ? { ...v, unit: e.target.value } : v,
-                            ),
-                          )
-                        }
-                      >
-                        {["шт.", "кг", "г", "л", "мл", "уп."].map((unit) => (
-                          <option key={unit}>{unit}</option>
-                        ))}
-                      </select>
+                      <details className="ingredient-extra">
+                        <summary>Додатково</summary>
+                        <div className="form-grid">
+                          <input
+                            aria-label={`Кількість ${index + 1}`}
+                            type="number"
+                            min="0.01"
+                            step="any"
+                            value={item.quantity}
+                            onChange={(e) =>
+                              setIngredients((values) =>
+                                values.map((v, i) =>
+                                  i === index
+                                    ? { ...v, quantity: Number(e.target.value) }
+                                    : v,
+                                ),
+                              )
+                            }
+                          />
+                          <select
+                            aria-label={`Одиниця ${index + 1}`}
+                            value={item.unit}
+                            onChange={(e) =>
+                              setIngredients((values) =>
+                                values.map((v, i) =>
+                                  i === index
+                                    ? { ...v, unit: e.target.value }
+                                    : v,
+                                ),
+                              )
+                            }
+                          >
+                            {["шт.", "кг", "г", "л", "мл", "уп."].map(
+                              (unit) => (
+                                <option key={unit}>{unit}</option>
+                              ),
+                            )}
+                          </select>
+                        </div>
+                        <small>{item.category}</small>
+                      </details>
                     </div>
                   ))}
                 </div>
               )}
-              <Button
-                busy={pending.includes("recipe")}
-                disabled={
-                  !selected.length ||
-                  selected.some(
-                    (i) =>
-                      !i.name.trim() ||
-                      !Number.isFinite(i.quantity) ||
-                      i.quantity <= 0,
-                  )
-                }
-                onClick={async () => {
-                  if (
-                    await onRecipe?.(
-                      selected.map(
-                        ({ name, quantity, unit, category, price }) => ({
-                          name,
-                          quantity,
-                          unit,
-                          category,
-                          price,
-                        }),
-                      ),
+              {onRecipe && (
+                <Button
+                  busy={pending.includes("recipe")}
+                  disabled={
+                    !selected.length ||
+                    selected.some(
+                      (i) =>
+                        !i.name.trim() ||
+                        !Number.isFinite(i.quantity) ||
+                        i.quantity <= 0,
                     )
-                  )
-                    onClose();
-                }}
-              >
-                Додати {selected.length} до покупок
-              </Button>
+                  }
+                  onClick={async () => {
+                    if (
+                      await onRecipe?.(
+                        selected.map(
+                          ({ name, quantity, unit, category, price }) => ({
+                            name,
+                            quantity,
+                            unit,
+                            category,
+                            price,
+                          }),
+                        ),
+                      )
+                    )
+                      onClose();
+                  }}
+                >
+                  Додати {selected.length} до покупок
+                </Button>
+              )}
+              {onResult && (
+                <>
+                  <Field label="Кроки приготування">
+                    <textarea
+                      rows={6}
+                      value={result.instructions?.join("\n") ?? ""}
+                      maxLength={30000}
+                      onChange={(e) =>
+                        setResult({
+                          ...result,
+                          instructions: e.target.value.split("\n"),
+                        })
+                      }
+                    />
+                  </Field>
+                  <Button
+                    disabled={
+                      !selected.length ||
+                      selected.some(
+                        (item) =>
+                          !item.name.trim() ||
+                          !Number.isFinite(item.quantity) ||
+                          item.quantity <= 0,
+                      )
+                    }
+                    onClick={() =>
+                      onResult({
+                        ...result,
+                        ingredients: ingredients.flatMap((item, index) => {
+                          if (!item.selected) return [];
+                          const original = result.ingredients[index],
+                            parsed = parseIngredient(original);
+                          return [
+                            parsed.name === item.name &&
+                            parsed.quantity === item.quantity &&
+                            parsed.unit === item.unit
+                              ? original
+                              : `${item.quantity} ${item.unit} ${item.name}`,
+                          ];
+                        }),
+                      })
+                    }
+                  >
+                    Перевірити й зберегти рецепт <ArrowRight size={17} />
+                  </Button>
+                </>
+              )}
             </>
           ) : (
             <>
@@ -263,7 +439,7 @@ export function LinkImport({
                 <textarea
                   rows={4}
                   value={result.description}
-                  maxLength={1000}
+                  maxLength={kind === "movie" ? 2000 : 1000}
                   onChange={(e) =>
                     setResult({ ...result, description: e.target.value })
                   }

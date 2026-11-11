@@ -1,6 +1,14 @@
 import { useState } from "react";
 import { AnimatePresence } from "motion/react";
-import { Check, ChevronRight, Film, Link2, Pencil, Play } from "lucide-react";
+import {
+  Check,
+  ChevronRight,
+  Film,
+  Link2,
+  Pencil,
+  Play,
+  Star,
+} from "lucide-react";
 import { useApp } from "../hooks/AppContext";
 import type { Movie, NewMovie } from "../lib/types";
 import { publicUrl } from "../../supabase/functions/_shared/urls";
@@ -44,6 +52,8 @@ export default function Movies() {
     [detail, setDetail] = useState<Movie | null>(null),
     [form, setForm] = useState<Movie | "new" | null>(null),
     [initial, setInitial] = useState<Partial<NewMovie>>(),
+    [ratingMovie, setRatingMovie] = useState<Movie | null>(null),
+    [rating, setRating] = useState<number | null>(null),
     [importing, setImporting] = useState(false);
   const movies = data.movies.filter((m) => m.status === view);
   const receive = (r: LinkMetadata) => {
@@ -55,6 +65,7 @@ export default function Movies() {
       genres: r.genres.join(", "),
       description: r.description,
       status: "planned",
+      metadata_url: r.metadata_url ?? "",
     });
     setImporting(false);
     setForm("new");
@@ -111,6 +122,12 @@ export default function Movies() {
                 </span>
                 <h2>{movie.title}</h2>
                 <p>{movie.genres || "Жанр не вказаний"}</p>
+                {movie.rating != null && (
+                  <small className="movie-rating">
+                    <Star size={12} />
+                    {movie.rating}/10
+                  </small>
+                )}
               </div>
               <ChevronRight size={17} />
             </button>
@@ -118,7 +135,49 @@ export default function Movies() {
         />
       </div>
       <AnimatePresence mode="wait">
-        {form ? (
+        {ratingMovie ? (
+          <BottomSheet
+            key="movie-rating"
+            title="Як вам фільм?"
+            onClose={() => setRatingMovie(null)}
+          >
+            <div className="form">
+              <p>{ratingMovie.title}</p>
+              <fieldset className="rating-picker">
+                <legend>Ваша оцінка від 1 до 10</legend>
+                <div>
+                  {Array.from({ length: 10 }, (_, i) => i + 1).map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-pressed={rating === value}
+                      onClick={() => setRating(value)}
+                    >
+                      {value}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+              <Button
+                disabled={rating === null}
+                busy={pending.includes(ratingMovie.id)}
+                onClick={async () => {
+                  if (
+                    await update(
+                      "movies",
+                      ratingMovie.id,
+                      { status: "watched", rating },
+                      "Фільм переглянуто й оцінено",
+                    )
+                  )
+                    setRatingMovie(null);
+                }}
+              >
+                Зберегти оцінку
+              </Button>
+            </div>
+          </BottomSheet>
+        ) : form ? (
           <MovieForm
             key="movie-form"
             movie={form === "new" ? undefined : form}
@@ -148,6 +207,22 @@ export default function Movies() {
                 {detail.description ||
                   "Можна додати кілька слів про цей фільм."}
               </p>
+              {detail.rating != null && (
+                <p className="movie-rating">
+                  <Star size={16} />
+                  {detail.rating}/10
+                </p>
+              )}
+              {publicUrl(detail.metadata_url || "") && (
+                <a
+                  className="text-button source-credit"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  href={publicUrl(detail.metadata_url || "")}
+                >
+                  Опис і зображення · Wikipedia / джерело
+                </a>
+              )}
               {publicUrl(detail.url) && (
                 <a
                   className="button secondary"
@@ -162,13 +237,19 @@ export default function Movies() {
               <Button
                 busy={pending.includes(detail.id)}
                 onClick={async () => {
+                  if (detail.status === "planned") {
+                    setRatingMovie(detail);
+                    setRating(detail.rating ?? null);
+                    setDetail(null);
+                    return;
+                  }
                   if (
                     await update(
                       "movies",
                       detail.id,
                       {
-                        status:
-                          detail.status === "planned" ? "watched" : "planned",
+                        status: "planned",
+                        rating: null,
                       },
                       "Список кіно оновлено",
                     )
@@ -181,6 +262,18 @@ export default function Movies() {
                   ? "Подивились"
                   : "Повернути до планів"}
               </Button>
+              {detail.status === "watched" && (
+                <Button
+                  className="secondary"
+                  onClick={() => {
+                    setRatingMovie(detail);
+                    setRating(detail.rating ?? null);
+                    setDetail(null);
+                  }}
+                >
+                  Змінити оцінку
+                </Button>
+              )}
               <Button
                 className="ghost"
                 onClick={() => {

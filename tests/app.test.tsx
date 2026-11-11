@@ -123,6 +123,10 @@ describe("Compact six-tab app", () => {
     await closed();
     await user.click(screen.getByRole("heading", { name: "Наш фільм" }));
     await user.click(await screen.findByRole("button", { name: "Подивились" }));
+    await user.click(
+      await screen.findByRole("button", { name: "8", exact: true }),
+    );
+    await user.click(screen.getByRole("button", { name: "Зберегти оцінку" }));
     await closed();
     await user.click(screen.getByRole("button", { name: "Переглянули" }));
     expect(
@@ -232,6 +236,7 @@ describe("Compact six-tab app", () => {
     );
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Назва товару"), "Помідори");
+    await user.click(within(dialog).getByText("Додатково"));
     await user.clear(within(dialog).getByLabelText("Кількість"));
     await user.type(within(dialog).getByLabelText("Кількість"), "3");
     await user.keyboard("{Escape}");

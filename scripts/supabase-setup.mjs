@@ -5,6 +5,7 @@ import { parseArgs } from "node:util";
 
 const root = new URL("../", import.meta.url);
 export const expectedTables = [
+  "recipes",
   "profiles",
   "couples",
   "couple_members",

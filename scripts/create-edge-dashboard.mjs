@@ -1,12 +1,16 @@
 import { readFileSync, writeFileSync } from "node:fs";
 const files = [
+  "_shared/grocery-category.ts",
+  "_shared/ingredients.ts",
   "_shared/urls.ts",
   "_shared/metadata.ts",
   "_shared/url-safety.ts",
   "_shared/fetch-page.ts",
   "_shared/preview-handler.ts",
+  "_shared/movie-search.ts",
   "link-preview/index.ts",
 ];
+const imports = new Set();
 const body = files
   .map(
     (file) =>
@@ -14,15 +18,18 @@ const body = files
       readFileSync(`supabase/functions/${file}`, "utf8")
         .replace(
           /^import[\s\S]*?from\s+["']([^"']+)["'];\s*\n/gm,
-          (statement, source) =>
-            source.startsWith(".")
-              ? ""
-              : statement
-                  .replace('"linkedom"', '"npm:linkedom@0.18.15"')
-                  .replace('"ipaddr.js"', '"npm:ipaddr.js@2.5.0"')
-                  .replace('"http-parser-js"', '"npm:http-parser-js@0.5.10"'),
+          (statement, source) => {
+            if (source.startsWith(".")) return "";
+            const rewritten = statement
+              .replace('"linkedom"', '"npm:linkedom@0.18.15"')
+              .replace('"ipaddr.js"', '"npm:ipaddr.js@2.5.0"')
+              .replace('"http-parser-js"', '"npm:http-parser-js@0.5.10"');
+            if (imports.has(rewritten.trim())) return "";
+            imports.add(rewritten.trim());
+            return rewritten;
+          },
         )
-        .replace(/^export \{ publicUrl \} from .+;\s*\n/gm, ""),
+        .replace(/^export \{[^}]+\} from ["']\..+;\s*\n/gm, ""),
   )
   .join("\n");
 writeFileSync(
