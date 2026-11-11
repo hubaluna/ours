@@ -49,6 +49,9 @@ beforeAll(async () => {
       "utf8",
     ),
   );
+  await db.exec(
+    readFileSync("supabase/migrations/006_tiktok_video_recipes.sql", "utf8"),
+  );
   await asUser(a);
 }, 60000);
 afterAll(async () => {
@@ -412,6 +415,31 @@ describe("Real PostgreSQL RLS and RPC, under authenticated roles", () => {
         `insert into public.recipes(couple_id,title,category,image_url,ingredients,instructions,added_by) values('${couple}','Чуже','main','https://example.com/rice.jpg','["Рис"]','["Зварити"]','${c}')`,
       ),
     ).rejects.toThrow(/row-level security/);
+  });
+  it("allows empty written steps only for a valid TikTok recipe video URL", async () => {
+    await asUser(a);
+    const id = String(
+      (
+        await rows(
+          `insert into public.recipes(couple_id,title,category,image_url,source_url,ingredients,instructions,added_by) values('${couple}','Млинці з відео','main','https://example.com/pancakes.jpg','https://www.tiktok.com/@cook/video/123456789','["3 ст. л. цукру"]','[]','${a}') returning id`,
+        )
+      )[0].id,
+    );
+    await expect(
+      rows(
+        `insert into public.recipes(couple_id,title,category,image_url,source_url,ingredients,instructions,added_by) values('${couple}','Без джерела','main','https://example.com/pancakes.jpg','','["200 г борошна"]','[]','${a}')`,
+      ),
+    ).rejects.toThrow(/recipes_instructions_check/);
+    await expect(
+      rows(
+        `insert into public.recipes(couple_id,title,category,image_url,source_url,ingredients,instructions,added_by) values('${couple}','Не відео','main','https://example.com/pancakes.jpg','https://www.tiktok.com/@cook/','["200 г борошна"]','[]','${a}')`,
+      ),
+    ).rejects.toThrow(/recipes_instructions_check/);
+    await asUser(b);
+    expect(
+      await rows(`select id from public.recipes where id='${id}'`),
+    ).toHaveLength(1);
+    await rows(`delete from public.recipes where id='${id}'`);
   });
   it("denies anonymous RPC and table access", async () => {
     await db.exec("reset role;set role anon;");

@@ -1397,6 +1397,9 @@ p {
   font-size: 10px;
   color: var(--muted);
 }
+.ingredient > .ingredient-note {
+  grid-column: 2 / -1;
+}
 .history-card {
   padding: 18px 0;
   border-bottom: 1px solid var(--line);
@@ -3520,6 +3523,16 @@ p {
   font-weight: 400;
   color: var(--muted);
   margin-top: 4px;
+}
+.video-recipe-steps {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.video-recipe-watch {
+  width: fit-content;
+  margin: 0 18px 14px;
 }
 @media (max-height: 500px) {
   .catalog-controls {

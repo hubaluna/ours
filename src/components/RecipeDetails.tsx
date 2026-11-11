@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { ArrowLeft, Clock3, Pencil, Plus, ShoppingBag } from "lucide-react";
+import {
+  ArrowLeft,
+  Clock3,
+  ExternalLink,
+  Pencil,
+  Plus,
+  ShoppingBag,
+} from "lucide-react";
 import type { RecipeView, MealPlanItem } from "../lib/types";
 import {
   categoryNames,
@@ -7,6 +14,7 @@ import {
   scaleIngredients,
 } from "../lib/recipe-catalog";
 import { pairingRecommendations } from "../lib/recipe-pairings";
+import { isTikTokVideoUrl } from "../lib/recipe-source";
 import { BottomSheet, Button } from "./ui";
 import { PortionCounter } from "./PortionCounter";
 export function RecipeDetails({
@@ -67,6 +75,16 @@ export function RecipeDetails({
           {current ? "Зберегти порції" : "Додати до меню"}
         </Button>
       </div>
+      {!recipe.instructions.length && isTikTokVideoUrl(recipe.source_url) && (
+        <a
+          className="button secondary video-recipe-watch"
+          href={recipe.source_url}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Дивитися, як готувати <ExternalLink size={15} />
+        </a>
+      )}
       {onBack && (
         <button className="text-button catalog-back" onClick={onBack}>
           <ArrowLeft size={14} />
@@ -175,11 +193,20 @@ export function RecipeDetails({
           </section>
           <section>
             <h3>Приготування</h3>
-            <ol className="recipe-steps">
-              {recipe.instructions.map((step, index) => (
-                <li key={index}>{step}</li>
-              ))}
-            </ol>
+            {recipe.instructions.length ? (
+              <ol className="recipe-steps">
+                {recipe.instructions.map((step, index) => (
+                  <li key={index}>{step}</li>
+                ))}
+              </ol>
+            ) : (
+              <div className="video-recipe-steps">
+                <p>
+                  Письмових кроків немає. Перегляньте відео, щоб побачити
+                  приготування.
+                </p>
+              </div>
+            )}
           </section>
         </div>
       </div>

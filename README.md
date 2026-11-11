@@ -57,7 +57,7 @@
 1. На [supabase.com/dashboard](https://supabase.com/dashboard) створіть новий проєкт на Free-плані. Оберіть зручний європейський регіон. Пароль бази зберігайте у власному менеджері паролів.
 2. Дочекайтеся готовності проєкту. Відкрийте **SQL Editor → New query**.
 3. Скопіюйте весь вміст [`supabase/migrations/001_core.sql`](supabase/migrations/001_core.sql), натисніть **Run**.
-4. В окремих запитах послідовно запустіть весь [`002_storage_realtime.sql`](supabase/migrations/002_storage_realtime.sql), потім [`003_compact_movies_activity.sql`](supabase/migrations/003_compact_movies_activity.sql) і [`004_recipes_movie_ratings.sql`](supabase/migrations/004_recipes_movie_ratings.sql), далі [`005_recipe_catalog_shared_menu.sql`](supabase/migrations/005_recipe_catalog_shared_menu.sql). Для нового проєкту простіше виконати один [`setup.sql`](supabase/setup.sql) **замість** п’яти міграцій.
+4. В окремих запитах послідовно запустіть міграції `002`–`006` з каталогу [`supabase/migrations`](supabase/migrations). Для нового проєкту виконайте один [`setup.sql`](supabase/setup.sql) **замість** шести окремих міграцій.
 5. Міграції розраховані на одноразове застосування у цьому порядку. Не запускайте їх повторно поверх створеної схеми. Наступні зміни слід оформлювати новими міграціями.
 6. Основні таблиці: `profiles`, `couples`, `couple_members`, `couple_invites`, `shopping_sessions`, `shopping_items`, `shopping_product_history`, `wishes`, `gift_reservations`, `events`, `movies`, `activity_events`, `activity_reads`, `link_import_limits`, `recipes`. Після міграції 005 є також `recipe_catalog` і `meal_plan_items` — разом 17 таблиць із RLS. Для нового проєкту каталог наповнюється окремою командою `npm run import:recipes -- --apply`; [опис](docs/RECIPE-CATALOG.md).
 

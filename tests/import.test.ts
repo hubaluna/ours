@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   parseMetadata,
+  parseArticleRecipe,
+  tiktokRecipeCaption,
   parseIngredient,
   parsePasted,
   publicUrl,
@@ -9,6 +11,8 @@ import {
   isPublicAddress,
   resolvePublicUrl,
 } from "../supabase/functions/_shared/url-safety";
+import { tiktokMetadata } from "../supabase/functions/_shared/movie-search";
+import { isTikTokVideoUrl } from "../src/lib/recipe-source";
 describe("Link metadata and safe imports", () => {
   it("extracts Movie JSON-LD, year, genre, title and poster without executing scripts", () => {
     const r = parseMetadata(
@@ -51,6 +55,53 @@ describe("Link metadata and safe imports", () => {
     expect(r.ingredients).toEqual(["200 г рису", "1 л бульйону"]);
     expect(r.title).toBe("Різото");
   });
+  it("extracts ingredients and ordered cooking paragraphs from article headings", () => {
+    const source = "https://example.com/pancakes";
+    const html = `<main><div class="article-text"><h2>Інгредієнти</h2><p>Потрібно:</p><ul><li>250 мл молока</li><li>3 ст. л. цукру</li><li>170 г борошна</li></ul><h2>Процес приготування</h2><p>Змішайте молоко та яйця.</p><p><a class="read-also">Читайте також: інша страва</a>Додайте борошно й перемішайте.</p><p>Смажте на сухій пательні.</p><h2>Поради</h2><p>Інший розділ не імпортується.</p></div></main>`;
+    const metadata = parseArticleRecipe(
+      html,
+      parseMetadata(html, source, "recipe"),
+    );
+    expect(metadata.ingredients).toEqual([
+      "250 мл молока",
+      "3 ст. л. цукру",
+      "170 г борошна",
+    ]);
+    expect(metadata.instructions).toEqual([
+      "Змішайте молоко та яйця.",
+      "Додайте борошно й перемішайте.",
+      "Смажте на сухій пательні.",
+    ]);
+  });
+  it("reads only explicitly labeled ingredients from a TikTok caption", () => {
+    const source = "https://www.tiktok.com/@cook/video/123";
+    const caption =
+      "Млинці ВЖЕ з начинкою😍 Швидко й смачно☺️ Інгредієнти: Яйця 3 шт Цукор 3 ст.л. Сіль 1 ч.л. з гіркою Олія 3 ст.л. Молоко 500 г Борошно Амбар 200 г Ковбаса 100 г Твердий сир 100 г Кріп 1 ст.л. Смачного 🤗";
+    const seed = parseMetadata(
+      `<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" type="application/json">${JSON.stringify({ video: { desc: caption, video: { cover: "https://cdn.example.com/chops.jpg" } } })}</script>`,
+      source,
+      "recipe",
+    );
+    const metadata = tiktokRecipeCaption(
+      tiktokMetadata(
+        `<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" type="application/json">${JSON.stringify({ video: { desc: caption, video: { cover: "https://cdn.example.com/chops.jpg" } } })}</script>`,
+        source,
+        seed,
+      ),
+    );
+    expect(metadata.title).toBe("Млинці ВЖЕ з начинкою");
+    expect(metadata.ingredients).toHaveLength(9);
+    expect(metadata.ingredients[0]).toBe("Яйця — 3 шт");
+    expect(metadata.ingredients[2]).toBe("Сіль — 1 ч.л.");
+    expect(metadata.instructions).toEqual([]);
+    expect(metadata.image_url).toBe("https://cdn.example.com/chops.jpg");
+    expect(metadata.description).toContain("Смачного");
+    expect(isTikTokVideoUrl(source)).toBe(true);
+    expect(isTikTokVideoUrl("https://www.tiktok.com/@cook/")).toBe(false);
+    expect(isTikTokVideoUrl("https://not-tiktok.com/@cook/video/123")).toBe(
+      false,
+    );
+  });
   it("falls back from malformed JSON-LD and rejects unsafe images", () => {
     const r = parseMetadata(
       '<meta property="og:title" content="Ідея"><meta property="og:image" content="javascript:alert(1)"><script type="application/ld+json">{bad}</script>',
@@ -80,7 +131,24 @@ describe("Link metadata and safe imports", () => {
       unit: "л",
     });
     expect(parseIngredient("2 tbsp oil").name).toBe("2 tbsp oil");
-    expect(parseIngredient("Сіль за смаком").name).toBe("Сіль за смаком");
+    expect(parseIngredient("2 tbsp oil")).toMatchObject({
+      quantity: null,
+      unit: "за рецептом",
+    });
+    expect(parseIngredient("3 ст. л. цукру")).toMatchObject({
+      quantity: null,
+      unit: "за рецептом",
+    });
+    expect(parseIngredient("170 гр борошна.")).toMatchObject({
+      name: "борошна",
+      quantity: 170,
+      unit: "г",
+    });
+    expect(parseIngredient("Сіль за смаком")).toMatchObject({
+      name: "Сіль",
+      quantity: null,
+      unit: "за смаком",
+    });
   });
   it("supports a pasted recipe with no external infrastructure", () => {
     expect(

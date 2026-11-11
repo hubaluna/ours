@@ -187,6 +187,105 @@ export function parseMetadata(
     provider: new URL(source_url).hostname.replace(/^www\./, ""),
   };
 }
+
+/** Read ordinary article sections only when recipe JSON-LD was absent. */
+export function parseArticleRecipe(
+  html: string,
+  metadata: LinkMetadata,
+): LinkMetadata {
+  if (metadata.ingredients.length && metadata.instructions?.length)
+    return metadata;
+  const { document } = parseHTML(html);
+  const headings = Array.from(document.querySelectorAll("h2, h3"));
+  const findSection = (pattern: RegExp, ingredientList = false) => {
+    const heading = headings.find((item) =>
+      pattern.test(item.textContent || ""),
+    );
+    if (!heading?.parentElement) return [];
+    const content = Array.from(
+      heading.parentElement.querySelectorAll("h2, h3, li, p"),
+    );
+    const index = content.indexOf(heading);
+    if (index < 0) return [];
+    const section = content
+      .slice(index + 1)
+      .slice(
+        0,
+        content
+          .slice(index + 1)
+          .findIndex((node) => /^H[23]$/.test(node.tagName)) < 0
+          ? undefined
+          : content
+              .slice(index + 1)
+              .findIndex((node) => /^H[23]$/.test(node.tagName)),
+      );
+    const useList =
+      ingredientList && section.some((node) => node.tagName === "LI");
+    const values: string[] = [];
+    for (const node of section) {
+      if (/^H[23]$/.test(node.tagName)) break;
+      if (useList && node.tagName !== "LI") continue;
+      if (node.tagName === "LI" || node.tagName === "P") {
+        if (node.tagName === "P" && node.querySelector("a.read-also")) {
+          for (const anchor of node.querySelectorAll("a")) anchor.remove();
+        }
+        const text = clean(node.textContent, 2000);
+        if (text && !/^(?:Читайте також|Відео дня)/i.test(text))
+          values.push(text);
+      }
+    }
+    return values;
+  };
+  const ingredients = metadata.ingredients.length
+    ? metadata.ingredients
+    : findSection(/^(?:інгредієнти|що потрібно|продукти)(?:\s|$)/i, true).slice(
+        0,
+        80,
+      );
+  const instructions = metadata.instructions?.length
+    ? metadata.instructions
+    : findSection(
+        /^(?:процес приготування|спосіб приготування|приготування|як готувати)(?:\s|$)/i,
+      ).slice(0, 60);
+  return { ...metadata, ingredients, instructions };
+}
+
+/** Extract only explicitly labeled ingredients from a public TikTok caption. */
+export function tiktokRecipeCaption(metadata: LinkMetadata): LinkMetadata {
+  const caption = metadata.description;
+  const heading = caption.match(
+    /(?:^|\s)(?:інгредієнти|ingredients)\s*[:：]\s*/i,
+  );
+  if (!heading) return metadata;
+  const tail = caption
+    .slice(heading.index! + heading[0].length)
+    .split(
+      /\s+(?:смачного|спосіб приготування|приготування|кроки)(?:\s|$)|\s+#/i,
+    )[0];
+  const amount =
+    /\d+(?:[.,]\d+)?(?:\/\d+)?\s*(?:шт\.?|штук|ст\.?\s*л\.?|ч\.?\s*л\.?|гр\.?|г|кг|мл|л|уп\.?)/giu;
+  const ingredients: string[] = [];
+  let end = 0;
+  for (const match of tail.matchAll(amount)) {
+    let name = tail.slice(end, match.index).trim();
+    name = name
+      .replace(/^(?:з\s+гіркою|без\s+гірки)\s+/i, "")
+      .replace(/[;,]+$/, "")
+      .trim();
+    if (name) ingredients.push(`${name} — ${match[0].trim()}`);
+    end = match.index! + match[0].length;
+  }
+  const beforeIngredients = caption.slice(0, heading.index).trim();
+  const title = beforeIngredients
+    .split(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u)[0]
+    .trim();
+  return {
+    ...metadata,
+    title: title.slice(0, 160) || metadata.title,
+    ingredients: ingredients.slice(0, 80),
+    instructions: [],
+  };
+}
 export { parseIngredient } from "./ingredients.ts";
 export function parsePasted(
   text: string,

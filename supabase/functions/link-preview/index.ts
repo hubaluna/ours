@@ -1,6 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 import {
   parseMetadata,
+  parseArticleRecipe,
+  tiktokRecipeCaption,
   type ImportKind,
   publicUrl,
 } from "../_shared/metadata.ts";
@@ -56,6 +58,11 @@ Deno.serve(
       let metadata = parseMetadata("<html></html>", url, kind);
       if (kind === "movie" && query?.trim())
         return enrichMovie(metadata, read, query);
+      if (kind === "recipe" && /(^|\.)tiktok\.com$/.test(host)) {
+        const page = await read(url);
+        metadata = parseMetadata(page.html, page.url, kind);
+        return tiktokRecipeCaption(tiktokMetadata(page.html, url, metadata));
+      }
       if (
         kind === "movie" &&
         /(^|\.)(youtube\.com|youtu\.be|vimeo\.com|tiktok\.com)$/.test(host)
@@ -105,6 +112,7 @@ Deno.serve(
       }
       const page = await read(url);
       metadata = parseMetadata(page.html, page.url, kind);
+      if (kind === "recipe") metadata = parseArticleRecipe(page.html, metadata);
       return kind === "movie" ? enrichMovie(metadata, read) : metadata;
     },
   }),

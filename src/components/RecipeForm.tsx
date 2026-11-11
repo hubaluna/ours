@@ -4,6 +4,7 @@ import type { Recipe, RecipeCategory, NewRecipe } from "../lib/types";
 import type { LinkMetadata } from "../../supabase/functions/_shared/metadata";
 import { publicUrl } from "../../supabase/functions/_shared/urls";
 import { structuredIngredients } from "../lib/recipe-catalog";
+import { isTikTokVideoUrl } from "../lib/recipe-source";
 import { BottomSheet, Button, ConfirmDelete, Field } from "./ui";
 export const courseLabels = {
   side: "Гарнір",
@@ -27,6 +28,7 @@ export function RecipeForm({
   const { addRecipe, update, remove, pending } = useApp();
   const [error, setError] = useState("");
   const seed = recipe ?? initial;
+  const [sourceUrl, setSourceUrl] = useState(seed?.source_url ?? "");
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
@@ -37,11 +39,12 @@ export function RecipeForm({
         .filter(Boolean);
     const image_url = publicUrl(String(f.get("image"))),
       source = String(f.get("source")).trim();
+    const videoRecipe = isTikTokVideoUrl(source);
     const value: NewRecipe = {
       title: String(f.get("title")).trim(),
       category: String(f.get("category")) as RecipeCategory,
       image_url,
-      source_url: source,
+      source_url: publicUrl(source) || "",
       ingredients: lines("ingredients"),
       instructions: lines("instructions"),
       structured_ingredients: structuredIngredients(lines("ingredients")),
@@ -54,7 +57,7 @@ export function RecipeForm({
       !image_url ||
       !value.title ||
       !value.ingredients.length ||
-      !value.instructions.length ||
+      (!value.instructions.length && !videoRecipe) ||
       value.ingredients.length > 80 ||
       value.instructions.length > 60 ||
       (source && !publicUrl(source))
@@ -153,18 +156,35 @@ export function RecipeForm({
             placeholder="200 г рису\nМорква — 1 шт."
           />
         </Field>
-        <Field label="Рецепт · кожен крок із нового рядка">
+        <Field
+          label={
+            isTikTokVideoUrl(sourceUrl)
+              ? "Кроки приготування · не обов’язково для відеорецепта"
+              : "Рецепт · кожен крок із нового рядка"
+          }
+        >
           <textarea
             name="instructions"
             rows={7}
-            required
+            required={!isTikTokVideoUrl(sourceUrl)}
             maxLength={30000}
             defaultValue={seed?.instructions?.join("\n")}
-            placeholder="Підготуйте продукти…"
+            placeholder={
+              seed?.instructions?.length
+                ? "Підготуйте продукти…"
+                : isTikTokVideoUrl(sourceUrl)
+                  ? "Письмові кроки не обов’язкові для відеорецепта…"
+                  : "Додайте кроки приготування вручну…"
+            }
           />
         </Field>
         <Field label="Джерело рецепта">
-          <input name="source" type="url" defaultValue={seed?.source_url} />
+          <input
+            name="source"
+            type="url"
+            value={sourceUrl}
+            onChange={(event) => setSourceUrl(event.target.value)}
+          />
         </Field>
         {error && (
           <p role="alert" className="form-error">

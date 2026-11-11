@@ -106,7 +106,7 @@ test("six tabs, unseen updates, shopping, movies, calendar and appearance", asyn
   await expect(page.getByText("Інтерстеллар", { exact: true })).toHaveCount(0);
   await choose(page, "Покупки");
   await page.getByRole("button", { name: "Додати товар", exact: true }).click();
-  let dialog = page.getByRole("dialog");
+  const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("Назва товару").fill("Авокадо");
   await shot(page, "add-shopping");
@@ -350,6 +350,59 @@ test("a private recipe joins the shared catalog and scales automatically into sh
   await dialog.getByRole("button", { name: "Закрити" }).click();
   await expect(dialog).not.toBeVisible();
   await choose(page, "Покупки");
+  await fit(page);
+});
+
+test("a TikTok video recipe can omit written steps and opens its source", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await choose(page, "Меню");
+  await page
+    .getByRole("button", { name: "Додати рецепт", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Назва страви").fill("Відео рецепт");
+  await dialog
+    .getByLabel("Фото готової страви · HTTPS-посилання")
+    .fill("https://example.com/video-recipe.jpg");
+  await dialog
+    .getByLabel("Продукти · кожен із нового рядка")
+    .fill("3 ст. л. цукру");
+  await dialog
+    .getByLabel("Джерело рецепта")
+    .fill("https://www.tiktok.com/@cook/video/123456789");
+  await dialog.getByRole("button", { name: "Зберегти рецепт" }).click();
+  await expect(
+    dialog.getByRole("heading", { name: "Каталог рецептів" }),
+  ).toBeVisible();
+  await dialog
+    .locator(".catalog-card")
+    .filter({
+      has: page.getByRole("heading", { name: "Відео рецепт", exact: true }),
+    })
+    .click();
+  const watch = dialog.getByRole("link", { name: "Дивитися, як готувати" });
+  await expect(watch).toHaveAttribute(
+    "href",
+    "https://www.tiktok.com/@cook/video/123456789",
+  );
+  await expect(watch).toHaveAttribute("target", "_blank");
+  await expect(dialog.getByText("Письмових кроків немає.")).toBeVisible();
+  await dialog.getByRole("button", { name: "Додати до меню" }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.locator(".meal-row h2")).toHaveText("Відео рецепт");
+  const menuData = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("ours-demo-v1")!),
+  );
+  expect(menuData.mealPlan).toHaveLength(1);
+  expect(
+    menuData.shopping.some((item: { menu_key?: string }) => item.menu_key),
+  ).toBe(true);
+  await page
+    .getByRole("button", { name: "Прибрати з меню · Відео рецепт" })
+    .click();
+  await expect(page.locator(".meal-row")).toHaveCount(0);
   await fit(page);
 });
 

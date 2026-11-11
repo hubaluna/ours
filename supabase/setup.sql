@@ -407,4 +407,20 @@ revoke all on function public.sync_menu_shopping(uuid),public.guard_menu_shoppin
 grant execute on function public.valid_menu_ingredients(jsonb),public.upsert_menu_items(jsonb),public.remove_menu_item(uuid),public.restore_menu_products(),public.finish_shopping() to authenticated;
 alter publication supabase_realtime add table public.meal_plan_items;
 
+-- 006_tiktok_video_recipes.sql
+
+alter table public.recipes drop constraint if exists recipes_instructions_check;
+alter table public.recipes add constraint recipes_instructions_check check (
+  jsonb_typeof(instructions) = 'array'
+  and octet_length(instructions::text) <= 40000
+  and (
+    jsonb_array_length(instructions) between 1 and 60
+    or (
+      jsonb_array_length(instructions) = 0
+      and source_url ~* '^https://(www[.])?tiktok[.]com/@[^/]+/video/[0-9]+([/?#]|$)'
+    )
+  )
+);
+
+
 commit;

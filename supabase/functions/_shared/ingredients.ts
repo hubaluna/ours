@@ -14,9 +14,32 @@ export function parseIngredient(line: string) {
         (index > 0 && /\d/.test(text[index - 1]) ? " " : "") + fractions[c],
     )
     .trim();
+  const taste = normalized.match(/^(.+?)\s+за\s+смаком\.?$/i);
+  if (taste)
+    return {
+      name: taste[1].trim(),
+      quantity: null,
+      unit: "за смаком",
+      category: groceryCategory(taste[1]),
+      price: null,
+      note: line,
+    };
+  if (
+    /^\s*\d+(?:[.,]\d+)?\s*(?:ст\.?\s*(?:л\.?|лож(?:ка|ки|ек))|ч\.?\s*(?:л\.?|лож(?:ка|ки|ек)))/i.test(
+      normalized,
+    )
+  )
+    return {
+      name: line.trim().slice(0, 160),
+      quantity: null,
+      unit: "за рецептом",
+      category: groceryCategory(line),
+      price: null,
+      note: line,
+    };
   const match =
     normalized.match(
-      /^(\d+(?:[.,]\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+)\s*(кг|kg|г|g|л|l|мл|ml|шт\.?|pcs|cups?|tbsp|tsp|ст\.?\s*л\.?|ч\.?\s*л\.?)?\s+(.+)$/i,
+      /^(\d+(?:[.,]\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+)\s*(кг|kg|гр?\.?|g|л|l|мл|ml|шт\.?|pcs|cups?|tbsp|tsp|ст\.?\s*л\.?|ч\.?\s*л\.?)?\s+(.+)$/i,
     ) ??
     normalized
       .match(
@@ -28,8 +51,8 @@ export function parseIngredient(line: string) {
   if (!match)
     return {
       name: line.trim().slice(0, 160),
-      quantity: 1,
-      unit: "шт.",
+      quantity: null,
+      unit: "за рецептом",
       category: groceryCategory(line),
       price: null,
       note: line,
@@ -48,6 +71,8 @@ export function parseIngredient(line: string) {
       {
         kg: "кг",
         g: "г",
+        гр: "г",
+        "гр.": "г",
         l: "л",
         ml: "мл",
         pcs: "шт.",
@@ -59,12 +84,15 @@ export function parseIngredient(line: string) {
     "шт.";
   const supported = ["кг", "г", "л", "мл", "шт."].includes(unit);
   return {
-    name: (supported ? match[3] : line).trim().slice(0, 160),
+    name: (supported ? match[3] : line)
+      .trim()
+      .replace(/[;,.]+$/, "")
+      .slice(0, 160),
     quantity:
       supported && Number.isFinite(amount) && amount > 0 && amount < 1000000
         ? Math.round(amount * 1000) / 1000
-        : 1,
-    unit: supported ? unit : "шт.",
+        : null,
+    unit: supported ? unit : "за рецептом",
     category: groceryCategory(match[3]),
     price: null,
     note: line,

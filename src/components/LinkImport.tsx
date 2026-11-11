@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { Link2, ClipboardPaste, ArrowRight, Check } from "lucide-react";
+import {
+  Link2,
+  ClipboardPaste,
+  ArrowRight,
+  Check,
+  ExternalLink,
+} from "lucide-react";
 import { BottomSheet, Button, Field } from "./ui";
 import { supabase } from "../lib/supabase";
 import {
@@ -11,6 +17,7 @@ import {
 import type { NewShopping } from "../lib/types";
 import { groceryCategory } from "../../supabase/functions/_shared/grocery-category";
 import { movieSynopsis } from "../../supabase/functions/_shared/movie-synopsis";
+import { isTikTokVideoUrl } from "../lib/recipe-source";
 import { useApp } from "../hooks/AppContext";
 export function LinkImport({
   kind,
@@ -32,7 +39,7 @@ export function LinkImport({
     [error, setError] = useState(""),
     [result, setResult] = useState<LinkMetadata | null>(null),
     [ingredients, setIngredients] = useState<
-      (NewShopping & { selected: boolean })[]
+      (NewShopping & { selected: boolean; note?: string })[]
     >([]);
   const receive = (value: LinkMetadata) => {
     if (kind === "movie")
@@ -216,9 +223,10 @@ export function LinkImport({
                       selected.some(
                         (item) =>
                           !item.name.trim() ||
-                          item.quantity === null ||
-                          !Number.isFinite(item.quantity) ||
-                          item.quantity <= 0,
+                          (item.quantity === null
+                            ? !["за рецептом", "за смаком"].includes(item.unit)
+                            : !Number.isFinite(item.quantity) ||
+                              item.quantity <= 0),
                       )
                     }
                     onClick={() =>
@@ -388,6 +396,11 @@ export function LinkImport({
                           )
                         }
                       />
+                      {item.note && (
+                        <small className="ingredient-note">
+                          З джерела: {item.note}
+                        </small>
+                      )}
                       <details className="ingredient-extra">
                         <summary>Додатково</summary>
                         <div className="form-grid">
@@ -420,11 +433,18 @@ export function LinkImport({
                               )
                             }
                           >
-                            {["шт.", "кг", "г", "л", "мл", "уп."].map(
-                              (unit) => (
-                                <option key={unit}>{unit}</option>
-                              ),
-                            )}
+                            {[
+                              "шт.",
+                              "кг",
+                              "г",
+                              "л",
+                              "мл",
+                              "уп.",
+                              "за рецептом",
+                              "за смаком",
+                            ].map((unit) => (
+                              <option key={unit}>{unit}</option>
+                            ))}
                           </select>
                         </div>
                         <small>{item.category}</small>
@@ -435,11 +455,30 @@ export function LinkImport({
               )}
               {onResult && (
                 <>
+                  {!result.instructions?.length && (
+                    <div className="video-recipe-steps">
+                      <p className="subtle-note">
+                        У тексті джерела немає кроків приготування. Перегляньте
+                        відео або сторінку, щоб бачити процес.
+                      </p>
+                      {isTikTokVideoUrl(result.source_url) && (
+                        <a
+                          className="button secondary"
+                          href={result.source_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Дивитися, як готувати <ExternalLink size={15} />
+                        </a>
+                      )}
+                    </div>
+                  )}
                   <Field label="Кроки приготування">
                     <textarea
                       rows={6}
                       value={result.instructions?.join("\n") ?? ""}
                       maxLength={30000}
+                      placeholder="Текстових кроків не знайдено. Перегляньте джерело й додайте їх вручну."
                       onChange={(e) =>
                         setResult({
                           ...result,
