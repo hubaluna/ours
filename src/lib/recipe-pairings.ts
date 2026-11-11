@@ -19,7 +19,7 @@ function profile(recipe: RecipeView) {
           : /вершк|сметан/.test(title)
             ? "creamy"
             : "dry",
-    method: /кляр|смажений карась/.test(title)
+    method: /кляр|смажений карась|биточк/.test(title)
       ? "crispy"
       : /запеч|духов/.test(title + " " + steps)
         ? "baked"
@@ -115,7 +115,11 @@ export function scorePair(
     reason =
       "Запечені смаки добре поєднуються; страви зручно готувати поруч у духовці.";
   }
-  if (meat.sauce === "dry" && ["puree", "veg_rice"].includes(garnish.side)) {
+  if (
+    meat.sauce === "dry" &&
+    meat.method !== "crispy" &&
+    ["puree", "veg_rice"].includes(garnish.side)
+  ) {
     score += 10;
     reason =
       "Соковитіший гарнір доповнює основну страву без великої кількості соусу.";

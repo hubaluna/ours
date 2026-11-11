@@ -1,0 +1,54 @@
+{
+  "meat_patties_gravy": {
+    "id": "meat_patties_gravy",
+    "title": "Биточки",
+    "category": "meat_fish",
+    "baseServings": 1,
+    "defaultServings": 1,
+    "totalTimeMinutes": 30,
+    "difficulty": "easy",
+    "ingredients": [
+      {
+        "name": "Куряче або свиняче філе",
+        "quantity": 180.0,
+        "unit": "г"
+      },
+      {
+        "name": "Яйце",
+        "quantity": 0.5,
+        "unit": "шт."
+      },
+      {
+        "name": "Борошно",
+        "quantity": 15.0,
+        "unit": "г"
+      },
+      {
+        "name": "Олія",
+        "quantity": 10.0,
+        "unit": "мл"
+      },
+      {
+        "name": "Сіль",
+        "quantity": null,
+        "unit": "за смаком"
+      },
+      {
+        "name": "Чорний перець",
+        "quantity": null,
+        "unit": "за смаком"
+      }
+    ],
+    "steps": [
+      "Наріжте філе на шматочки впоперек волокон і відбийте до товщини приблизно 1 см.",
+      "Посоліть і поперчіть м’ясо. Обкачайте кожен шматочок у борошні, потім умочіть у збите яйце.",
+      "Розігрійте олію на сковороді. Смажте биточки на середньому вогні по 3–4 хвилини з кожного боку до золотистої скоринки й повної готовності всередині.",
+      "Дайте м’ясу відпочити 2 хвилини та подавайте гарячим."
+    ],
+    "recommendedSideIds": ["mashed_potato", "buckwheat", "rice"],
+    "notes": "На одну порцію можна взяти куряче або нежирне свиняче філе. Час смаження залежить від товщини шматочків.",
+    "image": "images/meat_patties_cutlets.jpg",
+    "imageType": "generated_food_illustration",
+    "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%B1%D0%B8%D1%82%D0%BE%D1%87%D0%BA%D0%B8%20%D0%B2%D1%96%D0%B4%D0%B1%D0%B8%D0%B2%D0%BD%D1%96%20%D0%BA%D1%83%D1%80%D1%8F%D1%87%D1%96"
+  }
+}

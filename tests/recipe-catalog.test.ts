@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import archive from "../src/data/ours-recipes.json";
 import {
   catalogRecipes,
+  correctedArchiveRecipes,
   scaleIngredients,
   aggregateIngredients,
   quantityLabel,
@@ -24,11 +25,14 @@ describe("Original recipe package, portions and pairing", () => {
     expect(catalogRows(archive)).toHaveLength(55);
     for (const original of archive.recipes) {
       const item = recipe(original.id);
+      const effective = correctedArchiveRecipes.find(
+        (entry) => entry.id === original.id,
+      )!;
       expect(item.baseServings).toBe(1);
-      expect(item.totalTimeMinutes).toBe(original.totalTimeMinutes);
-      expect(item.instructions).toEqual(original.steps);
+      expect(item.totalTimeMinutes).toBe(effective.totalTimeMinutes);
+      expect(item.instructions).toEqual(effective.steps);
       expect(item.ingredients.map((i) => [i.name, i.quantity])).toEqual(
-        original.ingredients.map((i) => [i.name, i.quantity]),
+        effective.ingredients.map((i) => [i.name, i.quantity]),
       );
       expect(
         readFileSync(`public/recipes/ours55/${original.image.split("/").pop()}`)
@@ -59,6 +63,34 @@ describe("Original recipe package, portions and pairing", () => {
         ],
       }),
     ).toThrow(/portion/);
+  });
+  it("keeps Биточки as pounded chicken or pork slices with no mince or gravy", () => {
+    const source = archive.recipes.find(
+      (item) => item.id === "meat_patties_gravy",
+    )!;
+    const chops = correctedArchiveRecipes.find(
+      (item) => item.id === "meat_patties_gravy",
+    )!;
+    expect(source.title).toBe("Биточки з підливою");
+    expect(chops.title).toBe("Биточки");
+    expect(chops.ingredients.map((item) => item.name).join(" ")).toMatch(
+      /філе/,
+    );
+    expect(chops.ingredients.map((item) => item.name).join(" ")).not.toMatch(
+      /фарш|сметана|томатна паста|вода/,
+    );
+    expect(chops.steps.join(" ")).toMatch(/відбийте/);
+    expect(chops.steps.join(" ")).not.toMatch(/підлив|соус|тушкуйте/);
+    expect(chops.imageType).toBe("generated_food_illustration");
+    expect(recipe("meat_patties_gravy").title).toBe("Биточки");
+    expect(
+      scorePair(recipe("meat_patties_gravy"), recipe("mashed_potato")).reason,
+    ).toMatch(/скоринк/);
+    expect(
+      catalogRows(archive).find(
+        (item) => item.source_id === "meat_patties_gravy",
+      )?.original_data,
+    ).toEqual(source);
   });
   it("scales all quantities exactly and keeps seasonings unquantified", () => {
     for (const item of catalogRecipes)

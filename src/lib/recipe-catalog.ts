@@ -1,4 +1,5 @@
 import archive from "../data/ours-recipes.json";
+import corrections from "../data/recipe-corrections.json";
 import type {
   Recipe,
   RecipeCategory,
@@ -114,28 +115,33 @@ export function structuredIngredients(lines: string[]): RecipeIngredient[] {
     };
   });
 }
-export const catalogRecipes: RecipeView[] = archive.recipes.map((record) => ({
-  key: `catalog:ours55/${record.id}`,
-  catalogId: `ours55/${record.id}`,
-  sourceId: record.id,
-  title: record.title,
-  category: categoryMap[record.category],
-  sourceCategory: record.category,
-  image_url: `${import.meta.env.BASE_URL}recipes/ours55/${record.image.split("/").pop()}`,
-  source_url: "",
-  baseServings: 1,
-  totalTimeMinutes: record.totalTimeMinutes,
-  difficulty: record.difficulty,
-  ingredients: record.ingredients.map((item) => ({
-    ...item,
-    unit: canonicalUnit(item.unit),
-    category: groceryCategory(item.name),
-  })),
-  instructions: record.steps,
-  notes: record.notes,
-  imageType: record.imageType,
-  recommendedSideIds: record.recommendedSideIds,
-}));
+export const correctedArchiveRecipes = archive.recipes.map(
+  (record) => corrections[record.id as keyof typeof corrections] ?? record,
+);
+export const catalogRecipes: RecipeView[] = correctedArchiveRecipes.map(
+  (record) => ({
+    key: `catalog:ours55/${record.id}`,
+    catalogId: `ours55/${record.id}`,
+    sourceId: record.id,
+    title: record.title,
+    category: categoryMap[record.category],
+    sourceCategory: record.category,
+    image_url: `${import.meta.env.BASE_URL}recipes/ours55/${record.image.split("/").pop()}`,
+    source_url: "",
+    baseServings: 1,
+    totalTimeMinutes: record.totalTimeMinutes,
+    difficulty: record.difficulty,
+    ingredients: record.ingredients.map((item) => ({
+      ...item,
+      unit: canonicalUnit(item.unit),
+      category: groceryCategory(item.name),
+    })),
+    instructions: record.steps,
+    notes: record.notes,
+    imageType: record.imageType,
+    recommendedSideIds: record.recommendedSideIds,
+  }),
+);
 export function customRecipeView(recipe: Recipe): RecipeView {
   return {
     key: `custom:${recipe.id}`,

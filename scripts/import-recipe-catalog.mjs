@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { managementClient, projectRefFromUrl } from "./supabase-setup.mjs";
 import { groceryCategory } from "../supabase/functions/_shared/grocery-category.ts";
+import corrections from "../src/data/recipe-corrections.json" with { type: "json" };
 const PACKAGE = "ours-recipes-55-v1";
 const mapping = {
   sides: "side",
@@ -82,30 +83,35 @@ export function catalogRows(data, site = "https://hubaluna.github.io/ours/") {
   const base = new URL(site);
   if (base.protocol !== "https:")
     throw new Error("Catalog images need an HTTPS site URL.");
-  return data.recipes.map((recipe) => ({
-    id: `ours55/${recipe.id}`,
-    source_id: recipe.id,
-    package: PACKAGE,
-    title: recipe.title,
-    category: mapping[recipe.category],
-    source_category: recipe.category,
-    image_url: new URL(`recipes/ours55/${recipe.image.split("/").pop()}`, base)
-      .href,
-    image_type: recipe.imageType,
-    image_search_url: recipe.imageSearchUrl || "",
-    base_servings: 1,
-    total_time_minutes: recipe.totalTimeMinutes,
-    difficulty: recipe.difficulty || "",
-    ingredients: recipe.ingredients.map((item) => ({
-      ...item,
-      unit: /^зубчик(?:а|и)?$/.test(item.unit) ? "зубчик" : item.unit,
-      category: groceryCategory(item.name),
-    })),
-    instructions: recipe.steps,
-    notes: recipe.notes || "",
-    recommended_side_ids: recipe.recommendedSideIds || [],
-    original_data: recipe,
-  }));
+  return data.recipes.map((sourceRecipe) => {
+    const recipe = corrections[sourceRecipe.id] || sourceRecipe;
+    return {
+      id: `ours55/${recipe.id}`,
+      source_id: recipe.id,
+      package: PACKAGE,
+      title: recipe.title,
+      category: mapping[recipe.category],
+      source_category: recipe.category,
+      image_url: new URL(
+        `recipes/ours55/${recipe.image.split("/").pop()}`,
+        base,
+      ).href,
+      image_type: recipe.imageType,
+      image_search_url: recipe.imageSearchUrl || "",
+      base_servings: 1,
+      total_time_minutes: recipe.totalTimeMinutes,
+      difficulty: recipe.difficulty || "",
+      ingredients: recipe.ingredients.map((item) => ({
+        ...item,
+        unit: /^зубчик(?:а|и)?$/.test(item.unit) ? "зубчик" : item.unit,
+        category: groceryCategory(item.name),
+      })),
+      instructions: recipe.steps,
+      notes: recipe.notes || "",
+      recommended_side_ids: recipe.recommendedSideIds || [],
+      original_data: sourceRecipe,
+    };
+  });
 }
 export function catalogImportSQL(rows) {
   const literal = JSON.stringify(rows).replace(/'/g, "''");
@@ -116,7 +122,7 @@ export function catalogImportSQL(rows) {
  changed as (insert into public.recipe_catalog(id,source_id,package,title,category,source_category,image_url,image_type,image_search_url,base_servings,total_time_minutes,difficulty,ingredients,instructions,notes,recommended_side_ids,original_data)
  select id,source_id,package,title,category,source_category,image_url,image_type,image_search_url,base_servings,total_time_minutes,difficulty,ingredients,instructions,notes,recommended_side_ids,original_data from incoming
  on conflict(id) do update set title=excluded.title,category=excluded.category,source_category=excluded.source_category,image_url=excluded.image_url,image_type=excluded.image_type,image_search_url=excluded.image_search_url,total_time_minutes=excluded.total_time_minutes,difficulty=excluded.difficulty,ingredients=excluded.ingredients,instructions=excluded.instructions,notes=excluded.notes,recommended_side_ids=excluded.recommended_side_ids,original_data=excluded.original_data,updated_at=now()
- where recipe_catalog.original_data is distinct from excluded.original_data or recipe_catalog.image_url is distinct from excluded.image_url
+ where row(recipe_catalog.title,recipe_catalog.category,recipe_catalog.source_category,recipe_catalog.image_url,recipe_catalog.image_type,recipe_catalog.image_search_url,recipe_catalog.base_servings,recipe_catalog.total_time_minutes,recipe_catalog.difficulty,recipe_catalog.ingredients,recipe_catalog.instructions,recipe_catalog.notes,recipe_catalog.recommended_side_ids,recipe_catalog.original_data) is distinct from row(excluded.title,excluded.category,excluded.source_category,excluded.image_url,excluded.image_type,excluded.image_search_url,excluded.base_servings,excluded.total_time_minutes,excluded.difficulty,excluded.ingredients,excluded.instructions,excluded.notes,excluded.recommended_side_ids,excluded.original_data)
  returning id) select count(*)::int as changed_rows from changed;
  commit;`;
 }

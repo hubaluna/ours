@@ -317,6 +317,38 @@ test("a private recipe joins the shared catalog and scales automatically into sh
       .filter((i: { menu_key?: string }) => i.menu_key)
       .map((i: { quantity: number }) => i.quantity),
   ).toEqual([400, 2]);
+  await page.getByRole("button", { name: "Прибрати з меню · Наш рис" }).click();
+  await expect(page.locator(".meal-row")).toHaveCount(0);
+  expect(
+    (
+      await page.evaluate(() =>
+        JSON.parse(localStorage.getItem("ours-demo-v1")!),
+      )
+    ).shopping.filter((i: { menu_key?: string }) => i.menu_key),
+  ).toHaveLength(0);
+  await page
+    .getByRole("button", { name: "Каталог рецептів", exact: true })
+    .click();
+  await dialog
+    .locator(".catalog-card")
+    .filter({
+      has: page.getByRole("heading", { name: "Наш рис", exact: true }),
+    })
+    .click();
+  await dialog.getByRole("button", { name: "Редагувати рецепт" }).click();
+  await dialog.getByRole("button", { name: "Видалити", exact: true }).click();
+  await dialog.getByRole("button", { name: "Так, видалити" }).click();
+  await expect(dialog).not.toBeVisible();
+  await page
+    .getByRole("button", { name: "Каталог рецептів", exact: true })
+    .click();
+  await expect(
+    dialog.getByRole("heading", { name: "Каталог рецептів" }),
+  ).toBeVisible();
+  await dialog.getByLabel("Пошук страви або продукту").fill("Наш рис");
+  await expect(dialog.locator(".catalog-card")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Закрити" }).click();
+  await expect(dialog).not.toBeVisible();
   await choose(page, "Покупки");
   await fit(page);
 });
