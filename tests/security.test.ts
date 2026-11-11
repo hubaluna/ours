@@ -385,6 +385,8 @@ describe("Real PostgreSQL RLS and RPC, under authenticated roles", () => {
         `insert into public.places(couple_id,title,type,created_by) values('${couple}','Чужий парк','Парк','${c}')`,
       ),
     ).rejects.toThrow(/row-level security/);
+    await asUser(a);
+    await rows(`delete from public.places where id='${place}'`);
   });
   it("blocks reads, inserts and exports from a different space", async () => {
     await asUser(c);
@@ -898,5 +900,14 @@ describe("Shared recipe catalog, menu and atomic shopping", () => {
     await expect(rows("select public.upsert_menu_items('[]')")).rejects.toThrow(
       /permission denied/,
     );
+  });
+  it("drops public.places only when it is empty", async () => {
+    await db.exec(`reset role;insert into public.places(couple_id,title,type,created_by) values('${couple}','Guarded place','Парк','${a}')`);
+    const dropPlaces = readFileSync("supabase/migrations/012_drop_empty_places.sql", "utf8");
+    await expect(db.exec(dropPlaces)).rejects.toThrow(/contains saved records/);
+    await db.exec("rollback");
+    await db.exec("reset role;delete from public.places where title='Guarded place'");
+    await db.exec(dropPlaces);
+    expect((await rows("select to_regclass('public.places') as table_name"))[0].table_name).toBeNull();
   });
 });

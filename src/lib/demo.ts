@@ -204,7 +204,6 @@ export function createDemo(): Data {
         created_at: now,
       },
     ],
-    places: [],
     history: [],
   };
 }
@@ -212,7 +211,8 @@ export function readDemo(): Data {
   try {
     const saved = localStorage.getItem("ours-demo-v1");
     if (saved) {
-      const data = JSON.parse(saved) as Data;
+      const data = JSON.parse(saved) as Data & { places?: unknown };
+      delete data.places;
       if (
         [
           "profiles",
@@ -234,7 +234,6 @@ export function readDemo(): Data {
           movies: Array.isArray(data.movies)
             ? data.movies
             : createDemo().movies,
-          places: Array.isArray(data.places) ? data.places : [],
           activities: Array.isArray(data.activities)
             ? data.activities
             : createDemo().activities,

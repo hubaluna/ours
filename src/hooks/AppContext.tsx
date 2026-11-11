@@ -19,12 +19,10 @@ import type {
   Activity,
   NewShopping,
   NewWish,
-  NewPlace,
   Profile,
   Table,
   RecipeView,
   MealPlanItem,
-  Place,
 } from "../lib/types";
 import { customRecipeView, syncDemoMenuShopping } from "../lib/recipe-catalog";
 import { isPantryStaple } from "../../supabase/functions/_shared/grocery-category";
@@ -40,7 +38,6 @@ const empty: Data = {
   wishes: [],
   reservations: [],
   events: [],
-  places: [],
   history: [],
 };
 type Notice = {
@@ -141,7 +138,6 @@ function useStore() {
         wishes,
         reservations,
         events,
-        places,
         history,
         movies,
         activities,
@@ -173,7 +169,6 @@ function useStore() {
           { couple_id: couple },
           "date",
         ),
-        readAll<Place>("places", { couple_id: couple }, "created_at", false),
         readAll<Data["history"][number]>("shopping_product_history", {
           couple_id: couple,
         }),
@@ -204,7 +199,6 @@ function useStore() {
         wishes,
         reservations,
         events,
-        places,
         history,
         movies,
         activities,
@@ -244,7 +238,6 @@ function useStore() {
       "events",
       "couple_members",
       "movies",
-      "places",
       "wishes",
       "recipes",
       "meal_plan_items",
@@ -354,9 +347,7 @@ function useStore() {
           kind:
             table === "shopping_items"
               ? "shopping"
-              : table === "places"
-                ? "events"
-                : table,
+              : table,
           action,
           entity_id: typeof row.id === "string" ? row.id : null,
           title: String(row.name || row.title || "Оновлення").slice(0, 160),
@@ -391,7 +382,6 @@ function useStore() {
               gift_reservations: "reservations",
               movies: "movies",
               recipes: "recipes",
-              places: "places",
             } as const
           )[table];
           setData((d) =>
@@ -433,7 +423,6 @@ function useStore() {
               gift_reservations: "reservations",
               movies: "movies",
               recipes: "recipes",
-              places: "places",
             } as const
           )[table];
           setData((d) =>
@@ -505,7 +494,6 @@ function useStore() {
               gift_reservations: "reservations",
               movies: "movies",
               recipes: "recipes",
-              places: "places",
             } as const
           )[table];
           setData((d) =>
@@ -579,13 +567,6 @@ function useStore() {
       { ...value, couple_id: coupleId, created_by: userId },
       "add-event",
       "План збережено",
-    );
-  const addPlace = (value: NewPlace) =>
-    insert(
-      "places",
-      { ...value, couple_id: coupleId, created_by: userId },
-      "add-place",
-      "Місце збережено",
     );
   const addMovie = (value: NewMovie) =>
     insert(
@@ -887,7 +868,6 @@ function useStore() {
     addShopping,
     addWish,
     addEvent,
-    addPlace,
     addMovie,
     addRecipe,
     upsertMenu,

@@ -46,23 +46,6 @@ export type Wish = {
   size: string;
   created_at: string;
 };
-export type Place = {
-  id: string;
-  couple_id: string;
-  title: string;
-  type: "Кінотеатр" | "Театр" | "Музей" | "Виставка" | "Парк" | "Зоопарк" | "Інше";
-  address: string;
-  url: string;
-  planned_date: string | null;
-  description: string;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-};
-export type NewPlace = Pick<
-  Place,
-  "title" | "type" | "address" | "url" | "planned_date" | "description"
->;
 export type Reservation = {
   id: string;
   wish_id: string;
@@ -218,7 +201,6 @@ export type Data = {
   wishes: Wish[];
   reservations: Reservation[];
   events: Plan[];
-  places: Place[];
   history: ProductHistory[];
 };
 export type Table =
@@ -227,8 +209,7 @@ export type Table =
   | "wishes"
   | "events"
   | "gift_reservations"
-  | "movies"
-  | "places";
+  | "movies";
 export type NewShopping = Pick<
   ShoppingItem,
   "name" | "quantity" | "unit" | "category" | "price"
