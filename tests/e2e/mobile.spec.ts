@@ -365,3 +365,52 @@ test("calendar shows upcoming events and countdown when today is empty", async (
   await expect(page.getByText(/Через 2 дні/)).toBeVisible();
   await fit(page);
 });
+
+test("a complete dish photo card fits every compact viewport", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.evaluate(() => {
+    const data = JSON.parse(localStorage.getItem("ours-demo-v1")!);
+    data.recipes = [
+      {
+        id: "photo-recipe",
+        couple_id: "demo-couple",
+        title: "Плов із фото",
+        category: "main",
+        image_url: "https://example.com/plov.jpg",
+        source_url: "",
+        ingredients: ["200 г рису"],
+        instructions: ["Зваріть рис."],
+        added_by: "demo-anna",
+        created_at: new Date().toISOString(),
+      },
+    ];
+    localStorage.setItem("ours-demo-v1", JSON.stringify(data));
+    localStorage.setItem(
+      "ours-menu-demo-anna",
+      JSON.stringify({
+        side: "Картопляне пюре",
+        protein: "Курка з травами",
+        salad: "Огірок, помідор і зелень",
+        main: "Плов із фото",
+      }),
+    );
+  });
+  await page.reload();
+  await choose(page, "Меню");
+  await page
+    .getByRole("button", { name: "Повноцінна страва", exact: true })
+    .click();
+  for (const viewport of [
+    { width: 320, height: 568 },
+    { width: 390, height: 664 },
+    { width: 390, height: 844 },
+    { width: 844, height: 390 },
+    { width: 1280, height: 800 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect(page.locator(".menu-course")).toHaveCount(1);
+    await fit(page);
+  }
+});
