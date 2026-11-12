@@ -422,7 +422,7 @@ export default function Plants() {
                     >
                       <strong>{plant.name}</strong>
                     </button>
-                    <div className="plant-card-next">
+                    <div className={`plant-card-next${due ? " plant-card-next-due" : ""}`}>
                       {due ? (
                         <button
                           className="plant-water-button"

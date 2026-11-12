@@ -633,6 +633,7 @@ test("calendar accepts a public HTTPS link and shows it in event details", async
 test("plants show an individual watering countdown and record watering", async ({
   page,
 }) => {
+  const plantName = "Кактус із дуже довгою назвою для вузького екрана";
   await page.goto("/");
   await choose(page, "Рослини");
   await expect(page.getByText("Додай першу рослину")).toBeVisible();
@@ -643,7 +644,7 @@ test("plants show an individual watering countdown and record watering", async (
     { name: "whole-plant.png", mimeType: "image/png", buffer: photo },
   ]);
   await expect(page.getByText("Фото: 2 із 5")).toBeVisible();
-  await page.getByLabel("Назва рослини").fill("Кактус");
+  await page.getByLabel("Назва рослини").fill(plantName);
   await page.getByText("Догляд та нагадування").click();
   await page.getByLabel("Інтервал перевірки, днів").fill("21");
   const lastWatered = new Date();
@@ -652,16 +653,27 @@ test("plants show an individual watering countdown and record watering", async (
     .getByLabel("Останній полив")
     .fill(lastWatered.toISOString().slice(0, 10));
   await page.getByRole("button", { name: "Зберегти рослину" }).click();
+  await page.setViewportSize({ width: 320, height: 568 });
   const waterButton = page.getByRole("button", {
-    name: "Відмітити полив · Кактус",
+    name: `Відмітити полив · ${plantName}`,
   });
   await expect(waterButton).toBeVisible();
+  const layout = await page.locator(".plant-card").evaluate((card) => {
+    const name = card.querySelector(".plant-card-main strong")!;
+    const button = card.querySelector(".plant-water-button")!;
+    return {
+      wraps: name.getBoundingClientRect().height > 30,
+      fits: name.scrollWidth <= name.clientWidth,
+      atRight: button.getBoundingClientRect().right >= card.getBoundingClientRect().right - 12,
+    };
+  });
+  expect(layout).toEqual({ wraps: true, fits: true, atRight: true });
   await waterButton.click();
   await expect(waterButton).toHaveCount(0);
   await expect(page.locator(".plant-card time")).toHaveAttribute("dateTime", /^\d{4}-\d{2}-\d{2}$/);
   await expect(page.locator(".plant-card-meter > span")).toHaveAttribute("style", "width: 0%;");
-  await page.getByRole("button", { name: "Деталі рослини · Кактус" }).click();
-  await expect(page.getByRole("heading", { name: "Кактус" })).toBeVisible();
+  await page.getByRole("button", { name: `Деталі рослини · ${plantName}` }).click();
+  await expect(page.getByRole("heading", { name: plantName })).toBeVisible();
   await expect(page.getByText(/інтервал зараз 21 дн\./)).toBeVisible();
 });
 

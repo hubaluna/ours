@@ -645,12 +645,10 @@ p {
 }
 .plant-card-main > strong {
   display: block;
-  overflow: hidden;
   font-size: 18px;
   font-weight: 500;
   line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .plant-photo {
   display: grid;
@@ -681,6 +679,9 @@ p {
   display: flex;
   align-items: center;
   min-height: 35px;
+}
+.plant-card-next-due {
+  justify-content: flex-end;
 }
 .plant-card-next time {
   color: var(--accent);
