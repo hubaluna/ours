@@ -1,6 +1,6 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
-const tabs = ["Головна", "Покупки", "Меню", "Кіно", "Бажання", "Календар"];
+const tabs = ["Головна", "Покупки", "Меню", "Кіно", "Бажання", "Календар", "Рослини"];
 const nav = (page: Page) =>
   page.getByRole("navigation", { name: "Основна навігація" });
 async function choose(page: Page, tab: string) {
@@ -30,7 +30,7 @@ async function fit(page: Page) {
         const buttons = Array.from(
           document.querySelectorAll<HTMLButtonElement>(".bottom-nav > button"),
         );
-        if (!shell || buttons.length !== 6) return false;
+        if (!shell || buttons.length !== 7) return false;
         const outer = shell.getBoundingClientRect();
         const boxes = buttons.map((button) => button.getBoundingClientRect());
         const labels = buttons.map((button) =>
@@ -129,7 +129,7 @@ async function shot(page: Page, name: string) {
     fullPage: false,
   });
 }
-test("six tabs, unseen updates, shopping, movies, calendar and appearance", async ({
+test("seven tabs, unseen updates, shopping, movies, calendar and appearance", async ({
   page,
 }) => {
   test.setTimeout(90_000);
@@ -252,7 +252,7 @@ for (const viewport of [
   { width: 844, height: 390 },
   { width: 1280, height: 800 },
 ])
-  test(`all six screens fit ${viewport.width}x${viewport.height} without document scroll`, async ({
+  test(`all seven screens fit ${viewport.width}x${viewport.height} without document scroll`, async ({
     page,
   }) => {
     await page.setViewportSize(viewport);
