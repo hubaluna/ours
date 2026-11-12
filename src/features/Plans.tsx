@@ -273,6 +273,13 @@ export default function Plans() {
                   <a className="button secondary" href={`webcal://${calendarFeed.replace(/^https?:\/\//, "")}`}><CalendarDays size={17} /> Додати в Apple Calendar</a>
                   <a className="button secondary" href={`https://calendar.google.com/calendar/u/0/r/settings/addbyurl?url=${encodeURIComponent(calendarFeed)}`} target="_blank" rel="noopener noreferrer"><ExternalLink size={17} /> Додати в Google Calendar</a>
                   <Button className="ghost" busy={feedBusy} onClick={() => void navigator.clipboard?.writeText(calendarFeed).catch(() => setFeedError("Не вдалося скопіювати посилання."))}><Copy size={16} /> Копіювати посилання</Button>
+                  <details className="calendar-manual-instructions">
+                    <summary>Куди вставити посилання вручну?</summary>
+                    <div>
+                      <p><strong>Google Calendar:</strong> у браузері відкрий «Інші календарі» → «+» → «З URL-адреси» та встав посилання.</p>
+                      <p><strong>iPhone:</strong> Налаштування → Програми → Календар → Облікові записи календарів → Додати обліковий запис → Інше → Додати підписаний календар.</p>
+                    </div>
+                  </details>
                   <Button className="danger ghost" busy={feedBusy} onClick={() => void revokeCalendarFeed()}>Відкликати посилання</Button>
                   <small>Посилання дає доступ до назв, часу, місця й описів подій. Для приватності не пересилайте його іншим. Відкличте його тут, щоб зупинити підписку.</small>
                 </>

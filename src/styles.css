@@ -1598,6 +1598,27 @@ p {
   color: var(--text);
   font-size: 12px;
 }
+.calendar-manual-instructions {
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--surface) 52%, var(--card));
+}
+.calendar-manual-instructions summary {
+  padding: 10px 12px;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.calendar-manual-instructions > div {
+  display: grid;
+  gap: 8px;
+  padding: 0 12px 11px;
+}
+.calendar-manual-instructions p {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
 .event-form {
   gap: 14px;
 }
