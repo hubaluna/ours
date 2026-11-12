@@ -54,6 +54,27 @@ const saved = () => JSON.parse(localStorage.getItem("ours-demo-v1")!);
 const closed = () =>
   waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 describe("Compact seven-tab app", () => {
+  it("groups shopping items by supermarket category and auto-files legacy items", async () => {
+    const user = userEvent.setup();
+    await user.click(nav().getByText("Покупки"));
+    await waitFor(() =>
+      expect(document.querySelectorAll(".shopping-category-group")).toHaveLength(3),
+    );
+    const groups = [...document.querySelectorAll(".shopping-category-group")];
+    expect(groups.map((group) => group.querySelector("h2")?.textContent)).toEqual([
+      "М’ясо, риба та яйця",
+      "Молочне",
+      "Хліб і випічка",
+    ]);
+    expect(
+      screen
+        .getByRole("button", { name: "Редагувати Яйця" })
+        .closest(".shopping-category-group")
+        ?.querySelector("h2")?.textContent,
+    ).toBe("М’ясо, риба та яйця");
+    expect(document.querySelector(".pager")).not.toBeInTheDocument();
+  });
+
   it("filters and labels shopping sessions by Kyiv date near UTC midnight", async () => {
     cleanup();
     const data = createDemo(),
@@ -137,19 +158,14 @@ describe("Compact seven-tab app", () => {
       (saved().shopping as { purchased: boolean; session_id: string | null }[])
         .filter((item) => !item.purchased && !item.session_id).length
     ) {
-      const visible = screen.queryAllByRole("checkbox", {
+      const remaining = screen.queryAllByRole("checkbox", {
         name: /^Куплено:/,
       });
-      if (!visible.length) {
-        const next = screen.getByRole("button", { name: "Наступна сторінка" });
-        expect(next).toBeEnabled();
-        await user.click(next);
-        continue;
-      }
+      expect(remaining.length).toBeGreaterThan(0);
       const before = (saved().shopping as { purchased: boolean }[]).filter(
         (item) => !item.purchased,
       ).length;
-      await user.click(visible[0]);
+      await user.click(remaining[0]);
       await waitFor(() =>
         expect(
           (saved().shopping as { purchased: boolean }[]).filter(

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { AnimatePresence } from "motion/react";
 import {
   Check,
@@ -54,14 +54,6 @@ export default function Menu() {
       Boolean(row.recipe),
     );
   const busy = pending.includes("menu");
-  const [rowHeight, setRowHeight] = useState(
-    window.innerHeight < 500 ? 94 : 141,
-  );
-  useEffect(() => {
-    const resize = () => setRowHeight(window.innerHeight < 500 ? 94 : 141);
-    window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
-  }, []);
   const openCatalog = () => {
     setDetail(null);
     setShowPlan(false);
@@ -127,7 +119,6 @@ export default function Menu() {
         {showPlan ? (
           <PagedList
             items={rows}
-            rowHeight={rowHeight}
             empty={<div className="menu-plan-empty">Страв ще не додано</div>}
             render={({ item, recipe }) => (
               <article className="meal-row" key={item.id}>

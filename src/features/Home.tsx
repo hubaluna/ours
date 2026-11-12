@@ -67,7 +67,6 @@ export default function Home({ navigate }: { navigate: (tab: Tab) => void }) {
       <div className="screen-panel feed-panel">
         <PagedList
           items={updates}
-          rowHeight={84}
           empty={
             <EmptyState
               title="Усе нове вже бачили"

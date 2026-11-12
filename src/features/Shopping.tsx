@@ -15,6 +15,7 @@ import { ShoppingForm } from "../components/Forms";
 import { AddButton, PagedList, ScreenHeader } from "../components/Compact";
 import { LinkImport } from "../components/LinkImportLoader";
 import { kyivDate, longDate, money } from "../lib/utils";
+import { groceryCategory } from "../../supabase/functions/_shared/grocery-category";
 export default function Shopping() {
   const { data, archive, repeat, pending, addShoppingBatch } = useApp();
   const [form, setForm] = useState<ShoppingItem | "new" | null>(null),
@@ -28,9 +29,32 @@ export default function Shopping() {
   const current = data.shopping.filter((i) => !i.session_id),
     active = current.filter((i) => !i.purchased),
     done = current.filter((i) => i.purchased);
-  const filtered = (view === "active" ? active : done).filter(
-    (i) => category === "all" || i.category === category,
-  );
+  const filtered = (view === "active" ? active : done)
+    .map((item) => ({
+      item,
+      category:
+        item.category === "Інше"
+          ? groceryCategory(item.name)
+          : item.category,
+    }))
+    .filter(({ category: itemCategory }) =>
+      category === "all" || itemCategory === category,
+    )
+    .sort((a, b) => {
+      const categoryOrder =
+        categories.indexOf(a.category as (typeof categories)[number]) -
+        categories.indexOf(b.category as (typeof categories)[number]);
+      return (
+        (categoryOrder || 0) ||
+        a.item.name.localeCompare(b.item.name, "uk")
+      );
+    });
+  const grouped = categories
+    .map((name) => ({
+      name,
+      items: filtered.filter((entry) => entry.category === name),
+    }))
+    .filter((group) => group.items.length > 0);
   const total = current.reduce((n, i) => n + (i.price ?? 0), 0);
   const historySessions = [...data.sessions]
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
@@ -97,14 +121,18 @@ export default function Shopping() {
       <div className="screen-panel">
         <PagedList
           key={`${view}-${category}`}
-          items={filtered}
-          rowHeight={48}
-          render={(item) => (
-            <ShoppingRow
-              key={item.id}
-              item={item}
-              onEdit={() => setForm(item)}
-            />
+          items={grouped}
+          render={(group) => (
+            <section className="shopping-category-group" key={group.name}>
+              <h2 className="shopping-category-heading">{group.name}</h2>
+              {group.items.map(({ item }) => (
+                <ShoppingRow
+                  key={item.id}
+                  item={item}
+                  onEdit={() => setForm(item)}
+                />
+              ))}
+            </section>
           )}
           empty={
             <EmptyState

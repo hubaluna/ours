@@ -369,43 +369,16 @@ p {
 .paged-content {
   min-height: 0;
   flex: 1;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
 }
 .paged-rows {
   background: var(--card);
   border-radius: var(--radius);
   box-shadow: inset 0 0 0 1px var(--line);
   overflow: hidden;
-}
-.pager {
-  height: 43px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0;
-  gap: 8px;
-  font-size: 10px;
-  color: var(--muted);
-}
-.pager > div {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-variant-numeric: tabular-nums;
-}
-.pager .icon-button {
-  height: 32px;
-  width: 34px;
-  min-height: 32px;
-  border-radius: 10px;
-  background: transparent;
-}
-.pager .icon-button:before {
-  content: "";
-  position: absolute;
-  width: 44px;
-  height: 40px;
 }
 .compact-toolbar {
   display: flex;
@@ -418,8 +391,12 @@ p {
   flex: 1;
 }
 .segmented {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
   padding: 4px;
   background: var(--surface);
   border-radius: 15px;
@@ -431,9 +408,11 @@ p {
   position: relative;
   display: flex;
   align-items: center;
-  width: 100%;
-  text-align: left;
-  min-width: 0;
+  justify-content: center;
+  flex: 1 0 auto;
+  width: auto;
+  text-align: center;
+  min-width: max-content;
   min-height: 36px;
   padding: 7px 10px;
   font-size: 11px;
@@ -451,7 +430,11 @@ p {
 }
 .segmented > button > span:last-child {
   position: relative;
-  white-space: normal;
+  white-space: nowrap;
+}
+.segmented::-webkit-scrollbar,
+.catalog-category-filters::-webkit-scrollbar {
+  display: none;
 }
 .filter-line {
   height: 28px;
@@ -489,6 +472,17 @@ p {
   gap: 12px;
   padding: 2px 16px;
   position: relative;
+}
+.shopping-category-group + .shopping-category-group {
+  margin-top: 9px;
+  border-top: 1px solid var(--line);
+}
+.shopping-category-heading {
+  padding: 10px 15px 3px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 .screen.shopping-screen {
   gap: 8px;
@@ -2180,10 +2174,6 @@ p {
   .screen-panel {
     border-radius: 25px;
   }
-  .pager {
-    padding-left: 20px;
-    padding-right: 20px;
-  }
 }
 @media (max-width: 600px) {
   .app-shell {
@@ -2358,19 +2348,6 @@ p {
   }
   .day-plans .empty-state p {
     font-size: 10px;
-  }
-  .pager {
-    height: 39px;
-    padding: 0 10px;
-    font-size: 9px;
-  }
-  .pager > div {
-    gap: 4px;
-  }
-  .pager .icon-button {
-    height: 31px;
-    width: 31px;
-    min-height: 31px;
   }
   .calendar-event-row {
     padding-left: 12px;
@@ -2633,9 +2610,6 @@ p {
   .segmented > button {
     min-height: 30px;
   }
-  .pager {
-    height: 34px;
-  }
 }
 @supports not (
   (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
@@ -2692,11 +2666,6 @@ p {
 }
 .button {
   position: relative;
-}
-.pager .icon-button:before {
-  inset: -4px -6px;
-  width: auto;
-  height: auto;
 }
 .calendar-month {
   display: flex;
@@ -2879,11 +2848,6 @@ p {
   border-radius: 18px;
   padding-top: 10px;
   padding-bottom: 10px;
-}
-.feed-panel .pager {
-  border-top: 0;
-  padding-left: 0;
-  padding-right: 0;
 }
 .ingredient {
   grid-template-columns: 20px 1fr 57px 48px;
@@ -3406,18 +3370,21 @@ p {
   gap: 9px;
 }
 .catalog-category-filters {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  max-height: 124px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
+  display: flex;
+  gap: 5px;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
 }
 .catalog-category-filters button {
+  flex: 0 0 auto;
   min-height: 36px;
   padding: 7px 10px;
-  border-bottom: 1px solid var(--line);
-  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  text-align: center;
   font-size: 11px;
 }
 .catalog-category-filters button[aria-pressed="true"] {
@@ -3737,7 +3704,7 @@ p {
   font-size: 12px;
 }
 .recipe-catalog-inline .catalog-category-filters {
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
 }
 .recipe-catalog-inline .catalog-filter-row {
   gap: 5px;

@@ -219,7 +219,6 @@ export default function Plans() {
           <div className="screen-panel">
             <PagedList
               items={shownEvents}
-              rowHeight={70}
               empty={
                 <EmptyState
                   title="День відкритий для ідей"

@@ -211,7 +211,6 @@ export default function Wishes() {
         <PagedList
           key={view}
           items={wishes}
-          rowHeight={102}
           empty={
             <EmptyState
               title={

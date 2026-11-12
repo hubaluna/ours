@@ -116,11 +116,7 @@ async function fit(page: Page) {
     .toBe(true);
 }
 async function seek(page: Page, locator: Locator) {
-  for (let i = 0; i < 12 && (await locator.count()) === 0; i++) {
-    const next = page.getByRole("button", { name: "Наступна сторінка" });
-    if (!(await next.isEnabled())) break;
-    await next.click();
-  }
+  await locator.scrollIntoViewIfNeeded();
   await expect(locator).toBeVisible();
 }
 async function shot(page: Page, name: string) {
@@ -172,7 +168,8 @@ test("six tabs, unseen updates, shopping, movies, calendar and appearance", asyn
   await item.click();
   await page.getByRole("button", { name: "Потрібно · 6" }).click();
   await fit(page);
-  await expect(page.locator(".pager")).toContainText("із 6");
+  await expect(page.locator(".paged-rows .shopping-row")).toHaveCount(6);
+  await expect(page.locator(".pager")).toHaveCount(0);
   await shot(page, "shopping");
   await choose(page, "Меню");
   await page.getByRole("button", { name: "Згенерувати вечерю" }).click();
@@ -571,8 +568,6 @@ test("calendar accepts a public HTTPS link and shows it in event details", async
   await dialog.getByLabel("Посилання · необов’язково").fill("https://example.com/event");
   await dialog.getByRole("button", { name: "Додати план" }).click();
   await expect(dialog).not.toBeVisible();
-  const nextEventsPage = page.locator(".day-plans").getByRole("button", { name: "Наступна сторінка" });
-  if (await nextEventsPage.isEnabled()) await nextEventsPage.click();
   await page.getByRole("button", { name: "Посилання на подію" }).click();
   await expect(dialog.getByText("Забронювати два квитки біля сцени")).not.toBeVisible();
   await dialog.getByRole("button", { name: "Довідково" }).click();

@@ -98,7 +98,6 @@ export default function Movies() {
         <PagedList
           key={view}
           items={movies}
-          rowHeight={112}
           empty={
             <EmptyState
               title={
