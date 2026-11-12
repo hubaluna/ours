@@ -579,17 +579,25 @@ function useStore() {
     run(
       "add-plant",
       async () => {
-        const row: Plant = {
-          id: crypto.randomUUID(),
-          couple_id: coupleId ?? DEMO_COUPLE,
-          added_by: userId,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          ...value,
-        };
-        if (supabase)
-          await checked(supabase.from("plants").insert(row).select("id").single());
-        else setData((d) => ({ ...d, plants: [row, ...d.plants] }));
+        if (supabase) {
+          await checked(
+            supabase
+              .from("plants")
+              .insert({ ...value, couple_id: coupleId, added_by: userId })
+              .select("id")
+              .single(),
+          );
+        } else {
+          const row: Plant = {
+            id: crypto.randomUUID(),
+            couple_id: coupleId ?? DEMO_COUPLE,
+            added_by: userId,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            ...value,
+          };
+          setData((d) => ({ ...d, plants: [row, ...d.plants] }));
+        }
       },
       "Рослину збережено",
     );

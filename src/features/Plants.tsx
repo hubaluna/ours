@@ -148,6 +148,7 @@ function PlantForm({ onClose }: { onClose: () => void }) {
           : "",
       };
       if (await addPlant(value)) onClose();
+      else setError("Не вдалося зберегти рослину. Спробуй ще раз.");
     } catch (reason) {
       const message =
         reason instanceof Error
