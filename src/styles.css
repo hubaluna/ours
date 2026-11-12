@@ -733,7 +733,7 @@ p {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  text-align: center;
+  text-align: left;
 }
 .activity-row strong {
   font-weight: 400;
@@ -2933,6 +2933,41 @@ p {
   border-radius: 18px;
   padding-top: 10px;
   padding-bottom: 10px;
+}
+.feed-panel .activity-row.activity-shopping {
+  background: linear-gradient(
+    112deg,
+    color-mix(in srgb, var(--gradient-mint) 40%, var(--card)),
+    color-mix(in srgb, var(--surface) 30%, var(--card))
+  );
+}
+.feed-panel .activity-row.activity-recipes {
+  background: linear-gradient(
+    112deg,
+    color-mix(in srgb, var(--gradient-mint) 66%, var(--card)),
+    color-mix(in srgb, var(--gradient-warm) 30%, var(--card))
+  );
+}
+.feed-panel .activity-row.activity-movies {
+  background: linear-gradient(
+    112deg,
+    color-mix(in srgb, var(--gradient-cool) 62%, var(--card)),
+    color-mix(in srgb, var(--gradient-violet) 36%, var(--card))
+  );
+}
+.feed-panel .activity-row.activity-wishes {
+  background: linear-gradient(
+    112deg,
+    color-mix(in srgb, var(--gradient-rose) 65%, var(--card)),
+    color-mix(in srgb, var(--gradient-violet) 38%, var(--card))
+  );
+}
+.feed-panel .activity-row.activity-events {
+  background: linear-gradient(
+    112deg,
+    color-mix(in srgb, var(--gradient-warm) 58%, var(--card)),
+    color-mix(in srgb, var(--gradient-rose) 38%, var(--card))
+  );
 }
 .ingredient {
   grid-template-columns: 20px 1fr 57px 48px;
