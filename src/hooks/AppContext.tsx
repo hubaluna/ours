@@ -207,7 +207,13 @@ function useStore() {
           "occurred_at",
           false,
         ),
-        readAll<RecipeFavorite>("recipe_favorites", { user_id: userId }),
+        checked(
+          supabase
+            .from("recipe_favorites")
+            .select("user_id,recipe_key")
+            .eq("user_id", userId)
+            .order("recipe_key"),
+        ) as Promise<RecipeFavorite[]>,
         readAll<RecipeCook>(
           "recipe_cooks",
           { couple_id: couple },
