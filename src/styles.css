@@ -191,10 +191,23 @@ p {
   line-height: 1;
   padding: 0 0 7px;
   text-decoration: none;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
 }
 .brand > span {
   color: var(--sage);
+}
+.brand-mascot {
+  width: 35px;
+  height: 30px;
+  margin-left: 5px;
+  align-self: flex-end;
+  border-radius: 10px 10px 4px 4px;
+  border-bottom: 2px solid color-mix(in srgb, var(--sage) 58%, var(--line));
+  object-fit: cover;
+  object-position: center 48%;
+  box-shadow: 0 4px 9px #25342b18;
 }
 .header-right {
   display: flex;
@@ -285,6 +298,34 @@ p {
 }
 .screen-header > div:first-child {
   min-width: 0;
+}
+.screen-title-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.section-mascot {
+  flex: 0 0 auto;
+  width: 42px;
+  height: 34px;
+  border-radius: 11px 11px 5px 5px;
+  border-bottom: 2px solid color-mix(in srgb, var(--sage) 55%, var(--line));
+  background: color-mix(in srgb, var(--card) 80%, transparent);
+  object-fit: cover;
+  object-position: center 52%;
+  box-shadow: 0 4px 10px #25342b16;
+  animation: mascot-arrive 380ms ease-out both;
+}
+@keyframes mascot-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(3px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 .screen-header h1 {
   white-space: nowrap;
@@ -806,30 +847,6 @@ p {
   isolation: isolate;
   background: color-mix(in srgb, var(--card) 88%, transparent);
   overflow: visible;
-}
-.app-mascot {
-  position: absolute;
-  z-index: 5;
-  display: block;
-  pointer-events: none;
-  user-select: none;
-}
-.app-mascot-logo {
-  top: calc(2px + env(safe-area-inset-top));
-  left: 102px;
-  width: 44px;
-  height: 56px;
-  object-fit: contain;
-  filter: drop-shadow(0 4px 5px #25342b22);
-}
-.app-mascot-nav {
-  bottom: calc(3px + env(safe-area-inset-bottom));
-  left: calc(50% - 48px);
-  width: 96px;
-  height: 72px;
-  object-fit: contain;
-  object-position: center bottom;
-  filter: drop-shadow(0 5px 8px #25342b26);
 }
 .bottom-nav:after {
   content: "";
@@ -3437,8 +3454,9 @@ p {
   }
 }
 @media (max-height: 500px) {
-  .app-mascot {
-    display: none;
+  .section-mascot {
+    width: 34px;
+    height: 28px;
   }
 }
 @media (max-height: 640px) {

@@ -1,6 +1,7 @@
 import { Plus } from "lucide-react";
-import type { ReactNode } from "react";
+import { useContext, type ReactNode } from "react";
 import { Button } from "./ui";
+import { MascotContext } from "./MascotContext";
 export function ScreenHeader({
   title,
   subtitle,
@@ -10,10 +11,21 @@ export function ScreenHeader({
   subtitle?: string;
   children?: ReactNode;
 }) {
+  const mascot = useContext(MascotContext);
   return (
     <header className="screen-header">
       <div>
-        <h1>{title}</h1>
+        <div className="screen-title-row">
+          <h1>{title}</h1>
+          {mascot && (
+            <img
+              className="section-mascot"
+              src={`${import.meta.env.BASE_URL}art/${mascot.image}`}
+              alt=""
+              aria-hidden="true"
+            />
+          )}
+        </div>
         {subtitle && <p>{subtitle}</p>}
       </div>
       <div className="screen-actions">{children}</div>

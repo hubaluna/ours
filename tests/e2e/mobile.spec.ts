@@ -625,15 +625,15 @@ test("calendar accepts a public HTTPS link and shows it in event details", async
   await expect(page.getByRole("link", { name: "Відкрити посилання" })).toHaveAttribute("href", "https://example.com/event");
 });
 
-test("55 recipes, filters, ranked pairings, one-click pair and portion changes survive reload", async ({
+test("56 recipes, filters, ranked pairings, one-click pair and portion changes survive reload", async ({
   page,
 }) => {
   await page.goto("/");
   await choose(page, "Меню");
   await page.getByRole("button", { name: "Страви", exact: true }).click();
   const catalog = page.getByRole("region", { name: "Каталог рецептів" });
-  await expect(catalog.locator(".catalog-count")).toContainText("55 рецептів");
-  await expect(catalog.locator(".catalog-card")).toHaveCount(55);
+  await expect(catalog.locator(".catalog-count")).toContainText("56 рецептів");
+  await expect(catalog.locator(".catalog-card")).toHaveCount(56);
   await expect(catalog.getByRole("heading", { name: "Каталог рецептів" })).toHaveCount(0);
   await expect(catalog.getByText("Пошук страви або продукту", { exact: true })).toHaveCount(0);
   await expect(catalog.getByLabel("Пошук страви або продукту")).toBeVisible();
@@ -652,7 +652,7 @@ test("55 recipes, filters, ranked pairings, one-click pair and portion changes s
   await catalog
     .getByRole("button", { name: "М’ясо та риба", exact: true })
     .click();
-  await expect(catalog.locator(".catalog-count")).toContainText("18 рецептів");
+  await expect(catalog.locator(".catalog-count")).toContainText("19 рецептів");
   await catalog.getByLabel("Пошук страви або продукту").fill("кисло");
   await expect(catalog.locator(".catalog-card")).toHaveCount(1);
   await catalog.locator(".catalog-card-main").click();
@@ -716,6 +716,28 @@ test("55 recipes, filters, ranked pairings, one-click pair and portion changes s
   ).toBe(3);
   await fit(page);
   await shot(page, "catalog-pair-menu");
+});
+
+test("fried chicken with onion is available as a menu recipe", async ({ page }) => {
+  await page.goto("/");
+  await choose(page, "Меню");
+  await page.getByRole("button", { name: "Страви", exact: true }).click();
+  const catalog = page.getByRole("region", { name: "Каталог рецептів" });
+  await catalog.getByLabel("Пошук страви або продукту").fill("Смажене куряче філе з цибулею");
+  const card = catalog.locator(".catalog-card");
+  await expect(card).toHaveCount(1);
+  await expect(card.locator("img")).toHaveAttribute("src", /pan_chicken_fillet_onion\.jpg$/);
+  await card.locator(".catalog-card-main").click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading", { name: "Смажене куряче філе з цибулею" })).toBeVisible();
+  await expect(dialog.getByText("Цибуля", { exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "Додати до меню" }).click();
+  await expect(dialog).not.toBeVisible();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("ours-demo-v1")!));
+  expect(saved.mealPlan).toHaveLength(1);
+  expect(saved.mealPlan[0].catalog_id).toBe("ours55/pan_chicken_fillet_onion");
+  expect(saved.shopping.map((item: { name: string }) => item.name)).toContain("Цибуля");
+  expect(saved.shopping.map((item: { name: string }) => item.name)).toContain("Куряче філе");
 });
 
 test("a salad alone fits every compact viewport and uses its matching image", async ({

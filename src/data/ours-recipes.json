@@ -3,7 +3,7 @@
     "schemaVersion": "1.0.0",
     "app": "Ours",
     "language": "uk-UA",
-    "recipeCount": 55,
+    "recipeCount": 56,
     "portionRule": {
       "baseServings": 1,
       "minServings": 1,
@@ -3037,6 +3037,33 @@
       "image": "images/stuffed_peppers.jpg",
       "imageType": "placeholder",
       "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D0%A4%D0%B0%D1%80%D1%88%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D1%96%20%D0%BF%D0%B5%D1%80%D1%86%D1%96%20%D0%B3%D0%BE%D1%82%D0%BE%D0%B2%D0%B0%20%D1%81%D1%82%D1%80%D0%B0%D0%B2%D0%B0%20%D1%84%D0%BE%D1%82%D0%BE"
+    },
+    {
+      "id": "pan_chicken_fillet_onion",
+      "title": "Смажене куряче філе з цибулею",
+      "category": "meat_fish",
+      "baseServings": 1,
+      "defaultServings": 1,
+      "totalTimeMinutes": 25,
+      "difficulty": "easy",
+      "ingredients": [
+        { "name": "Куряче філе", "quantity": 200, "unit": "г" },
+        { "name": "Цибуля", "quantity": 80, "unit": "г" },
+        { "name": "Олія", "quantity": 10, "unit": "мл" },
+        { "name": "Сіль", "quantity": null, "unit": "за смаком" },
+        { "name": "Чорний перець", "quantity": null, "unit": "за смаком" }
+      ],
+      "steps": [
+        "Обсушіть філе й наріжте смужками або невеликими шматочками. Цибулю наріжте півкільцями.",
+        "Розігрійте олію на пательні. Викладіть курку одним шаром, посоліть і поперчіть; обсмажуйте 3–4 хвилини, помішуючи, до легкої золотистої скоринки.",
+        "Додайте цибулю та смажте ще 6–8 хвилин, поки вона стане м’якою й золотистою, а курка повністю приготується.",
+        "Перевірте, що всередині м’ясо досягло 74 °C, зніміть з вогню й дайте постояти 2 хвилини."
+      ],
+      "recommendedSideIds": ["mashed_potato", "buckwheat", "rice", "bulgur"],
+      "notes": "Подавайте як самостійну страву або з улюбленим гарніром.",
+      "image": "images/pan_chicken_fillet_onion.jpg",
+      "imageType": "generated_food_illustration",
+      "imageSearchUrl": "https://www.google.com/search?tbm=isch&q=%D1%81%D0%BC%D0%B0%D0%B6%D0%B5%D0%BD%D0%B5%20%D0%BA%D1%83%D1%80%D1%8F%D1%87%D0%B5%20%D1%84%D1%96%D0%BB%D0%B5%20%D0%B7%20%D1%86%D0%B8%D0%B1%D1%83%D0%BB%D0%B5%D1%8E"
     }
   ]
 }

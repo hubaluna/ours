@@ -660,13 +660,13 @@ describe("Shared recipe catalog, menu and atomic shopping", () => {
     }>(
       "select name,quantity,unit,purchased from public.shopping_items where session_id is null and menu_key is not null order by name,unit",
     );
-  it("imports 55 records idempotently, preserving all original fields", async () => {
+  it("imports 56 records idempotently, preserving recipe fields", async () => {
     await db.exec("reset role");
     await db.exec(sql);
     const before = await rows(
       "select id,original_data,updated_at from public.recipe_catalog order by id",
     );
-    expect(before).toHaveLength(55);
+    expect(before).toHaveLength(56);
     await db.exec(sql);
     expect(
       await rows(
@@ -674,7 +674,7 @@ describe("Shared recipe catalog, menu and atomic shopping", () => {
       ),
     ).toEqual(before);
     await asUser(a);
-    expect(await rows("select id from public.recipe_catalog")).toHaveLength(55);
+    expect(await rows("select id from public.recipe_catalog")).toHaveLength(56);
     await expect(rows("delete from public.recipe_catalog")).rejects.toThrow(
       /permission denied/,
     );

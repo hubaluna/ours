@@ -13,8 +13,8 @@ const mapping = {
   full_meals: "main",
 };
 export function validateRecipeArchive(data) {
-  if (!data || !Array.isArray(data.recipes) || data.recipes.length !== 55)
-    throw new Error("Expected all 55 recipes.");
+  if (!data || !Array.isArray(data.recipes))
+    throw new Error("Missing recipe catalog.");
   const ids = new Set();
   for (const recipe of data.recipes) {
     if (!/^[a-z][a-z0-9_]*$/.test(recipe.id) || ids.has(recipe.id))
@@ -76,6 +76,8 @@ export function validateRecipeArchive(data) {
         data.recipes.find((item) => item.id === id).category !== "sides"
       )
         throw new Error("Invalid recommended side reference.");
+  if (data.metadata?.recipeCount !== data.recipes.length)
+    throw new Error("Recipe count does not match catalog metadata.");
   return data;
 }
 export function catalogRows(data, site = "https://hubaluna.github.io/ours/") {
@@ -157,13 +159,13 @@ export async function importCatalog({
     query: `select count(*)::int as count,count(distinct source_id)::int as unique_ids,bool_and(base_servings=1) as one_base from public.recipe_catalog where package='${PACKAGE}'`,
   });
   if (
-    result?.[0]?.count !== 55 ||
-    result[0].unique_ids !== 55 ||
+    result?.[0]?.count !== rows.length ||
+    result[0].unique_ids !== rows.length ||
     !result[0].one_base
   )
     throw new Error("Catalog verification failed.");
   log(
-    "55 unique recipes verified, with ingredients, steps, time and image references.",
+    `${rows.length} unique recipes verified, with ingredients, steps, time and image references.`,
   );
 }
 if (

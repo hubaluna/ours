@@ -47,6 +47,6 @@ Management API для SQL позначений Supabase як experimental. За�
 
 Не генеруйте новий токен лише через його відсутність у задачі: спершу перевірте прив'язування середовища. [Налаштування Codex Cloud](https://developers.openai.com/codex/environments/cloud-environments).
 
-## Каталог 55 рецептів
+## Каталог рецептів
 
 Після міграції 005 окрема команда `npm run import:recipes` перевіряє каталог; `npm run import:recipes -- --apply` ідемпотентно імпортує пакет зі стабільними ID. Це не повторний запуск схеми. У поточному проєкті міграція й імпорт уже виконані. [Опис](RECIPE-CATALOG.md).

@@ -39,13 +39,13 @@ describe("Original recipe package, portions and pairing", () => {
     expect(isPantryStaple("1 кг свинини")).toBe(false);
     expect(isPantryStaple("1 ч. л. перцю болгарського")).toBe(false);
   });
-  it("preserves all 55 unique recipes, every original ingredient, step and image", () => {
+  it("preserves all 56 unique recipes, every recipe ingredient, step and image", () => {
     expect(validateRecipeArchive(archive)).toBe(archive);
-    expect(new Set(catalogRecipes.map((r) => r.catalogId)).size).toBe(55);
+    expect(new Set(catalogRecipes.map((r) => r.catalogId)).size).toBe(56);
     const importedRows = catalogRows(archive);
-    expect(importedRows).toHaveLength(55);
+    expect(importedRows).toHaveLength(56);
     expect(importedRows.every((entry) => entry.image_type === "generated_food_illustration")).toBe(true);
-    expect(new Set(importedRows.map((entry) => entry.image_url)).size).toBe(55);
+    expect(new Set(importedRows.map((entry) => entry.image_url)).size).toBe(56);
     for (const source of archive.recipes) {
       expect(
         importedRows.find((entry) => entry.source_id === source.id)?.original_data,
@@ -77,13 +77,25 @@ describe("Original recipe package, portions and pairing", () => {
     expect(
       catalogRecipes.filter((r) => r.imageType === "placeholder"),
     ).toHaveLength(0);
-    expect(catalogRecipes).toHaveLength(55);
+    expect(catalogRecipes).toHaveLength(56);
     expect(catalogRecipes.map((entry) => entry.imageType)).toEqual(
-      Array(55).fill("generated_food_illustration"),
+      Array(56).fill("generated_food_illustration"),
     );
     expect(catalogRecipes.filter((r) => r.category === "salad")).toHaveLength(
       17,
     );
+  });
+  it("includes fried chicken with onion and scales its ingredients", () => {
+    const chicken = recipe("pan_chicken_fillet_onion");
+    expect(chicken).toMatchObject({
+      title: "Смажене куряче філе з цибулею",
+      category: "protein",
+      baseServings: 1,
+      totalTimeMinutes: 25,
+      recommendedSideIds: ["mashed_potato", "buckwheat", "rice", "bulgur"],
+    });
+    expect(scaleIngredients(chicken.ingredients, 3)[0].quantity).toBe(600);
+    expect(readFileSync("public/recipes/ours55/pan_chicken_fillet_onion.jpg").subarray(0, 2).toString("hex")).toBe("ffd8");
   });
   it("rejects repeated identities and an accidental non-unit base portion", () => {
     expect(() =>
@@ -186,7 +198,7 @@ describe("Original recipe package, portions and pairing", () => {
         100,
       );
       expect(recommendations).toHaveLength(
-        selected.category === "side" ? 18 : 10,
+        selected.category === "side" ? 19 : 10,
       );
       recommendations.forEach((pair, i) => {
         expect(pair.recipe.category).toBe(
@@ -215,7 +227,7 @@ describe("Original recipe package, portions and pairing", () => {
     expect(
       pairingRecommendations(recipe("green_salad"), catalogRecipes),
     ).toEqual([]);
-    expect(recipeLibrary([])).toHaveLength(55);
+    expect(recipeLibrary([])).toHaveLength(56);
   });
 });
 describe("One-paragraph film plot", () => {

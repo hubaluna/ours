@@ -18,6 +18,7 @@ import { Avatar, Button, Skeleton, Toast } from "./components/ui";
 import { spring, enter } from "./lib/motion";
 import type { Tab } from "./lib/types";
 import { useRegisterSW } from "virtual:pwa-register/react";
+import { MascotContext, type MascotPose } from "./components/MascotContext";
 const screens = {
   home: () => import("./features/Home"),
   shopping: () => import("./features/Shopping"),
@@ -41,7 +42,6 @@ const tabs = [
   { id: "wishes", label: "Бажання", icon: Gift },
   { id: "plans", label: "Календар", icon: CalendarDays },
 ] as const;
-type MascotPose = { placement: "logo" | "nav"; image: string } | null;
 const catPhotos = [
   "cat-sitting.webp",
   "cat-nav-peek.webp",
@@ -78,10 +78,7 @@ function useOccasionalCat(): MascotPose {
           }
           const image = catPhotos[photoIndex];
           setPose({
-            placement:
-              image === "cat-sitting.webp" || image === "cat-nav-peek.webp"
-                ? "logo"
-                : "nav",
+            placement: image === "cat-sitting.webp" ? "logo" : "section",
             image,
           });
           photoIndex = (photoIndex + 1) % catPhotos.length;
@@ -186,21 +183,6 @@ export default function App() {
         )
       ) : (
         <div className="app-shell">
-          <AnimatePresence>
-            {mascot && (
-              <motion.img
-                key={`${mascot.placement}-${mascot.image}`}
-                className={`app-mascot app-mascot-${mascot.placement}`}
-                src={`${import.meta.env.BASE_URL}art/${mascot.image}`}
-                alt=""
-                aria-hidden="true"
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 4 }}
-                transition={{ duration: 0.45 }}
-              />
-            )}
-          </AnimatePresence>
           <header className="app-header">
             <button
               className="brand"
@@ -208,6 +190,14 @@ export default function App() {
               aria-label="ours. — головна"
             >
               ours<span>.</span>
+              {mascot?.placement === "logo" && (
+                <img
+                  className="brand-mascot"
+                  src={`${import.meta.env.BASE_URL}art/${mascot.image}`}
+                  alt=""
+                  aria-hidden="true"
+                />
+              )}
             </button>
             <div className="header-right">
               <span
@@ -252,31 +242,35 @@ export default function App() {
               )}
             </div>
           )}
-          <main id="main-content">
-            {loading ? (
-              <Skeleton />
-            ) : (
-              <Suspense fallback={<Skeleton />}>
-                <AnimatePresence mode="wait">
-                  <motion.div className="tab-view" key={tab} {...enter}>
-                    {tab === "home" ? (
-                      <Home navigate={setTab} />
-                    ) : tab === "shopping" ? (
-                      <Shopping />
-                    ) : tab === "menu" ? (
-                      <Menu />
-                    ) : tab === "movies" ? (
-                      <Movies />
-                    ) : tab === "wishes" ? (
-                      <Wishes />
-                    ) : (
-                      <Plans />
-                    )}
-                  </motion.div>
-                </AnimatePresence>
-              </Suspense>
-            )}
-          </main>
+          <MascotContext.Provider
+            value={mascot?.placement === "section" ? mascot : null}
+          >
+            <main id="main-content">
+              {loading ? (
+                <Skeleton />
+              ) : (
+                <Suspense fallback={<Skeleton />}>
+                  <AnimatePresence mode="wait">
+                    <motion.div className="tab-view" key={tab} {...enter}>
+                      {tab === "home" ? (
+                        <Home navigate={setTab} />
+                      ) : tab === "shopping" ? (
+                        <Shopping />
+                      ) : tab === "menu" ? (
+                        <Menu />
+                      ) : tab === "movies" ? (
+                        <Movies />
+                      ) : tab === "wishes" ? (
+                        <Wishes />
+                      ) : (
+                        <Plans />
+                      )}
+                    </motion.div>
+                  </AnimatePresence>
+                </Suspense>
+              )}
+            </main>
+          </MascotContext.Provider>
           <nav className="bottom-nav glass" aria-label="Основна навігація">
             {tabs.map(({ id, label, icon: Icon }) => (
               <motion.button
