@@ -380,6 +380,16 @@ test("the catalog is the default menu view and card plus is idempotent", async (
     await fit(page);
   }
   await page.setViewportSize(originalViewport);
+  const switchRows = await page.locator(".menu-view-switch button").evaluateAll(
+    (buttons) => buttons.map((button) => button.getBoundingClientRect().y),
+  );
+  expect(switchRows).toHaveLength(2);
+  expect(Math.abs(switchRows[0] - switchRows[1])).toBeLessThanOrEqual(1);
+  const filterRows = await catalog
+    .locator(".catalog-filter-row label")
+    .evaluateAll((labels) => labels.map((label) => label.getBoundingClientRect().y));
+  expect(filterRows).toHaveLength(3);
+  expect(Math.max(...filterRows) - Math.min(...filterRows)).toBeLessThanOrEqual(1);
   await catalog.getByLabel("Пошук страви або продукту").fill("Рис");
   const title = await catalog.locator(".catalog-card h3").nth(1).innerText();
   const add = catalog.getByRole("button", {
