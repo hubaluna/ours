@@ -10,7 +10,7 @@ import {
 import type { Session } from "@supabase/supabase-js";
 import { checked, configured, supabase, readAll } from "../lib/supabase";
 import { DEMO_COUPLE, DEMO_USER, readDemo } from "../lib/demo";
-import { errorMessage } from "../lib/utils";
+import { errorMessage, kyivDate } from "../lib/utils";
 import type {
   Data,
   NewPlan,
@@ -25,6 +25,9 @@ import type {
   MealPlanItem,
   Plant,
   NewPlant,
+  PlantCareEvent,
+  RecipeFavorite,
+  RecipeCook,
 } from "../lib/types";
 import { customRecipeView, syncDemoMenuShopping } from "../lib/recipe-catalog";
 import { isPantryStaple } from "../../supabase/functions/_shared/grocery-category";
@@ -41,6 +44,9 @@ const empty: Data = {
   reservations: [],
   events: [],
   plants: [],
+  plantCare: [],
+  recipeFavorites: [],
+  recipeCooks: [],
   history: [],
 };
 type Notice = {
@@ -148,6 +154,9 @@ function useStore() {
         recipes,
         mealPlan,
         plants,
+        plantCare,
+        recipeFavorites,
+        recipeCooks,
       ] = await Promise.all([
         readAll<Profile>("profiles"),
         readAll<Data["shopping"][number]>("shopping_items", {
@@ -192,6 +201,19 @@ function useStore() {
         readAll<Data["recipes"][number]>("recipes", { couple_id: couple }),
         readAll<MealPlanItem>("meal_plan_items", { couple_id: couple }),
         readAll<Plant>("plants", { couple_id: couple }, "created_at", false),
+        readAll<PlantCareEvent>(
+          "plant_care_events",
+          { couple_id: couple },
+          "occurred_at",
+          false,
+        ),
+        readAll<RecipeFavorite>("recipe_favorites", { user_id: userId }),
+        readAll<RecipeCook>(
+          "recipe_cooks",
+          { couple_id: couple },
+          "cooked_at",
+          false,
+        ),
       ]);
       if (current !== revision.current) return;
       setCoupleId(couple);
@@ -205,6 +227,9 @@ function useStore() {
         reservations,
         events,
         plants,
+        plantCare,
+        recipeFavorites,
+        recipeCooks,
         history,
         movies,
         activities,
@@ -248,6 +273,8 @@ function useStore() {
       "recipes",
       "meal_plan_items",
       "plants",
+      "plant_care_events",
+      "recipe_cooks",
       "activity_events",
     ]) {
       for (const event of ["INSERT", "UPDATE"] as const)
@@ -268,6 +295,16 @@ function useStore() {
           () => void refresh(),
         );
     }
+    channel.on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "recipe_favorites",
+        filter: `user_id=eq.${userId}`,
+      },
+      () => void refresh(),
+    );
     channel.on(
       "postgres_changes",
       { event: "*", schema: "public", table: "profiles" },
@@ -351,10 +388,7 @@ function useStore() {
           id: crypto.randomUUID(),
           couple_id: DEMO_COUPLE,
           actor_id: userId,
-          kind:
-            table === "shopping_items"
-              ? "shopping"
-              : table,
+          kind: table === "shopping_items" ? "shopping" : table,
           action,
           entity_id: typeof row.id === "string" ? row.id : null,
           title: String(row.name || row.title || "Оновлення").slice(0, 160),
@@ -491,8 +525,7 @@ function useStore() {
             await checked(
               supabase.from(table).delete().eq("id", id).select("id").single(),
             );
-        }
-        else {
+        } else {
           const field = (
             {
               shopping_items: "shopping",
@@ -594,6 +627,7 @@ function useStore() {
             added_by: userId,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
+            wet_checked_at: null,
             ...value,
           };
           setData((d) => ({ ...d, plants: [row, ...d.plants] }));
@@ -630,10 +664,58 @@ function useStore() {
       `plant-${id}`,
       async () => {
         if (supabase)
-          await checked(supabase.from("plants").delete().eq("id", id).select("id").single());
-        else setData((d) => ({ ...d, plants: d.plants.filter((plant) => plant.id !== id) }));
+          await checked(
+            supabase.from("plants").delete().eq("id", id).select("id").single(),
+          );
+        else
+          setData((d) => ({
+            ...d,
+            plants: d.plants.filter((plant) => plant.id !== id),
+            plantCare: d.plantCare.filter((entry) => entry.plant_id !== id),
+          }));
       },
       "Рослину видалено",
+    );
+  const recordPlantCare = (id: string, action: "watered" | "wet") =>
+    run(
+      `plant-${id}`,
+      async () => {
+        if (supabase)
+          await checked(
+            supabase.rpc("record_plant_care", {
+              p_plant_id: id,
+              p_action: action,
+            }),
+          );
+        else
+          setData((d) => ({
+            ...d,
+            plants: d.plants.map((plant) =>
+              plant.id === id
+                ? {
+                    ...plant,
+                    ...(action === "watered"
+                      ? { last_watered_at: kyivDate(), wet_checked_at: null }
+                      : { wet_checked_at: kyivDate() }),
+                  }
+                : plant,
+            ),
+            plantCare: [
+              {
+                id: crypto.randomUUID(),
+                plant_id: id,
+                couple_id: DEMO_COUPLE,
+                actor_id: userId,
+                action,
+                occurred_at: new Date().toISOString(),
+              },
+              ...d.plantCare,
+            ],
+          }));
+      },
+      action === "wet"
+        ? "Ґрунт ще вологий — перевірку відкладено"
+        : "Полив записано",
     );
   const addMovie = (value: NewMovie) =>
     insert(
@@ -735,6 +817,81 @@ function useStore() {
           });
       },
       "Страву прибрано з меню",
+    );
+  const finishMenuItem = (id: string) =>
+    run(
+      "menu",
+      async () => {
+        if (supabase)
+          await checked(supabase.rpc("finish_menu_item", { p_id: id }));
+        else
+          setData((d) => {
+            const item = d.mealPlan.find((row) => row.id === id);
+            if (!item) return d;
+            const mealPlan = d.mealPlan.filter((row) => row.id !== id);
+            return {
+              ...d,
+              mealPlan,
+              recipeCooks: [
+                {
+                  id: crypto.randomUUID(),
+                  couple_id: DEMO_COUPLE,
+                  actor_id: userId,
+                  recipe_key: item.catalog_id
+                    ? `catalog:ours55/${item.catalog_id}`
+                    : `custom:${item.recipe_id}`,
+                  cooked_at: new Date().toISOString(),
+                },
+                ...d.recipeCooks,
+              ],
+              shopping: syncDemoMenuShopping(
+                mealPlan,
+                d.shopping,
+                d.menuExcludedKeys ?? [],
+                userId,
+                DEMO_COUPLE,
+              ),
+            };
+          });
+      },
+      "Страву позначено як приготовану",
+    );
+  const toggleRecipeFavorite = (recipeKey: string) =>
+    run(
+      `favorite-${recipeKey}`,
+      async () => {
+        const favored = data.recipeFavorites.some(
+          (item) => item.recipe_key === recipeKey,
+        );
+        if (supabase) {
+          if (favored)
+            await checked(
+              supabase
+                .from("recipe_favorites")
+                .delete()
+                .eq("user_id", userId)
+                .eq("recipe_key", recipeKey),
+            );
+          else
+            await checked(
+              supabase
+                .from("recipe_favorites")
+                .insert({ user_id: userId, recipe_key: recipeKey }),
+            );
+        } else
+          setData((d) => ({
+            ...d,
+            recipeFavorites: favored
+              ? d.recipeFavorites.filter(
+                  (item) => item.recipe_key !== recipeKey,
+                )
+              : [
+                  ...d.recipeFavorites,
+                  { user_id: userId, recipe_key: recipeKey },
+                ],
+          }));
+      },
+      "Улюблені страви оновлено",
     );
   const restoreMenuProducts = () =>
     run(
@@ -938,10 +1095,13 @@ function useStore() {
     addPlant,
     updatePlant,
     removePlant,
+    recordPlantCare,
     addMovie,
     addRecipe,
     upsertMenu,
     removeMenuItem,
+    finishMenuItem,
+    toggleRecipeFavorite,
     restoreMenuProducts,
     markRead,
     addShoppingBatch,

@@ -205,6 +205,9 @@ export function createDemo(): Data {
       },
     ],
     plants: [],
+    plantCare: [],
+    recipeFavorites: [],
+    recipeCooks: [],
     history: [],
   };
 }
@@ -233,6 +236,11 @@ export function readDemo(): Data {
             : [],
           recipes: Array.isArray(data.recipes) ? data.recipes : [],
           plants: Array.isArray(data.plants) ? data.plants : [],
+          plantCare: Array.isArray(data.plantCare) ? data.plantCare : [],
+          recipeFavorites: Array.isArray(data.recipeFavorites)
+            ? data.recipeFavorites
+            : [],
+          recipeCooks: Array.isArray(data.recipeCooks) ? data.recipeCooks : [],
           movies: Array.isArray(data.movies)
             ? data.movies
             : createDemo().movies,

@@ -681,8 +681,20 @@ p {
   min-height: 35px;
 }
 .plant-card-next-due {
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: 5px;
 }
+.plant-wet-button {
+  padding: 5px 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 10px;
+  text-align: left;
+}
+.plant-wet-button:disabled { opacity: .55; }
+.plant-care-history summary { color: var(--accent); font-size: 11px; cursor: pointer; }
+.plant-care-history ul { list-style: none; padding: 0; margin: 7px 0 0; }
+.plant-care-history li { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; font-size: 11px; border-top: 1px solid var(--line); }
 .plant-card-next time {
   color: var(--accent);
   font-size: 13px;
@@ -4193,6 +4205,22 @@ p {
   color: var(--accent);
   box-shadow: none;
 }
+.catalog-card-favorite {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--card) 90%, transparent);
+  color: var(--muted);
+}
+.catalog-card-favorite[aria-pressed="true"] { color: #bd6c83; }
+.catalog-card-inline .catalog-card-copy { padding-right: 37px; }
 .catalog-inline-pager {
   flex-shrink: 0;
   display: flex;
@@ -4364,6 +4392,7 @@ p {
   color: var(--text);
   font-size: 10px;
 }
+.meal-row-actions > button:not(.icon-button) { display: inline-flex; align-items: center; gap: 4px; }
 .meal-row-actions > .icon-button {
   min-width: 27px;
   width: 27px;

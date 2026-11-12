@@ -7,6 +7,7 @@ import { supabase, uploadImage } from "../lib/supabase";
 import { kyivDate, safeUrl } from "../lib/utils";
 import { DEMO_COUPLE } from "../lib/demo";
 import type { NewPlant, Plant } from "../lib/types";
+import { plantSchedule } from "../lib/plant-care";
 import {
   BottomSheet,
   Button,
@@ -15,20 +16,6 @@ import {
   IconButton,
 } from "../components/ui";
 import { AddButton, PagedList, ScreenHeader } from "../components/Compact";
-
-function daysUntilWatered(plant: Plant, today: string): number {
-  const start = new Date(
-    `${plant.last_watered_at.slice(0, 10)}T00:00:00Z`,
-  ).getTime();
-  const end = new Date(`${today}T00:00:00Z`).getTime();
-  return plant.watering_interval_days - Math.floor((end - start) / 86_400_000);
-}
-
-function nextWaterDate(plant: Plant) {
-  const date = new Date(`${plant.last_watered_at.slice(0, 10)}T12:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + plant.watering_interval_days);
-  return date;
-}
 
 function PlantPhoto({
   plant,
@@ -283,13 +270,14 @@ function PlantDetails({
   plant: Plant;
   onClose: () => void;
 }) {
-  const { updatePlant, removePlant, pending } = useApp();
+  const { data, recordPlantCare, removePlant, pending } = useApp();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const today = kyivDate();
-  const days = daysUntilWatered(plant, today);
+  const schedule = plantSchedule(plant, today);
+  const days = schedule.remaining;
   const url = safeUrl(plant.info_url);
   const water = async () => {
-    if (await updatePlant(plant.id, { last_watered_at: today })) onClose();
+    if (await recordPlantCare(plant.id, "watered")) onClose();
   };
   return (
     <BottomSheet title={plant.name} onClose={onClose}>
@@ -301,8 +289,14 @@ function PlantDetails({
           <p>
             {days <= 0
               ? "Пора перевірити ґрунт. Якщо він сухий — полий рослину."
-              : `Перевір ґрунт приблизно через ${days} дн.; інтервал зараз ${plant.watering_interval_days} дн.`}
+              : `Перевір ґрунт приблизно через ${days} дн. (${schedule.next}).`}
           </p>
+          {schedule.winter && (
+            <small>
+              Взимку нагадування рідші. Орієнтуйся на вологість ґрунту й потреби
+              цього виду.
+            </small>
+          )}
         </div>
         {plant.light && (
           <div className="plant-detail-block">
@@ -329,6 +323,19 @@ function PlantDetails({
           )}
           {days <= 0 && (
             <Button
+              className="ghost"
+              onClick={() =>
+                void recordPlantCare(plant.id, "wet").then(
+                  (ok) => ok && onClose(),
+                )
+              }
+              busy={pending.includes(`plant-${plant.id}`)}
+            >
+              Ґрунт ще вологий
+            </Button>
+          )}
+          {days <= 0 && (
+            <Button
               onClick={() => void water()}
               busy={pending.includes(`plant-${plant.id}`)}
             >
@@ -342,6 +349,35 @@ function PlantDetails({
             <Trash2 size={18} />
           </IconButton>
         </div>
+        <details className="plant-detail-block plant-care-history">
+          <summary>Історія догляду · {data.plantCare.filter((entry) => entry.plant_id === plant.id).length}</summary>
+          {data.plantCare.filter((entry) => entry.plant_id === plant.id)
+            .length ? (
+            <ul>
+              {data.plantCare
+                .filter((entry) => entry.plant_id === plant.id)
+                .map((entry) => (
+                  <li key={entry.id}>
+                    <time dateTime={entry.occurred_at}>
+                      {new Intl.DateTimeFormat("uk-UA", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                        timeZone: "Europe/Kyiv",
+                      }).format(new Date(entry.occurred_at))}
+                    </time>
+                    <span>
+                      {entry.action === "watered"
+                        ? "Полили"
+                        : "Ґрунт ще вологий"}
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          ) : (
+            <p>Перший запис з’явиться після перевірки ґрунту або поливу.</p>
+          )}
+        </details>
         {confirmDelete && (
           <div className="plant-delete-confirm" role="alert">
             <span>Видалити рослину?</span>
@@ -373,12 +409,13 @@ function PlantDetails({
 }
 
 export default function Plants() {
-  const { data, updatePlant, pending } = useApp();
+  const { data, recordPlantCare, pending } = useApp();
   const [form, setForm] = useState(false);
   const [detail, setDetail] = useState<Plant | null>(null);
   const today = kyivDate();
   const plants = [...data.plants].sort(
-    (a, b) => daysUntilWatered(a, today) - daysUntilWatered(b, today),
+    (a, b) =>
+      plantSchedule(a, today).remaining - plantSchedule(b, today).remaining,
   );
   return (
     <section className="screen plants-screen">
@@ -390,18 +427,11 @@ export default function Plants() {
           <PagedList
             items={plants}
             render={(plant) => {
-              const remaining = daysUntilWatered(plant, today);
+              const schedule = plantSchedule(plant, today);
+              const remaining = schedule.remaining;
               const due = remaining <= 0;
-              const nextDate = nextWaterDate(plant);
-              const progress = Math.max(
-                0,
-                Math.min(
-                  100,
-                  ((plant.watering_interval_days - remaining) /
-                    plant.watering_interval_days) *
-                    100,
-                ),
-              );
+              const nextDate = new Date(`${schedule.next}T12:00:00Z`);
+              const progress = schedule.progress;
               return (
                 <article
                   className={`plant-card card${due ? " plant-card-due" : ""}`}
@@ -422,25 +452,36 @@ export default function Plants() {
                     >
                       <strong>{plant.name}</strong>
                     </button>
-                    <div className={`plant-card-next${due ? " plant-card-next-due" : ""}`}>
+                    <div
+                      className={`plant-card-next${due ? " plant-card-next-due" : ""}`}
+                    >
                       {due ? (
-                        <button
-                          className="plant-water-button"
-                          disabled={pending.includes(`plant-${plant.id}`)}
-                          aria-label={`Відмітити полив · ${plant.name}`}
-                          title="Полила сьогодні"
-                          onClick={() =>
-                            void updatePlant(plant.id, {
-                              last_watered_at: today,
-                            })
-                          }
-                        >
-                          <Droplet
-                            size={19}
-                            strokeWidth={1.8}
-                            aria-hidden="true"
-                          />
-                        </button>
+                        <>
+                          <button
+                            className="plant-wet-button"
+                            disabled={pending.includes(`plant-${plant.id}`)}
+                            onClick={() =>
+                              void recordPlantCare(plant.id, "wet")
+                            }
+                          >
+                            Ґрунт ще вологий
+                          </button>
+                          <button
+                            className="plant-water-button"
+                            disabled={pending.includes(`plant-${plant.id}`)}
+                            aria-label={`Відмітити полив · ${plant.name}`}
+                            title="Полила сьогодні"
+                            onClick={() =>
+                              void recordPlantCare(plant.id, "watered")
+                            }
+                          >
+                            <Droplet
+                              size={19}
+                              strokeWidth={1.8}
+                              aria-hidden="true"
+                            />
+                          </button>
+                        </>
                       ) : (
                         <time dateTime={nextDate.toISOString().slice(0, 10)}>
                           {new Intl.DateTimeFormat("uk-UA", {
@@ -473,7 +514,10 @@ export default function Plants() {
       </AnimatePresence>
       <AnimatePresence>
         {detail && (
-          <PlantDetails plant={detail} onClose={() => setDetail(null)} />
+          <PlantDetails
+            plant={data.plants.find((item) => item.id === detail.id) ?? detail}
+            onClose={() => setDetail(null)}
+          />
         )}
       </AnimatePresence>
     </section>

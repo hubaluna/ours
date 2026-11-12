@@ -1,4 +1,4 @@
-import { Check, Clock3, Plus, Search } from "lucide-react";
+import { Check, Clock3, Heart, Plus, Search } from "lucide-react";
 import type { RecipeView, RecipeCategory } from "../lib/types";
 import { categoryNames, normalizedIngredient } from "../lib/recipe-catalog";
 import { BottomSheet, EmptyState, Field } from "./ui";
@@ -6,8 +6,8 @@ export type CatalogFilter = {
   query: string;
   category: RecipeCategory | "all";
   time: number;
-  scope: "all" | "own";
-  sort: "title" | "time";
+  scope: "all" | "own" | "favorites";
+  sort: "suggested" | "title" | "time";
 };
 export function RecipeCatalog({
   recipes,
@@ -19,6 +19,9 @@ export function RecipeCatalog({
   isSelected,
   onAdd,
   disabled = false,
+  favoriteKeys = [],
+  cookedAt = {},
+  onFavorite,
 }: {
   recipes: RecipeView[];
   filter: CatalogFilter;
@@ -29,12 +32,28 @@ export function RecipeCatalog({
   isSelected?: (recipe: RecipeView) => boolean;
   onAdd?: (recipe: RecipeView) => void;
   disabled?: boolean;
+  favoriteKeys?: string[];
+  cookedAt?: Record<string, string>;
+  onFavorite?: (recipe: RecipeView) => void;
 }) {
   const query = normalizedIngredient(filter.query);
+  const favorite = new Set(favoriteKeys);
+  const latestCook = Math.max(
+    0,
+    ...Object.values(cookedAt).map((value) => Date.parse(value)),
+  );
+  const suggestionScore = (recipe: RecipeView) => {
+    const last = cookedAt[recipe.key];
+    const days = last
+      ? Math.max(0, Math.floor((latestCook - Date.parse(last)) / 86_400_000))
+      : 0;
+    return (favorite.has(recipe.key) ? 1000 : 0) + Math.min(days, 120) / 30;
+  };
   const shown = recipes
     .filter(
       (recipe) =>
         (filter.category === "all" || recipe.category === filter.category) &&
+        (filter.scope !== "favorites" || favorite.has(recipe.key)) &&
         (!filter.time ||
           (recipe.totalTimeMinutes !== null &&
             recipe.totalTimeMinutes <= filter.time)) &&
@@ -49,7 +68,10 @@ export function RecipeCatalog({
       filter.sort === "time"
         ? (a.totalTimeMinutes ?? Infinity) - (b.totalTimeMinutes ?? Infinity) ||
           a.title.localeCompare(b.title, "uk")
-        : a.title.localeCompare(b.title, "uk"),
+        : filter.sort === "suggested"
+          ? suggestionScore(b) - suggestionScore(a) ||
+            a.title.localeCompare(b.title, "uk")
+          : a.title.localeCompare(b.title, "uk"),
     );
   const content = (
     <>
@@ -81,10 +103,23 @@ export function RecipeCatalog({
             </div>
           </Field>
         )}
-        <div className="catalog-category-filters" role="group" aria-label="Категорії рецептів">
-          {([["all", "Усі"], ...Object.entries(categoryNames)] as [CatalogFilter["category"], string][]).map(([key, label]) => (
-            <button key={key} type="button" aria-pressed={filter.category === key}
-              onClick={() => onFilter({ ...filter, category: key })}>
+        <div
+          className="catalog-category-filters"
+          role="group"
+          aria-label="Категорії рецептів"
+        >
+          {(
+            [["all", "Усі"], ...Object.entries(categoryNames)] as [
+              CatalogFilter["category"],
+              string,
+            ][]
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={filter.category === key}
+              onClick={() => onFilter({ ...filter, category: key })}
+            >
               {label}
             </button>
           ))}
@@ -119,6 +154,7 @@ export function RecipeCatalog({
             >
               <option value="all">Усі рецепти</option>
               <option value="own">Мої рецепти</option>
+              <option value="favorites">Улюблені</option>
             </select>
           </label>
           <label>
@@ -133,6 +169,7 @@ export function RecipeCatalog({
                 })
               }
             >
+              <option value="suggested">Для вас</option>
               <option value="title">За назвою</option>
               <option value="time">Спочатку швидкі</option>
             </select>
@@ -189,7 +226,25 @@ export function RecipeCatalog({
                   disabled={disabled || isSelected?.(recipe)}
                   onClick={() => onAdd(recipe)}
                 >
-                  {isSelected?.(recipe) ? <Check size={17} /> : <Plus size={18} />}
+                  {isSelected?.(recipe) ? (
+                    <Check size={17} />
+                  ) : (
+                    <Plus size={18} />
+                  )}
+                </button>
+              )}
+              {onFavorite && (
+                <button
+                  className="catalog-card-favorite"
+                  type="button"
+                  aria-label={`${favorite.has(recipe.key) ? "Прибрати з улюблених" : "До улюблених"} · ${recipe.title}`}
+                  aria-pressed={favorite.has(recipe.key)}
+                  onClick={() => onFavorite(recipe)}
+                >
+                  <Heart
+                    size={17}
+                    fill={favorite.has(recipe.key) ? "currentColor" : "none"}
+                  />
                 </button>
               )}
             </article>
@@ -208,7 +263,12 @@ export function RecipeCatalog({
       {content}
     </section>
   ) : (
-    <BottomSheet title="Каталог рецептів" onClose={onClose} wide guardChanges={false}>
+    <BottomSheet
+      title="Каталог рецептів"
+      onClose={onClose}
+      wide
+      guardChanges={false}
+    >
       {content}
     </BottomSheet>
   );

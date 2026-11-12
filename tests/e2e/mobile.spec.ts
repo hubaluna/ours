@@ -427,6 +427,44 @@ test("the catalog is the default menu view and card plus is idempotent", async (
   await fit(page);
 });
 
+test("favorite recipes persist and a cooked dish leaves the menu with history", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await choose(page, "Меню");
+  const catalog = page.getByRole("region", { name: "Каталог рецептів" });
+  await catalog.getByLabel("Пошук страви або продукту").fill("Рис");
+  const title = await catalog.locator(".catalog-card h3").first().innerText();
+  const favorite = catalog.getByRole("button", {
+    name: `До улюблених · ${title}`,
+  });
+  await favorite.click();
+  await expect(
+    catalog.getByRole("button", { name: `Прибрати з улюблених · ${title}` }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await catalog.getByLabel("Джерело рецептів").selectOption("favorites");
+  await expect(catalog.locator(".catalog-card")).toHaveCount(1);
+  await catalog
+    .getByRole("button", { name: `Додати до меню · ${title}` })
+    .click();
+  await page.getByRole("button", { name: "Готуємо · 1" }).click();
+  await page
+    .locator(".meal-row")
+    .getByRole("button", { name: "Приготували" })
+    .click();
+  await expect(page.locator(".meal-row")).toHaveCount(0);
+  await page.reload();
+  await choose(page, "Меню");
+  await catalog.getByLabel("Джерело рецептів").selectOption("favorites");
+  await expect(catalog.locator(".catalog-card")).toHaveCount(1);
+  const saved = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("ours-demo-v1")!),
+  );
+  expect(saved.recipeFavorites).toHaveLength(1);
+  expect(saved.recipeCooks).toHaveLength(1);
+  expect(saved.mealPlan).toHaveLength(0);
+});
+
 test("a private recipe joins the shared catalog and scales automatically into shopping", async ({
   page,
 }) => {
@@ -674,7 +712,41 @@ test("plants show an individual watering countdown and record watering", async (
   await expect(page.locator(".plant-card-meter > span")).toHaveAttribute("style", "width: 0%;");
   await page.getByRole("button", { name: `Деталі рослини · ${plantName}` }).click();
   await expect(page.getByRole("heading", { name: plantName })).toBeVisible();
-  await expect(page.getByText(/інтервал зараз 21 дн\./)).toBeVisible();
+  await expect(page.getByText(/Перевір ґрунт приблизно через/)).toBeVisible();
+  await page.getByText("Історія догляду · 1").click();
+  await expect(page.getByText("Полили")).toBeVisible();
+});
+
+test("wet soil defers the next check and is saved in care history", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await choose(page, "Рослини");
+  await page.getByRole("button", { name: "Додати рослину" }).first().click();
+  const photo = readFileSync(new URL("../fixtures/plant.png", import.meta.url));
+  await page
+    .getByLabel("Фото рослини")
+    .setInputFiles({ name: "leaf.png", mimeType: "image/png", buffer: photo });
+  await page.getByLabel("Назва рослини").fill("Сухий кактус");
+  await page.getByText("Догляд та нагадування").click();
+  await page.getByLabel("Інтервал перевірки, днів").fill("3");
+  const oldDate = new Date();
+  oldDate.setDate(oldDate.getDate() - 10);
+  await page
+    .getByLabel("Останній полив")
+    .fill(oldDate.toISOString().slice(0, 10));
+  await page.getByRole("button", { name: "Зберегти рослину" }).click();
+  await page.getByRole("button", { name: "Ґрунт ще вологий" }).click();
+  await expect(
+    page.getByRole("button", { name: "Ґрунт ще вологий" }),
+  ).toHaveCount(0);
+  await page.reload();
+  await choose(page, "Рослини");
+  await page
+    .getByRole("button", { name: "Деталі рослини · Сухий кактус" })
+    .click();
+  await page.getByText("Історія догляду · 1").click();
+  await expect(page.getByText("Ґрунт ще вологий")).toBeVisible();
 });
 
 test("56 recipes, filters, ranked pairings, one-click pair and portion changes survive reload", async ({

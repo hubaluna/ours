@@ -21,7 +21,7 @@ const initialFilter: CatalogFilter = {
   category: "all",
   time: 0,
   scope: "all",
-  sort: "title",
+  sort: "suggested",
 };
 export default function Menu() {
   const {
@@ -29,6 +29,8 @@ export default function Menu() {
     userId,
     upsertMenu,
     removeMenuItem,
+    finishMenuItem,
+    toggleRecipeFavorite,
     restoreMenuProducts,
     pending,
   } = useApp();
@@ -42,6 +44,12 @@ export default function Menu() {
     [lastRandom, setLastRandom] = useState("");
   const library = recipeLibrary(data.recipes),
     catalogLibrary = recipeLibrary(data.recipes, filter.scope === "own");
+  const favoriteKeys = data.recipeFavorites.map((item) => item.recipe_key);
+  const cookedAt = Object.fromEntries(
+    [...data.recipeCooks]
+      .sort((a, b) => a.cooked_at.localeCompare(b.cooked_at))
+      .map((item) => [item.recipe_key, item.cooked_at]),
+  );
   const rows = data.mealPlan
     .map((item) => ({ item, recipe: resolveRecipe(item, data.recipes) }))
     .filter((row): row is typeof row & { recipe: RecipeView } =>
@@ -177,6 +185,12 @@ export default function Menu() {
                 />
                 <div className="meal-row-actions">
                   <button
+                    disabled={busy}
+                    onClick={() => void finishMenuItem(item.id)}
+                  >
+                    <Check size={13} aria-hidden="true" /> Приготували
+                  </button>
+                  <button
                     onClick={() => {
                       setFromCatalog(false);
                       setDetail(recipe);
@@ -217,6 +231,9 @@ export default function Menu() {
             }}
             isSelected={isInMenu}
             onAdd={addFromCatalog}
+            favoriteKeys={favoriteKeys}
+            cookedAt={cookedAt}
+            onFavorite={(recipe) => void toggleRecipeFavorite(recipe.key)}
           />
         )}
       </div>
