@@ -734,10 +734,16 @@ test("save controls stay at the top before and after scrolling long forms", asyn
       button = dialog.getByRole("button", { name: save, exact: true });
     await expect(button).toBeInViewport();
     await dialog.evaluate((el) => el.scrollTo(0, el.scrollHeight));
-    const b = await button.boundingBox(),
-      header = await dialog.locator(".sheet-header").boundingBox();
-    expect(b!.y).toBeGreaterThanOrEqual(header!.y + header!.height - 2);
-    expect(b!.y + b!.height).toBeLessThan(664);
+    await expect.poll(async () => {
+      const box = await button.boundingBox(),
+        header = await dialog.locator(".sheet-header").boundingBox();
+      return Boolean(
+        box &&
+          header &&
+          box.y >= header.y + header.height - 2 &&
+          box.y + box.height < 664,
+      );
+    }).toBe(true);
     await dialog.getByRole("button", { name: "Закрити", exact: true }).click();
     await expect(dialog).not.toBeVisible();
   }
