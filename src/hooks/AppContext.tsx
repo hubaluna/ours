@@ -23,6 +23,8 @@ import type {
   Table,
   RecipeView,
   MealPlanItem,
+  Plant,
+  NewPlant,
 } from "../lib/types";
 import { customRecipeView, syncDemoMenuShopping } from "../lib/recipe-catalog";
 import { isPantryStaple } from "../../supabase/functions/_shared/grocery-category";
@@ -38,6 +40,7 @@ const empty: Data = {
   wishes: [],
   reservations: [],
   events: [],
+  plants: [],
   history: [],
 };
 type Notice = {
@@ -144,6 +147,7 @@ function useStore() {
         reads,
         recipes,
         mealPlan,
+        plants,
       ] = await Promise.all([
         readAll<Profile>("profiles"),
         readAll<Data["shopping"][number]>("shopping_items", {
@@ -187,6 +191,7 @@ function useStore() {
         readAll<Data["reads"][number]>("activity_reads", { user_id: userId }),
         readAll<Data["recipes"][number]>("recipes", { couple_id: couple }),
         readAll<MealPlanItem>("meal_plan_items", { couple_id: couple }),
+        readAll<Plant>("plants", { couple_id: couple }, "created_at", false),
       ]);
       if (current !== revision.current) return;
       setCoupleId(couple);
@@ -199,6 +204,7 @@ function useStore() {
         wishes,
         reservations,
         events,
+        plants,
         history,
         movies,
         activities,
@@ -241,6 +247,7 @@ function useStore() {
       "wishes",
       "recipes",
       "meal_plan_items",
+      "plants",
       "activity_events",
     ]) {
       for (const event of ["INSERT", "UPDATE"] as const)
@@ -568,6 +575,52 @@ function useStore() {
       "add-event",
       "План збережено",
     );
+  const addPlant = (value: NewPlant) =>
+    run(
+      "add-plant",
+      async () => {
+        const row: Plant = {
+          id: crypto.randomUUID(),
+          couple_id: coupleId ?? DEMO_COUPLE,
+          added_by: userId,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          ...value,
+        };
+        if (supabase)
+          await checked(supabase.from("plants").insert(row).select("id").single());
+        else setData((d) => ({ ...d, plants: [row, ...d.plants] }));
+      },
+      "Рослину збережено",
+    );
+  const updatePlant = (id: string, patch: Partial<NewPlant>) =>
+    run(
+      `plant-${id}`,
+      async () => {
+        if (supabase)
+          await checked(
+            supabase.from("plants").update(patch).eq("id", id).select("id").single(),
+          );
+        else
+          setData((d) => ({
+            ...d,
+            plants: d.plants.map((plant) =>
+              plant.id === id ? { ...plant, ...patch, updated_at: new Date().toISOString() } : plant,
+            ),
+          }));
+      },
+      "Дані рослини оновлено",
+    );
+  const removePlant = (id: string) =>
+    run(
+      `plant-${id}`,
+      async () => {
+        if (supabase)
+          await checked(supabase.from("plants").delete().eq("id", id).select("id").single());
+        else setData((d) => ({ ...d, plants: d.plants.filter((plant) => plant.id !== id) }));
+      },
+      "Рослину видалено",
+    );
   const addMovie = (value: NewMovie) =>
     insert(
       "movies",
@@ -868,6 +921,9 @@ function useStore() {
     addShopping,
     addWish,
     addEvent,
+    addPlant,
+    updatePlant,
+    removePlant,
     addMovie,
     addRecipe,
     upsertMenu,

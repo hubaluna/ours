@@ -19,8 +19,8 @@ it("applies the one-query mobile setup atomically to a fresh project", async () 
     const tables = await db.query(
       "select tablename from pg_tables where schemaname='public'",
     );
-    expect(tables.rows).toHaveLength(18);
-    expect(tables.rows.map((row) => row.tablename)).not.toContain("places");
+    expect(tables.rows).toHaveLength(19);
+    expect(tables.rows.map((row) => row.tablename)).toContain("plants");
     const bucket = await db.query<{ public: boolean }>(
       "select public from storage.buckets where id='photos'",
     );
@@ -40,7 +40,7 @@ it("applies the one-query mobile setup atomically to a fresh project", async () 
           "select tablename from pg_tables where schemaname='public'",
         )
     ).rows,
-    ).toHaveLength(18);
+    ).toHaveLength(19);
   } finally {
     await db.close();
   }

@@ -8,6 +8,7 @@ import {
   House,
   RefreshCw,
   ShoppingBag,
+  Sprout,
   WifiOff,
   X,
 } from "lucide-react";
@@ -26,6 +27,7 @@ const screens = {
   movies: () => import("./features/Movies"),
   wishes: () => import("./features/Wishes"),
   plans: () => import("./features/Plans"),
+  plants: () => import("./features/Plants"),
 };
 const Home = lazy(screens.home),
   Shopping = lazy(screens.shopping),
@@ -33,6 +35,7 @@ const Home = lazy(screens.home),
   Movies = lazy(screens.movies),
   Wishes = lazy(screens.wishes),
   Plans = lazy(screens.plans),
+  Plants = lazy(screens.plants),
   Settings = lazy(() => import("./features/Settings"));
 const tabs = [
   { id: "home", label: "Головна", icon: House },
@@ -41,6 +44,7 @@ const tabs = [
   { id: "movies", label: "Кіно", icon: Film },
   { id: "wishes", label: "Бажання", icon: Gift },
   { id: "plans", label: "Календар", icon: CalendarDays },
+  { id: "plants", label: "Рослини", icon: Sprout },
 ] as const;
 const catPhotos = [
   "cat-sitting.webp",
@@ -262,8 +266,10 @@ export default function App() {
                         <Movies />
                       ) : tab === "wishes" ? (
                         <Wishes />
-                      ) : (
+                      ) : tab === "plans" ? (
                         <Plans />
+                      ) : (
+                        <Plants />
                       )}
                     </motion.div>
                   </AnimatePresence>
@@ -276,6 +282,7 @@ export default function App() {
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 key={id}
+                aria-label={label}
                 aria-current={tab === id ? "page" : undefined}
                 onClick={() => setTab(id)}
                 onPointerEnter={() => {

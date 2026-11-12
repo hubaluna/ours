@@ -204,6 +204,7 @@ export function createDemo(): Data {
         created_at: now,
       },
     ],
+    plants: [],
     history: [],
   };
 }
@@ -231,6 +232,7 @@ export function readDemo(): Data {
             ? data.menuExcludedKeys
             : [],
           recipes: Array.isArray(data.recipes) ? data.recipes : [],
+          plants: Array.isArray(data.plants) ? data.plants : [],
           movies: Array.isArray(data.movies)
             ? data.movies
             : createDemo().movies,

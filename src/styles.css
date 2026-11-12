@@ -605,6 +605,178 @@ p {
 .media-panel {
   margin-top: 1px;
 }
+.plants-panel .paged-content {
+  padding: 1px 2px 8px;
+}
+.plants-panel .paged-rows {
+  display: grid;
+  gap: 8px;
+  overflow: visible;
+  background: transparent;
+  box-shadow: none;
+}
+.plant-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  border-radius: 19px;
+  box-shadow: 0 4px 14px #25342b08;
+}
+.plant-card-due {
+  background: linear-gradient(120deg, color-mix(in srgb, var(--gradient-mint) 34%, var(--card)), var(--card) 68%);
+}
+.plant-card-main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  gap: 12px;
+  padding: 0;
+  text-align: left;
+  background: transparent;
+}
+.plant-photo {
+  display: grid;
+  flex: 0 0 68px;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  overflow: hidden;
+  border-radius: 15px;
+  color: var(--sage);
+  background: linear-gradient(145deg, var(--gradient-mint), var(--surface));
+}
+.plant-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.plant-photo-large {
+  width: 100%;
+  height: min(30vh, 210px);
+  flex-basis: auto;
+  border-radius: 19px;
+}
+.plant-card-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+.plant-card-copy > strong {
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+}
+.plant-card-copy > small,
+.plant-species {
+  color: var(--muted);
+  font-size: 10px;
+}
+.plant-water-status {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.plant-water-status.due {
+  color: var(--text);
+}
+.plant-water-button.button {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 8px 11px;
+  border-radius: 13px;
+  color: var(--accent);
+  background: var(--accent-light);
+  font-size: 11px;
+}
+.plant-form,
+.plant-form-extra,
+.plant-details {
+  display: grid;
+  gap: 13px;
+}
+.plant-photo-picker {
+  display: flex;
+  min-height: 94px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 7px;
+  overflow: hidden;
+  border: 1px dashed var(--line);
+  border-radius: 17px;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 12px;
+}
+.plant-photo-picker img {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+}
+.plant-photo-picker input {
+  width: min(250px, 90%);
+  font-size: 10px;
+}
+.plant-extra-fields {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.plant-extra-fields summary {
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+}
+.plant-form-extra {
+  padding-top: 12px;
+}
+.plant-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+.plant-form-error {
+  color: var(--danger);
+  font-size: 12px;
+}
+.plant-detail-block {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--surface);
+}
+.plant-detail-block > span {
+  color: var(--muted);
+  font-size: 10px;
+}
+.plant-detail-block > p {
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.plant-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.plant-detail-actions > .button:first-child {
+  flex: 1;
+}
+.plant-source-hint {
+  font-size: 10px;
+}
+.plant-delete-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
 .media-row {
   display: flex;
   align-items: center;
@@ -896,6 +1068,9 @@ p {
     var(--gradient-rose),
     var(--gradient-violet)
   );
+}
+.bottom-nav > .tab-plants.active .navigation-active {
+  background: linear-gradient(145deg, var(--gradient-mint), var(--gradient-cool));
 }
 .bottom-nav > .tab-home.active .navigation-active {
   background: linear-gradient(145deg, var(--gradient-mint), var(--surface));
@@ -3457,6 +3632,26 @@ p {
   .section-mascot {
     width: 34px;
     height: 28px;
+  }
+}
+@media (max-width: 380px) {
+  .nav-content { font-size: 8px; gap: 4px; }
+  .nav-content svg { width: 17px; height: 17px; }
+  .plant-card {
+    gap: 5px;
+    padding: 6px;
+  }
+  .plant-card-main {
+    gap: 8px;
+  }
+  .plant-photo {
+    flex-basis: 56px;
+    width: 56px;
+    height: 60px;
+  }
+  .plant-water-button.button {
+    padding-left: 8px;
+    padding-right: 8px;
   }
 }
 @media (max-height: 640px) {

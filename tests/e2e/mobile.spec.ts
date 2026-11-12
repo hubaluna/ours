@@ -1,4 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
 const tabs = ["Головна", "Покупки", "Меню", "Кіно", "Бажання", "Календар"];
 const nav = (page: Page) =>
   page.getByRole("navigation", { name: "Основна навігація" });
@@ -623,6 +624,39 @@ test("calendar accepts a public HTTPS link and shows it in event details", async
   await dialog.getByRole("button", { name: "Довідково" }).click();
   await expect(dialog.getByText("Забронювати два квитки біля сцени")).toBeVisible();
   await expect(page.getByRole("link", { name: "Відкрити посилання" })).toHaveAttribute("href", "https://example.com/event");
+});
+
+test("plants show an individual watering countdown and record watering", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await choose(page, "Рослини");
+  await expect(page.getByText("Додай першу рослину")).toBeVisible();
+  await page.getByRole("button", { name: "Додати рослину" }).first().click();
+  const photo = readFileSync(new URL("../fixtures/plant.png", import.meta.url));
+  await page.getByLabel("Фото рослини").setInputFiles([
+    { name: "leaf.png", mimeType: "image/png", buffer: photo },
+    { name: "whole-plant.png", mimeType: "image/png", buffer: photo },
+  ]);
+  await expect(page.getByText("Фото: 2 із 5")).toBeVisible();
+  await page.getByLabel("Назва рослини").fill("Кактус");
+  await page.getByText("Догляд та нагадування").click();
+  await page.getByLabel("Інтервал перевірки, днів").fill("21");
+  const lastWatered = new Date();
+  lastWatered.setDate(lastWatered.getDate() - 30);
+  await page
+    .getByLabel("Останній полив")
+    .fill(lastWatered.toISOString().slice(0, 10));
+  await page.getByRole("button", { name: "Зберегти рослину" }).click();
+  const waterButton = page.getByRole("button", {
+    name: "Відмітити полив · Кактус",
+  });
+  await expect(waterButton).toBeVisible();
+  await waterButton.click();
+  await expect(page.getByText("Полив орієнтовно через 21 дн.")).toBeVisible();
+  await page.getByRole("button", { name: "Деталі рослини · Кактус" }).click();
+  await expect(page.getByRole("heading", { name: "Кактус" })).toBeVisible();
+  await expect(page.getByText(/інтервал зараз 21 дн\./)).toBeVisible();
 });
 
 test("56 recipes, filters, ranked pairings, one-click pair and portion changes survive reload", async ({

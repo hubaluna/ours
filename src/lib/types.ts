@@ -1,6 +1,6 @@
 import { groceryCategories } from "../../supabase/functions/_shared/grocery-category";
 
-export type Tab = "home" | "shopping" | "movies" | "wishes" | "plans" | "menu";
+export type Tab = "home" | "shopping" | "movies" | "wishes" | "plans" | "menu" | "plants";
 export type Theme = "light" | "dark" | "system";
 export const categories = groceryCategories;
 export const eventCategories = [
@@ -66,6 +66,21 @@ export type Plan = {
   category: string;
   created_by: string;
   created_at: string;
+};
+export type Plant = {
+  id: string;
+  couple_id: string;
+  name: string;
+  species: string;
+  image_path: string | null;
+  watering_interval_days: number;
+  last_watered_at: string;
+  light: string;
+  watering_notes: string;
+  info_url: string;
+  added_by: string;
+  created_at: string;
+  updated_at: string;
 };
 export type ProductHistory = {
   id: string;
@@ -201,6 +216,7 @@ export type Data = {
   wishes: Wish[];
   reservations: Reservation[];
   events: Plan[];
+  plants: Plant[];
   history: ProductHistory[];
 };
 export type Table =
@@ -236,4 +252,15 @@ export type NewPlan = Pick<
   | "url"
   | "description"
   | "category"
+>;
+export type NewPlant = Pick<
+  Plant,
+  | "name"
+  | "species"
+  | "image_path"
+  | "watering_interval_days"
+  | "last_watered_at"
+  | "light"
+  | "watering_notes"
+  | "info_url"
 >;

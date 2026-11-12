@@ -10,3 +10,7 @@ verify_jwt = false
 [functions.push-dispatch]
 # Database pg_net calls are authenticated with a private Vault-backed hook secret.
 verify_jwt = false
+
+[functions.plant-identify]
+# The handler checks the user JWT and couple membership.
+verify_jwt = false
