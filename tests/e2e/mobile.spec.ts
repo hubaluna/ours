@@ -122,7 +122,11 @@ async function seek(page: Page, locator: Locator) {
 }
 async function shot(page: Page, name: string) {
   const closeToast = page.getByRole("button", { name: "Закрити повідомлення" });
-  if (await closeToast.count()) await closeToast.click();
+  if (await closeToast.count()) {
+    await closeToast.click({ force: true, timeout: 1000 }).catch(() => {
+      // A toast may dismiss itself while its button is being clicked.
+    });
+  }
   await page.waitForTimeout(400);
   await page.screenshot({
     path: `test-results/screenshots/${test.info().project.name}/${name}.png`,
