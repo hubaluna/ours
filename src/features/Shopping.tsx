@@ -15,7 +15,7 @@ import { ShoppingForm } from "../components/Forms";
 import { AddButton, PagedList, ScreenHeader } from "../components/Compact";
 import { LinkImport } from "../components/LinkImportLoader";
 import { kyivDate, longDate, money } from "../lib/utils";
-import { groceryCategory } from "../../supabase/functions/_shared/grocery-category";
+import { groceryCatalogCategory } from "../lib/grocery-catalog";
 export default function Shopping() {
   const { data, archive, repeat, pending, addShoppingBatch } = useApp();
   const [form, setForm] = useState<ShoppingItem | "new" | null>(null),
@@ -34,20 +34,18 @@ export default function Shopping() {
       item,
       category:
         item.category === "Інше"
-          ? groceryCategory(item.name)
+          ? groceryCatalogCategory(item.name)
           : item.category,
     }))
-    .filter(({ category: itemCategory }) =>
-      category === "all" || itemCategory === category,
+    .filter(
+      ({ category: itemCategory }) =>
+        category === "all" || itemCategory === category,
     )
     .sort((a, b) => {
       const categoryOrder =
         categories.indexOf(a.category as (typeof categories)[number]) -
         categories.indexOf(b.category as (typeof categories)[number]);
-      return (
-        (categoryOrder || 0) ||
-        a.item.name.localeCompare(b.item.name, "uk")
-      );
+      return categoryOrder || 0 || a.item.name.localeCompare(b.item.name, "uk");
     });
   const grouped = categories
     .map((name) => ({
@@ -68,7 +66,8 @@ export default function Shopping() {
       return (
         (!historyFrom || date >= historyFrom) &&
         (!historyTo || date <= historyTo) &&
-        (!historySearch || names.includes(historySearch.trim().toLocaleLowerCase("uk")))
+        (!historySearch ||
+          names.includes(historySearch.trim().toLocaleLowerCase("uk")))
       );
     });
   return (

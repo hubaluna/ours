@@ -321,6 +321,33 @@ test("grocery categories are automatic and additional fields stay collapsed", as
   expect(item.quantity).toBe(2);
 });
 
+test("the product catalog resolves aliases and suggests the right shopping unit", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await choose(page, "Покупки");
+  await page.getByRole("button", { name: "Додати товар", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Назва товару").fill("бульба");
+  await dialog
+    .getByRole("button", { name: /картопля.*Овочі та фрукти/ })
+    .click();
+  await expect(dialog.getByLabel("Назва товару")).toHaveValue("картопля");
+  await expect(
+    dialog.getByText("Овочі та фрукти · визначено автоматично"),
+  ).toBeVisible();
+  await dialog.getByText("Додатково", { exact: true }).click();
+  await expect(dialog.getByLabel("Одиниці")).toHaveValue("кг");
+  await dialog.getByRole("button", { name: "Додати до списку" }).click();
+  const product = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("ours-demo-v1")!).shopping.find(
+      (item: { name: string }) => item.name === "картопля",
+    ),
+  );
+  expect(product.category).toBe("Овочі та фрукти");
+  expect(product.unit).toBe("кг");
+});
+
 test("the catalog is the default menu view and card plus is idempotent", async ({
   page,
 }) => {
@@ -329,6 +356,19 @@ test("the catalog is the default menu view and card plus is idempotent", async (
   const catalog = page.getByRole("region", { name: "Каталог рецептів" });
   await expect(catalog).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(
+    catalog.locator(".catalog-card-inline .catalog-card-copy p").first(),
+  ).toBeVisible();
+  expect(
+    Number(
+      await catalog
+        .locator(".catalog-card-inline .catalog-card-copy h3")
+        .first()
+        .evaluate((element) =>
+          getComputedStyle(element).fontSize.replace("px", ""),
+        ),
+    ),
+  ).toBeGreaterThan(10);
   await shot(page, "menu-catalog");
   const originalViewport = page.viewportSize()!;
   for (const viewport of [

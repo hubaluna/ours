@@ -15,7 +15,7 @@ import {
   type LinkMetadata,
 } from "../../supabase/functions/_shared/metadata";
 import type { NewShopping } from "../lib/types";
-import { groceryCategory } from "../../supabase/functions/_shared/grocery-category";
+import { groceryCatalogCategory } from "../lib/grocery-catalog";
 import { movieSynopsis } from "../../supabase/functions/_shared/movie-synopsis";
 import { isTikTokVideoUrl } from "../lib/recipe-source";
 import { retryLinkPreview422 } from "../lib/link-preview-retry";
@@ -73,8 +73,7 @@ export function LinkImport({
       }>(() =>
         client.functions.invoke("link-preview", {
           body: {
-            url:
-              url || (kind === "movie" ? "https://uk.wikipedia.org/" : ""),
+            url: url || (kind === "movie" ? "https://uk.wikipedia.org/" : ""),
             kind,
             ...(kind === "movie" && movieQuery.trim()
               ? { query: movieQuery.trim() }
@@ -397,7 +396,9 @@ export function LinkImport({
                                 ? {
                                     ...v,
                                     name: e.target.value,
-                                    category: groceryCategory(e.target.value),
+                                    category: groceryCatalogCategory(
+                                      e.target.value,
+                                    ),
                                   }
                                 : v,
                             ),

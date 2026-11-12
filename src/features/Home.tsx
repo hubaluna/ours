@@ -77,7 +77,7 @@ export default function Home({ navigate }: { navigate: (tab: Tab) => void }) {
             const Icon = icons[a.kind];
             return (
               <button
-                className="activity-row"
+                className={`activity-row activity-${a.kind}`}
                 key={a.id}
                 onClick={() => {
                   setDetail(a);

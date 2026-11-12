@@ -41,12 +41,23 @@ const tabs = [
   { id: "wishes", label: "Бажання", icon: Gift },
   { id: "plans", label: "Календар", icon: CalendarDays },
 ] as const;
-type MascotPose = "logo" | "nav" | null;
+type MascotPose = { placement: "logo" | "nav"; image: string } | null;
+const catPhotos = [
+  "cat-sitting.webp",
+  "cat-nav-peek.webp",
+  "cat-carpet-sitting.webp",
+  "cat-sofa-loaf.webp",
+  "cat-bed-loaf.webp",
+  "cat-bed-paw.webp",
+  "cat-bed-look.webp",
+  "cat-sleeping.webp",
+];
 function useOccasionalCat(): MascotPose {
   const [pose, setPose] = useState<MascotPose>(null);
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let moments = 0,
+      photoIndex = Math.floor(Math.random() * catPhotos.length),
       showTimer: number | undefined,
       hideTimer: number | undefined;
     const isBusy = () =>
@@ -58,19 +69,26 @@ function useOccasionalCat(): MascotPose {
         ),
       );
     const schedule = () => {
-      showTimer = window.setTimeout(() => {
-        if (isBusy()) {
-          moments++;
-          schedule();
-          return;
-        }
-        setPose(moments % 2 === 0 ? "logo" : "nav");
-        hideTimer = window.setTimeout(() => {
-          setPose(null);
-          moments++;
-          schedule();
-        }, 10000);
-      }, moments === 0 ? 25000 : 40000);
+      showTimer = window.setTimeout(
+        () => {
+          if (isBusy()) {
+            moments++;
+            schedule();
+            return;
+          }
+          setPose({
+            placement: moments % 2 === 0 ? "logo" : "nav",
+            image: catPhotos[photoIndex],
+          });
+          photoIndex = (photoIndex + 1) % catPhotos.length;
+          hideTimer = window.setTimeout(() => {
+            setPose(null);
+            moments++;
+            schedule();
+          }, 10000);
+        },
+        moments === 0 ? 25000 : 40000,
+      );
     };
     const pause = () => {
       if (isBusy()) setPose(null);
@@ -167,9 +185,9 @@ export default function App() {
           <AnimatePresence>
             {mascot && (
               <motion.img
-                key={mascot}
-                className={`app-mascot app-mascot-${mascot}`}
-                src={`${import.meta.env.BASE_URL}art/${mascot === "logo" ? "cat-sitting.webp" : "cat-nav-peek.webp"}`}
+                key={`${mascot.placement}-${mascot.image}`}
+                className={`app-mascot app-mascot-${mascot.placement}${mascot.image.startsWith("cat-sitting") || mascot.image.startsWith("cat-nav-peek") ? "" : " app-mascot-photo"}`}
+                src={`${import.meta.env.BASE_URL}art/${mascot.image}`}
                 alt=""
                 aria-hidden="true"
                 initial={{ opacity: 0, y: 4 }}
@@ -268,7 +286,7 @@ export default function App() {
                 onFocus={() => {
                   void screens[id]().catch(() => {});
                 }}
-                className={tab === id ? "active" : ""}
+                className={`${tab === id ? "active" : ""} tab-${id}`}
               >
                 {tab === id && (
                   <motion.span

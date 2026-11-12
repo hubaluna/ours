@@ -12,6 +12,10 @@ import {
 } from "../lib/types";
 import { kyivDate } from "../lib/utils";
 import { groceryCategory } from "../../supabase/functions/_shared/grocery-category";
+import {
+  groceryCatalogCategory,
+  groceryCatalogMatches,
+} from "../lib/grocery-catalog";
 import { quantityLabel } from "../lib/recipe-catalog";
 import { publicUrl } from "../../supabase/functions/_shared/urls";
 import { BottomSheet, Button, ConfirmDelete, Field } from "./ui";
@@ -43,6 +47,7 @@ export function ShoppingForm({
         value.name.trim().toLocaleLowerCase("uk") ===
         name.trim().toLocaleLowerCase("uk"),
     )?.category ??
+    (name.trim() ? groceryCatalogCategory(name) : undefined) ??
     groceryCategory(name);
   const suggestions = [
     ...new Map(
@@ -54,6 +59,7 @@ export function ShoppingForm({
         name.length > 0 && i.name.toLowerCase().includes(name.toLowerCase()),
     )
     .slice(0, 4);
+  const catalogSuggestions = item ? [] : groceryCatalogMatches(name, 5);
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const parsed = textSchema.safeParse(name);
@@ -142,12 +148,42 @@ export function ShoppingForm({
             ref={input}
             data-autofocus
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              setManualCategory(null);
+            }}
             placeholder="Наприклад, вівсяне молоко"
             required
             maxLength={160}
           />
         </Field>
+        {catalogSuggestions.length > 0 && !item && (
+          <div
+            className="suggestions catalog-suggestions"
+            aria-label="Товари з каталогу"
+          >
+            {catalogSuggestions.map((product) => (
+              <button
+                type="button"
+                key={product.id}
+                onClick={() => {
+                  setName(product.name);
+                  setManualCategory(null);
+                  setUnit(
+                    product.unit === "шт"
+                      ? "шт."
+                      : product.unit === "уп"
+                        ? "уп."
+                        : product.unit,
+                  );
+                }}
+              >
+                <span>{product.name}</span>
+                <small>{groceryCatalogCategory(product.name)}</small>
+              </button>
+            ))}
+          </div>
+        )}
         {suggestions.length > 0 && !item && (
           <div className="suggestions">
             {suggestions.map((s) => (
@@ -199,6 +235,8 @@ export function ShoppingForm({
                     "л",
                     "мл",
                     "уп.",
+                    "пучок",
+                    "порц",
                     "зубчик",
                     "за смаком",
                     "за рецептом",

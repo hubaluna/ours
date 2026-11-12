@@ -227,7 +227,7 @@ export default function Plans() {
               }
               render={(event) => (
                 <button
-                  className="calendar-event-row"
+                  className={`calendar-event-row${showUpcoming ? " calendar-upcoming" : ""}`}
                   key={event.id}
                   onClick={() => {
                     setDetail(event);

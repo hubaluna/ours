@@ -9,10 +9,8 @@ import type {
   ShoppingItem,
 } from "./types";
 import { parseIngredient } from "../../supabase/functions/_shared/ingredients";
-import {
-  groceryCategory,
-  isPantryStaple,
-} from "../../supabase/functions/_shared/grocery-category";
+import { isPantryStaple } from "../../supabase/functions/_shared/grocery-category";
+import { groceryCatalogCategory } from "./grocery-catalog";
 export const MAX_SERVINGS = 12;
 export const categoryMap: Record<string, RecipeCategory> = {
   sides: "side",
@@ -84,7 +82,7 @@ export function structuredIngredients(lines: string[]): RecipeIngredient[] {
         name: taste[1].trim(),
         quantity: null,
         unit: "за смаком",
-        category: groceryCategory(taste[1]),
+        category: groceryCatalogCategory(taste[1]),
       };
     const garlic = line.match(
       /^(\d+(?:[.,]\d+)?|[¼½¾])\s*(?:зубчик|зубчики|зубчика)\s+(.+)$/i,
@@ -97,7 +95,7 @@ export function structuredIngredients(lines: string[]): RecipeIngredient[] {
             garlic[1]
           ] ?? Number(garlic[1].replace(",", ".")),
         unit: "зубчик",
-        category: groceryCategory(garlic[2]),
+        category: groceryCatalogCategory(garlic[2]),
       };
     const value = parseIngredient(line);
     if (
@@ -108,7 +106,7 @@ export function structuredIngredients(lines: string[]): RecipeIngredient[] {
         name: line.trim().slice(0, 160),
         quantity: null,
         unit: "за рецептом",
-        category: groceryCategory(line),
+        category: groceryCatalogCategory(line),
       };
     return {
       name: value.name,
@@ -118,12 +116,10 @@ export function structuredIngredients(lines: string[]): RecipeIngredient[] {
     };
   });
 }
-export const correctedArchiveRecipes = archive.recipes.map(
-  (record) => ({
-    ...record,
-    ...(corrections[record.id as keyof typeof corrections] ?? {}),
-  }),
-);
+export const correctedArchiveRecipes = archive.recipes.map((record) => ({
+  ...record,
+  ...(corrections[record.id as keyof typeof corrections] ?? {}),
+}));
 export const catalogRecipes: RecipeView[] = correctedArchiveRecipes.map(
   (record) => ({
     key: `catalog:ours55/${record.id}`,
@@ -140,7 +136,7 @@ export const catalogRecipes: RecipeView[] = correctedArchiveRecipes.map(
     ingredients: record.ingredients.map((item) => ({
       ...item,
       unit: canonicalUnit(item.unit),
-      category: groceryCategory(item.name),
+      category: groceryCatalogCategory(item.name),
     })),
     instructions: record.steps,
     notes: record.notes,
@@ -241,9 +237,7 @@ export function syncDemoMenuShopping(
   const desired = new Map(
     ingredients
       .filter(
-        (i) =>
-          !isPantryStaple(i.name) &&
-          !excluded.includes(ingredientKey(i)),
+        (i) => !isPantryStaple(i.name) && !excluded.includes(ingredientKey(i)),
       )
       .map((i) => [ingredientKey(i), i]),
   );

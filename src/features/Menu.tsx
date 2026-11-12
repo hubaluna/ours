@@ -1,12 +1,6 @@
 import { useState } from "react";
 import { AnimatePresence } from "motion/react";
-import {
-  Check,
-  Link2,
-  RotateCcw,
-  Shuffle,
-  Trash2,
-} from "lucide-react";
+import { Check, Clock3, Link2, RotateCcw, Shuffle, Trash2 } from "lucide-react";
 import { useApp } from "../hooks/AppContext";
 import type { Recipe, RecipeView } from "../lib/types";
 import type { LinkMetadata } from "../../supabase/functions/_shared/metadata";
@@ -89,9 +83,7 @@ export default function Menu() {
   };
   return (
     <section className="screen menu-screen shared-menu-screen">
-      <ScreenHeader
-        title="Меню"
-      >
+      <ScreenHeader title="Меню">
         <IconButton label="Згенерувати вечерю" onClick={generate}>
           <Shuffle size={18} />
         </IconButton>
@@ -110,8 +102,20 @@ export default function Menu() {
         />
       </ScreenHeader>
       <div className="menu-view-switch" role="group" aria-label="Перегляд меню">
-        <button type="button" aria-label="Страви" aria-pressed={!showPlan} onClick={openCatalog}>Страви</button>
-        <button type="button" aria-label={`Готуємо · ${rows.length}`} aria-pressed={showPlan} onClick={() => setShowPlan(true)}>
+        <button
+          type="button"
+          aria-label="Страви"
+          aria-pressed={!showPlan}
+          onClick={openCatalog}
+        >
+          Страви
+        </button>
+        <button
+          type="button"
+          aria-label={`Готуємо · ${rows.length}`}
+          aria-pressed={showPlan}
+          onClick={() => setShowPlan(true)}
+        >
           Готуємо <span>{rows.length}</span>
         </button>
       </div>
@@ -122,75 +126,80 @@ export default function Menu() {
             empty={<div className="menu-plan-empty">Страв ще не додано</div>}
             render={({ item, recipe }) => (
               <article className="meal-row" key={item.id}>
-              <button
-                className="meal-image"
-                onClick={() => {
-                  setFromCatalog(false);
-                  setDetail(recipe);
-                }}
-                aria-label={`Відкрити рецепт · ${recipe.title}`}
-              >
-                <img
-                  src={recipe.image_url}
-                  alt=""
-                  loading="lazy"
-                  referrerPolicy="no-referrer"
-                />
-              </button>
-              <div className="meal-summary">
                 <button
-                  className="meal-title"
+                  className="meal-image"
                   onClick={() => {
                     setFromCatalog(false);
                     setDetail(recipe);
                   }}
+                  aria-label={`Відкрити рецепт · ${recipe.title}`}
                 >
-                  <h2>{recipe.title}</h2>
+                  <img
+                    src={recipe.image_url}
+                    alt=""
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                  />
                 </button>
-                <small>
-                  {categoryNames[recipe.category]}
-                  {recipe.totalTimeMinutes
-                    ? ` · ${recipe.totalTimeMinutes} хв`
-                    : ""}
-                </small>
-                {item.shopping_completed && (
-                  <span className="meal-completed">
-                    <Check size={11} />
-                    Продукти куплені
-                  </span>
-                )}
-              </div>
-              <PortionCounter
-                label={recipe.title}
-                value={item.servings}
-                disabled={busy}
-                onChange={(servings) => void upsertMenu([{ recipe, servings }])}
-              />
-              <div className="meal-row-actions">
-                <button
-                  onClick={() => {
-                    setFromCatalog(false);
-                    setDetail(recipe);
-                  }}
-                >
-                  Продукти
-                </button>
-                <button
-                  onClick={() => {
-                    setFromCatalog(false);
-                    setDetail(recipe);
-                  }}
-                >
-                  Рецепт
-                </button>
-                <IconButton
-                  label={`Прибрати з меню · ${recipe.title}`}
+                <div className="meal-summary">
+                  <button
+                    className="meal-title"
+                    onClick={() => {
+                      setFromCatalog(false);
+                      setDetail(recipe);
+                    }}
+                  >
+                    <h2>{recipe.title}</h2>
+                  </button>
+                  <div className="meal-meta">
+                    <small>{categoryNames[recipe.category]}</small>
+                    {recipe.totalTimeMinutes && (
+                      <small className="meal-time">
+                        <Clock3 size={12} aria-hidden="true" />
+                        {recipe.totalTimeMinutes} хв
+                      </small>
+                    )}
+                  </div>
+                  {item.shopping_completed && (
+                    <span className="meal-completed">
+                      <Check size={11} />
+                      Продукти куплені
+                    </span>
+                  )}
+                </div>
+                <PortionCounter
+                  label={recipe.title}
+                  value={item.servings}
                   disabled={busy}
-                  onClick={() => void removeMenuItem(item.id)}
-                >
-                  <Trash2 size={14} />
-                </IconButton>
-              </div>
+                  onChange={(servings) =>
+                    void upsertMenu([{ recipe, servings }])
+                  }
+                />
+                <div className="meal-row-actions">
+                  <button
+                    onClick={() => {
+                      setFromCatalog(false);
+                      setDetail(recipe);
+                    }}
+                  >
+                    Продукти
+                  </button>
+                  <button
+                    onClick={() => {
+                      setFromCatalog(false);
+                      setDetail(recipe);
+                    }}
+                  >
+                    Рецепт
+                  </button>
+                  <IconButton
+                    label={`Прибрати з меню · ${recipe.title}`}
+                    disabled={busy}
+                    onClick={() => void removeMenuItem(item.id)}
+                  >
+                    <Trash2 size={14} />
+                  </IconButton>
+                </div>
               </article>
             )}
           />
@@ -258,11 +267,7 @@ export default function Menu() {
             )}
             busy={busy}
             onClose={() => setDetail(null)}
-            onBack={
-              fromCatalog
-                ? () => setDetail(null)
-                : undefined
-            }
+            onBack={fromCatalog ? () => setDetail(null) : undefined}
             onAdd={async (items) => {
               const saved = await upsertMenu(items);
               setShowPlan(true);
