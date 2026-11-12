@@ -618,31 +618,45 @@ p {
 .plant-card {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 13px;
   min-width: 0;
-  padding: 8px;
-  border-radius: 19px;
-  box-shadow: 0 4px 14px #25342b08;
+  padding: 12px;
+  border-radius: 23px;
+  box-shadow: 0 12px 30px #25342b0b;
+  transition: box-shadow .24s ease, transform .24s ease;
 }
 .plant-card-due {
   background: linear-gradient(120deg, color-mix(in srgb, var(--gradient-mint) 34%, var(--card)), var(--card) 68%);
 }
+.plant-card-photo-button,
 .plant-card-main {
-  display: flex;
-  flex: 1;
-  align-items: center;
+  display: block;
   min-width: 0;
-  gap: 12px;
   padding: 0;
   text-align: left;
   background: transparent;
 }
+.plant-card-photo-button { flex: 0 0 auto; }
+.plant-card-content {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 7px;
+}
+.plant-card-main > strong {
+  display: block;
+  overflow: hidden;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .plant-photo {
   display: grid;
-  flex: 0 0 68px;
   place-items: center;
-  width: 68px;
-  height: 68px;
+  width: 78px;
+  height: 78px;
   overflow: hidden;
   border-radius: 15px;
   color: var(--sage);
@@ -659,39 +673,54 @@ p {
   flex-basis: auto;
   border-radius: 19px;
 }
-.plant-card-copy {
-  display: grid;
-  min-width: 0;
-  gap: 4px;
-}
-.plant-card-copy > strong {
-  overflow: hidden;
-  font-size: 16px;
-  font-weight: 500;
-  text-overflow: ellipsis;
-}
-.plant-card-copy > small,
 .plant-species {
   color: var(--muted);
   font-size: 10px;
 }
-.plant-water-status {
+.plant-card-next {
+  display: flex;
+  align-items: center;
+  min-height: 35px;
+}
+.plant-card-next time {
   color: var(--accent);
-  font-size: 11px;
-  font-weight: 400;
+  font-size: 13px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
-.plant-water-status.due {
-  color: var(--text);
+.plant-card-meter {
+  display: block;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--sage) 20%, var(--surface));
 }
-.plant-water-button.button {
-  flex: 0 0 auto;
-  min-height: 38px;
-  padding: 8px 11px;
-  border-radius: 13px;
+.plant-card-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--sage);
+  transition: width .4s ease;
+}
+.plant-water-button {
+  display: grid;
+  place-items: center;
+  width: 35px;
+  height: 35px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
   color: var(--accent);
   background: var(--accent-light);
-  font-size: 11px;
+  transition: transform .2s ease, background .2s ease;
+}
+.plant-water-button:hover { background: var(--gradient-mint); transform: scale(1.06); }
+.plant-water-button:disabled { opacity: .55; }
+.plant-water-button:focus-visible,
+.plant-card-main:focus-visible,
+.plant-card-photo-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 .plant-form,
 .plant-form-extra,
@@ -3638,20 +3667,15 @@ p {
   .nav-content { font-size: 8px; gap: 4px; }
   .nav-content svg { width: 17px; height: 17px; }
   .plant-card {
-    gap: 5px;
-    padding: 6px;
+    gap: 10px;
+    padding: 9px;
   }
-  .plant-card-main {
-    gap: 8px;
+  .plant-card-main > strong {
+    font-size: 16px;
   }
   .plant-photo {
-    flex-basis: 56px;
-    width: 56px;
-    height: 60px;
-  }
-  .plant-water-button.button {
-    padding-left: 8px;
-    padding-right: 8px;
+    width: 64px;
+    height: 68px;
   }
 }
 @media (max-height: 640px) {

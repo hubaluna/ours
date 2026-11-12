@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AnimatePresence } from "motion/react";
-import { ExternalLink, Sprout, Trash2, Upload } from "lucide-react";
+import { Droplet, ExternalLink, Sprout, Trash2, Upload } from "lucide-react";
 import { useApp } from "../hooks/AppContext";
 import { useImage } from "../hooks/useImage";
 import { supabase, uploadImage } from "../lib/supabase";
@@ -24,19 +24,10 @@ function daysUntilWatered(plant: Plant, today: string): number {
   return plant.watering_interval_days - Math.floor((end - start) / 86_400_000);
 }
 
-function WaterStatus({ plant, today }: { plant: Plant; today: string }) {
-  const days = daysUntilWatered(plant, today);
-  if (days <= 0)
-    return <strong className="plant-water-status due">Час поливу</strong>;
-  if (days === 1)
-    return (
-      <strong className="plant-water-status">Полив орієнтовно завтра</strong>
-    );
-  return (
-    <strong className="plant-water-status">
-      Полив орієнтовно через {days} дн.
-    </strong>
-  );
+function nextWaterDate(plant: Plant) {
+  const date = new Date(`${plant.last_watered_at.slice(0, 10)}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + plant.watering_interval_days);
+  return date;
 }
 
 function PlantPhoto({
@@ -399,36 +390,71 @@ export default function Plants() {
           <PagedList
             items={plants}
             render={(plant) => {
-              const due = daysUntilWatered(plant, today) <= 0;
+              const remaining = daysUntilWatered(plant, today);
+              const due = remaining <= 0;
+              const nextDate = nextWaterDate(plant);
+              const progress = Math.max(
+                0,
+                Math.min(
+                  100,
+                  ((plant.watering_interval_days - remaining) /
+                    plant.watering_interval_days) *
+                    100,
+                ),
+              );
               return (
                 <article
                   className={`plant-card card${due ? " plant-card-due" : ""}`}
                   key={plant.id}
                 >
                   <button
-                    className="plant-card-main"
+                    className="plant-card-photo-button"
                     onClick={() => setDetail(plant)}
-                    aria-label={`Деталі рослини · ${plant.name}`}
+                    aria-label={`Відкрити фото рослини · ${plant.name}`}
                   >
                     <PlantPhoto plant={plant} />
-                    <span className="plant-card-copy">
-                      <strong>{plant.name}</strong>
-                      {plant.species && <small>{plant.species}</small>}
-                      <WaterStatus plant={plant} today={today} />
-                    </span>
                   </button>
-                  {due && (
-                    <Button
-                      className="plant-water-button"
-                      busy={pending.includes(`plant-${plant.id}`)}
-                      aria-label={`Відмітити полив · ${plant.name}`}
-                      onClick={() =>
-                        void updatePlant(plant.id, { last_watered_at: today })
-                      }
+                  <div className="plant-card-content">
+                    <button
+                      className="plant-card-main"
+                      onClick={() => setDetail(plant)}
+                      aria-label={`Деталі рослини · ${plant.name}`}
                     >
-                      Полила
-                    </Button>
-                  )}
+                      <strong>{plant.name}</strong>
+                    </button>
+                    <div className="plant-card-next">
+                      {due ? (
+                        <button
+                          className="plant-water-button"
+                          disabled={pending.includes(`plant-${plant.id}`)}
+                          aria-label={`Відмітити полив · ${plant.name}`}
+                          title="Полила сьогодні"
+                          onClick={() =>
+                            void updatePlant(plant.id, {
+                              last_watered_at: today,
+                            })
+                          }
+                        >
+                          <Droplet
+                            size={19}
+                            strokeWidth={1.8}
+                            aria-hidden="true"
+                          />
+                        </button>
+                      ) : (
+                        <time dateTime={nextDate.toISOString().slice(0, 10)}>
+                          {new Intl.DateTimeFormat("uk-UA", {
+                            day: "numeric",
+                            month: "long",
+                            timeZone: "UTC",
+                          }).format(nextDate)}
+                        </time>
+                      )}
+                    </div>
+                    <span className="plant-card-meter" aria-hidden="true">
+                      <span style={{ width: `${progress}%` }} />
+                    </span>
+                  </div>
                 </article>
               );
             }}

@@ -657,7 +657,9 @@ test("plants show an individual watering countdown and record watering", async (
   });
   await expect(waterButton).toBeVisible();
   await waterButton.click();
-  await expect(page.getByText("Полив орієнтовно через 21 дн.")).toBeVisible();
+  await expect(waterButton).toHaveCount(0);
+  await expect(page.locator(".plant-card time")).toHaveAttribute("dateTime", /^\d{4}-\d{2}-\d{2}$/);
+  await expect(page.locator(".plant-card-meter > span")).toHaveAttribute("style", "width: 0%;");
   await page.getByRole("button", { name: "Деталі рослини · Кактус" }).click();
   await expect(page.getByRole("heading", { name: "Кактус" })).toBeVisible();
   await expect(page.getByText(/інтервал зараз 21 дн\./)).toBeVisible();

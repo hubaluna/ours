@@ -607,15 +607,21 @@ function useStore() {
       async () => {
         if (supabase)
           await checked(
-            supabase.from("plants").update(patch).eq("id", id).select("id").single(),
+            supabase
+              .from("plants")
+              .update(patch)
+              .eq("id", id)
+              .select("id")
+              .single(),
           );
-        else
-          setData((d) => ({
-            ...d,
-            plants: d.plants.map((plant) =>
-              plant.id === id ? { ...plant, ...patch, updated_at: new Date().toISOString() } : plant,
-            ),
-          }));
+        setData((d) => ({
+          ...d,
+          plants: d.plants.map((plant) =>
+            plant.id === id
+              ? { ...plant, ...patch, updated_at: new Date().toISOString() }
+              : plant,
+          ),
+        }));
       },
       "Дані рослини оновлено",
     );
