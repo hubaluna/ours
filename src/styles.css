@@ -817,31 +817,19 @@ p {
 .app-mascot-logo {
   top: calc(2px + env(safe-area-inset-top));
   left: 102px;
-  width: 38px;
-  height: 52px;
+  width: 44px;
+  height: 56px;
   object-fit: contain;
+  filter: drop-shadow(0 4px 5px #25342b22);
 }
 .app-mascot-nav {
-  bottom: calc(54px + env(safe-area-inset-bottom));
-  left: calc(50% - 38px);
-  width: 76px;
-  height: auto;
-}
-.app-mascot-photo.app-mascot-nav {
-  left: calc(50% - 34px);
-  width: 68px;
-  height: 68px;
-  object-fit: cover;
-  object-position: center 34%;
-  border-radius: 50%;
-  box-shadow: 0 5px 18px #20251e2b;
-}
-.app-mascot-photo.app-mascot-logo {
-  width: 43px;
-  height: 48px;
-  object-fit: cover;
-  object-position: center 30%;
-  border-radius: 45%;
+  bottom: calc(3px + env(safe-area-inset-bottom));
+  left: calc(50% - 48px);
+  width: 96px;
+  height: 72px;
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(0 5px 8px #25342b26);
 }
 .bottom-nav:after {
   content: "";

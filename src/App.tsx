@@ -76,9 +76,13 @@ function useOccasionalCat(): MascotPose {
             schedule();
             return;
           }
+          const image = catPhotos[photoIndex];
           setPose({
-            placement: moments % 2 === 0 ? "logo" : "nav",
-            image: catPhotos[photoIndex],
+            placement:
+              image === "cat-sitting.webp" || image === "cat-nav-peek.webp"
+                ? "logo"
+                : "nav",
+            image,
           });
           photoIndex = (photoIndex + 1) % catPhotos.length;
           hideTimer = window.setTimeout(() => {
@@ -186,7 +190,7 @@ export default function App() {
             {mascot && (
               <motion.img
                 key={`${mascot.placement}-${mascot.image}`}
-                className={`app-mascot app-mascot-${mascot.placement}${mascot.image.startsWith("cat-sitting") || mascot.image.startsWith("cat-nav-peek") ? "" : " app-mascot-photo"}`}
+                className={`app-mascot app-mascot-${mascot.placement}`}
                 src={`${import.meta.env.BASE_URL}art/${mascot.image}`}
                 alt=""
                 aria-hidden="true"
