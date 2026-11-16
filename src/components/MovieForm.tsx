@@ -28,15 +28,26 @@ export function MovieForm({
       setError("Перевірте назву та HTTPS-посилання.");
       return;
     }
+    const parsedYear = year.trim() ? Number(year.trim()) : null;
+    const rawRating = status === "watched" ? Number(f.get("rating")) : null;
+    if (
+      (parsedYear !== null &&
+        (!Number.isInteger(parsedYear) || parsedYear < 1888 || parsedYear > 2200)) ||
+      (rawRating !== null &&
+        (!Number.isInteger(rawRating) || rawRating < 1 || rawRating > 10))
+    ) {
+      setError("Перевірте рік та оцінку (від 1 до 10).");
+      return;
+    }
     const value: NewMovie = {
       title,
       url,
       poster_url: poster,
-      year: year ? Number(year) : null,
+      year: parsedYear,
       genres: String(f.get("genres")),
       description: movieSynopsis(String(f.get("description"))),
       status: String(f.get("status")) as Movie["status"],
-      rating: status === "watched" ? Number(f.get("rating")) : null,
+      rating: rawRating,
       metadata_url: seed?.metadata_url ?? "",
     };
     const ok = movie

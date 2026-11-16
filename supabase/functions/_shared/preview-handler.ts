@@ -1,4 +1,4 @@
-import { publicUrl } from "./urls.ts";
+import { normalizeImportUrl, publicUrl } from "./urls.ts";
 import type { ImportKind, LinkMetadata } from "./metadata.ts";
 type Dependencies = {
   origins: string[];
@@ -79,11 +79,15 @@ export function createPreviewHandler({
           { error: "INVALID_REQUEST" },
         );
       }
+      const normalizedUrl =
+        input && typeof input.url === "string"
+          ? normalizeImportUrl(input.url)
+          : "";
       if (
         !input ||
         typeof input.url !== "string" ||
         !["movie", "wish", "recipe"].includes(input.kind || "") ||
-        !publicUrl(input.url) ||
+        !publicUrl(normalizedUrl) ||
         (input.query !== undefined &&
           (typeof input.query !== "string" || input.query.length > 160))
       )
@@ -93,7 +97,7 @@ export function createPreviewHandler({
       try {
         return reply(200, {
           data: await load(
-            input.url,
+            normalizedUrl,
             input.kind!,
             controller.signal,
             input.query,

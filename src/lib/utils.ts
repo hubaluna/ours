@@ -5,6 +5,14 @@ export const kyivDate = (date = new Date()) =>
     month: "2-digit",
     day: "2-digit",
   }).format(date);
+export const kyivHour = (date = new Date()) =>
+  Number(
+    new Intl.DateTimeFormat("en-GB", {
+      hour: "numeric",
+      hourCycle: "h23",
+      timeZone: "Europe/Kyiv",
+    }).format(date),
+  );
 export const money = (value: number) =>
   new Intl.NumberFormat("uk-UA", {
     style: "currency",
@@ -68,20 +76,3 @@ export function errorMessage(error: unknown): string {
     ? "Не вдалося зберегти зміни. Спробуйте ще раз."
     : "Немає з’єднання. Введені дані збережено у формі.";
 }
-
-export const isUpcoming = (event: {
-  date: string;
-  time: string | null;
-  all_day: boolean;
-}) => {
-  const today = kyivDate();
-  if (event.date !== today) return event.date > today;
-  if (event.all_day || !event.time) return true;
-  const time = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/Kyiv",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).format(new Date());
-  return event.time.slice(0, 5) >= time;
-};

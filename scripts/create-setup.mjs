@@ -14,6 +14,7 @@ const migrations = [
   "012_drop_empty_places.sql",
   "015_plants.sql",
   "016_plant_care_recipe_favorites.sql",
+  "019_home_pantry.sql",
 ];
 const body = migrations
   .map(

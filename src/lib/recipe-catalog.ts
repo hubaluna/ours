@@ -1,6 +1,7 @@
 import archive from "../data/ours-recipes.json";
 import corrections from "../data/recipe-corrections.json";
 import type {
+  PantryItem,
   Recipe,
   RecipeCategory,
   RecipeIngredient,
@@ -9,7 +10,7 @@ import type {
   ShoppingItem,
 } from "./types";
 import { parseIngredient } from "../../supabase/functions/_shared/ingredients";
-import { isPantryStaple } from "../../supabase/functions/_shared/grocery-category";
+import { isAtHomeIngredient } from "./pantry";
 import { groceryCatalogCategory } from "./grocery-catalog";
 export const MAX_SERVINGS = 12;
 export const categoryMap: Record<string, RecipeCategory> = {
@@ -224,6 +225,7 @@ export function syncDemoMenuShopping(
   excluded: string[],
   userId: string,
   coupleId: string,
+  pantry: readonly PantryItem[] = [],
 ): ShoppingItem[] {
   const ingredients = aggregateIngredients(
     plan
@@ -237,7 +239,9 @@ export function syncDemoMenuShopping(
   const desired = new Map(
     ingredients
       .filter(
-        (i) => !isPantryStaple(i.name) && !excluded.includes(ingredientKey(i)),
+        (i) =>
+          !isAtHomeIngredient(i.name, pantry) &&
+          !excluded.includes(ingredientKey(i)),
       )
       .map((i) => [ingredientKey(i), i]),
   );

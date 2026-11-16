@@ -17,6 +17,12 @@ import {
 import type { NewShopping } from "../lib/types";
 import { groceryCatalogCategory } from "../lib/grocery-catalog";
 import { movieSynopsis } from "../../supabase/functions/_shared/movie-synopsis";
+import { normalizeImportUrl } from "../../supabase/functions/_shared/urls";
+import { isGenericTikTokTitle } from "../../supabase/functions/_shared/movie-search";
+import {
+  needsClientMovieRefresh,
+  resolveMovieClientSide,
+} from "../lib/client-movie-search";
 import { isTikTokVideoUrl } from "../lib/recipe-source";
 import { retryLinkPreview422 } from "../lib/link-preview-retry";
 import { useApp } from "../hooks/AppContext";
@@ -43,8 +49,14 @@ export function LinkImport({
       (NewShopping & { selected: boolean; note?: string })[]
     >([]);
   const receive = (value: LinkMetadata) => {
-    if (kind === "movie")
-      value = { ...value, description: movieSynopsis(value.description) };
+    if (kind === "movie") {
+      value = {
+        ...value,
+        description: movieSynopsis(value.description),
+        image_url:
+          value.image_url === value.source_url ? "" : value.image_url,
+      };
+    }
     setResult(value);
     setIngredients(
       value.ingredients.map((line) => ({
@@ -58,37 +70,79 @@ export function LinkImport({
     if (busy) return;
     setBusy(true);
     setError("");
+    const normalizedUrl = url.trim() ? normalizeImportUrl(url) : "";
+    if (normalizedUrl && normalizedUrl !== url) setUrl(normalizedUrl);
     try {
-      if (!supabase) {
-        setPaste(true);
-        setError(
-          "Автоматичне читання ще не підключене. Можна вставити текст зі сторінки.",
-        );
-        return;
+      if (supabase) {
+        try {
+          const client = supabase;
+          const { data, error } = await retryLinkPreview422<{
+            data: LinkMetadata;
+            movie_query?: string;
+          }>(() =>
+            client.functions.invoke("link-preview", {
+              body: {
+                url:
+                  normalizedUrl ||
+                  (kind === "movie" ? "https://uk.wikipedia.org/" : ""),
+                kind,
+                ...(kind === "movie" && movieQuery.trim()
+                  ? { query: movieQuery.trim() }
+                  : {}),
+              },
+            }),
+          );
+          if (!error && data?.data) {
+            let payload = data.data;
+            if (kind === "movie" && isGenericTikTokTitle(payload.title)) {
+              payload = {
+                ...payload,
+                title: "",
+                description: /^TikTok/i.test(payload.description.trim())
+                  ? ""
+                  : payload.description,
+                provider: "TikTok",
+              };
+            }
+            if (
+              kind === "movie" &&
+              !movieQuery.trim() &&
+              needsClientMovieRefresh(payload, normalizedUrl)
+            ) {
+              const refreshed = await resolveMovieClientSide(normalizedUrl);
+              if (refreshed) payload = refreshed;
+            }
+            if (kind === "movie" && !payload.image_url && result?.image_url) {
+              payload = { ...payload, image_url: result.image_url };
+            }
+            receive(payload);
+            if (kind === "movie" && !movieQuery)
+              setMovieQuery(payload.movie_query || "");
+            return;
+          }
+        } catch {
+          /* Fall through to browser CORS fallback for movies or show paste box. */
+        }
       }
-      const client = supabase;
-      const { data, error } = await retryLinkPreview422<{
-        data: LinkMetadata;
-        movie_query?: string;
-      }>(() =>
-        client.functions.invoke("link-preview", {
-          body: {
-            url: url || (kind === "movie" ? "https://uk.wikipedia.org/" : ""),
-            kind,
-            ...(kind === "movie" && movieQuery.trim()
-              ? { query: movieQuery.trim() }
-              : {}),
-          },
-        }),
-      );
-      if (error || !data?.data) throw new Error();
-      receive(data.data);
-      if (kind === "movie" && !movieQuery)
-        setMovieQuery(data.data.movie_query || "");
-    } catch {
+
+      if (kind === "movie") {
+        let fallback = await resolveMovieClientSide(normalizedUrl, movieQuery);
+        if (fallback) {
+          if (!fallback.image_url && result?.image_url) {
+            fallback = { ...fallback, image_url: result.image_url };
+          }
+          receive(fallback);
+          if (!movieQuery && fallback.movie_query)
+            setMovieQuery(fallback.movie_query);
+          return;
+        }
+      }
+
       setPaste(true);
       setError(
-        "Не вдалося прочитати посилання. Спробуйте ще раз або вставте текст зі сторінки.",
+        !supabase
+          ? "Автоматичне читання ще не підключене. Можна вставити текст зі сторінки."
+          : "Не вдалося прочитати посилання. Спробуйте ще раз або вставте текст зі сторінки.",
       );
     } finally {
       setBusy(false);
@@ -122,6 +176,12 @@ export function LinkImport({
               <input
                 value={movieQuery}
                 onChange={(e) => setMovieQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (url || movieQuery.trim())) {
+                    e.preventDefault();
+                    void load();
+                  }
+                }}
                 maxLength={160}
                 placeholder="Наприклад, Початок"
               />
@@ -165,7 +225,12 @@ export function LinkImport({
                 disabled={!text.trim()}
                 onClick={() => {
                   try {
-                    receive(parsePasted(text, url, kind));
+                    const normalizedUrl = url.trim()
+                      ? normalizeImportUrl(url)
+                      : "";
+                    if (normalizedUrl && normalizedUrl !== url)
+                      setUrl(normalizedUrl);
+                    receive(parsePasted(text, normalizedUrl, kind));
                   } catch {
                     setError("Для HTML потрібне повне посилання на сторінку.");
                   }
@@ -274,6 +339,12 @@ export function LinkImport({
                 <input
                   value={movieQuery}
                   onChange={(e) => setMovieQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && movieQuery.trim()) {
+                      e.preventDefault();
+                      void load();
+                    }
+                  }}
                   maxLength={160}
                   placeholder="Назва з відео або опису"
                 />
@@ -302,7 +373,13 @@ export function LinkImport({
                           year: candidate.year,
                           genres: candidate.genres,
                           metadata_url: candidate.url,
-                          provider: "Wikipedia",
+                          provider: candidate.url.includes("wikipedia.org")
+                            ? "Wikipedia"
+                            : candidate.url.includes("wikidata.org")
+                              ? "Wikidata"
+                              : candidate.url.includes("tvmaze.com")
+                                ? "TVMaze"
+                                : "Apple TV",
                         })
                       }
                     >
@@ -324,10 +401,23 @@ export function LinkImport({
                 </div>
               )}
               {!result.metadata_url && (
-                <p className="subtle-note">
-                  Для відео потрібна назва фільму в описі. Якщо її немає,
-                  введіть назву вище — оберіть відповідний результат.
-                </p>
+                <div className="video-recipe-steps">
+                  <p className="subtle-note">
+                    {!result.title
+                      ? "У цьому відео назва фільму не вказана в описі — введіть її вище й натисніть «Знайти опис і постер» або заповніть вручну нижче."
+                      : "Якщо потрібного опису ще немає, уточніть назву фільму вище й натисніть «Знайти опис і постер»."}
+                  </p>
+                  {!result.title && isTikTokVideoUrl(result.source_url) && (
+                    <a
+                      className="button secondary"
+                      href={result.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Відкрити відео у TikTok <ExternalLink size={15} />
+                    </a>
+                  )}
+                </div>
               )}
             </>
           )}
@@ -346,7 +436,14 @@ export function LinkImport({
               target="_blank"
               rel="noopener noreferrer"
             >
-              Джерело опису та зображення · Wikipedia
+              Джерело опису та зображення ·{" "}
+              {result.metadata_url.includes("wikipedia.org")
+                ? "Wikipedia"
+                : result.metadata_url.includes("wikidata.org")
+                  ? "Wikidata"
+                  : result.metadata_url.includes("tvmaze.com")
+                    ? "TVMaze"
+                    : "Apple TV"}
             </a>
           )}
           <Field label={kind === "recipe" ? "Назва рецепта" : "Назва"}>

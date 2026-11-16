@@ -40,6 +40,9 @@ export function RecipeForm({
     const image_url = publicUrl(String(f.get("image"))),
       source = String(f.get("source")).trim();
     const videoRecipe = isTikTokVideoUrl(source);
+    const baseServings = Number(f.get("base_servings") || 1);
+    const totalTimeRaw = String(f.get("total_time_minutes") ?? "").trim();
+    const totalTime = totalTimeRaw ? Number(totalTimeRaw) : null;
     const value: NewRecipe = {
       title: String(f.get("title")).trim(),
       category: String(f.get("category")) as RecipeCategory,
@@ -48,10 +51,13 @@ export function RecipeForm({
       ingredients: lines("ingredients"),
       instructions: lines("instructions"),
       structured_ingredients: structuredIngredients(lines("ingredients")),
-      base_servings: Number(f.get("base_servings") || 1),
-      total_time_minutes: f.get("total_time_minutes")
-        ? Number(f.get("total_time_minutes"))
-        : null,
+      base_servings: Number.isFinite(baseServings)
+        ? Math.max(1, Math.min(12, Math.round(baseServings)))
+        : 1,
+      total_time_minutes:
+        totalTime !== null && Number.isFinite(totalTime) && totalTime >= 1
+          ? Math.min(2880, Math.round(totalTime))
+          : null,
     };
     if (
       !image_url ||
@@ -60,7 +66,12 @@ export function RecipeForm({
       (!value.instructions.length && !videoRecipe) ||
       value.ingredients.length > 80 ||
       value.instructions.length > 60 ||
-      (source && !publicUrl(source))
+      (source && !publicUrl(source)) ||
+      !Number.isFinite(baseServings) ||
+      baseServings < 1 ||
+      baseServings > 12 ||
+      (totalTime !== null &&
+        (!Number.isFinite(totalTime) || totalTime < 1 || totalTime > 2880))
     ) {
       setError(
         "Додайте назву, фото готової страви, продукти й кроки приготування.",

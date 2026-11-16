@@ -9,9 +9,15 @@ import {
   ExternalLink,
   Link2,
   Copy,
+  Repeat,
 } from "lucide-react";
 import { useApp } from "../hooks/AppContext";
 import { kyivDate, longDate } from "../lib/utils";
+import {
+  eventOccursOn,
+  nextOccurrence,
+  recurrenceLabel,
+} from "../lib/recurrence";
 import type { Plan } from "../lib/types";
 import { spring, soft } from "../lib/motion";
 import { BottomSheet, Button, EmptyState, IconButton } from "../components/ui";
@@ -30,7 +36,7 @@ export default function Plans() {
   }, []);
   const [selected, setSelected] = useState(today),
     [month, setMonth] = useState(
-      () => new Date(`${today.slice(0, 7)}-01T12:00:00`),
+      () => new Date(`${today.slice(0, 7)}-01T12:00:00Z`),
     ),
     [form, setForm] = useState<Plan | "new" | null>(null),
     [detail, setDetail] = useState<Plan | null>(null),
@@ -73,29 +79,39 @@ export default function Plans() {
       setFeedBusy(false);
     }
   };
-  const year = month.getFullYear(),
-    mo = month.getMonth(),
-    length = new Date(year, mo + 1, 0).getDate(),
-    offset = (new Date(year, mo, 1).getDay() + 6) % 7;
+  const year = month.getUTCFullYear(),
+    mo = month.getUTCMonth(),
+    length = new Date(Date.UTC(year, mo + 1, 0)).getUTCDate(),
+    offset = (new Date(Date.UTC(year, mo, 1)).getUTCDay() + 6) % 7;
   const monthLabel = new Intl.DateTimeFormat("uk-UA", {
     month: "long",
     year: "numeric",
+    timeZone: "UTC",
   }).format(month);
   const dateKey = (d: number) =>
     `${year}-${String(mo + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   const events = data.events
-    .filter((e) => e.date === selected)
+    .filter((e) => eventOccursOn(e, selected))
     .sort((a, b) => (a.time ?? "").localeCompare(b.time ?? ""));
   const showUpcoming = selected === today && events.length === 0;
-  const shownEvents = showUpcoming
+  const shownItems = showUpcoming
     ? data.events
-        .filter((e) => e.date > today)
+        .map((event) => {
+          const displayDate = nextOccurrence(event, today);
+          return displayDate && displayDate > today
+            ? { event, displayDate }
+            : null;
+        })
+        .filter(
+          (entry): entry is { event: Plan; displayDate: string } =>
+            entry !== null,
+        )
         .sort(
           (a, b) =>
-            a.date.localeCompare(b.date) ||
-            (a.time ?? "").localeCompare(b.time ?? ""),
+            a.displayDate.localeCompare(b.displayDate) ||
+            (a.event.time ?? "").localeCompare(b.event.time ?? ""),
         )
-    : events;
+    : events.map((event) => ({ event, displayDate: selected }));
   const remaining = (date: string) => {
     const days = Math.round(
       (Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) /
@@ -105,7 +121,7 @@ export default function Plans() {
     const ending = new Intl.PluralRules("uk").select(days);
     return `Через ${days} ${ending === "one" ? "день" : ending === "few" ? "дні" : "днів"}`;
   };
-  const change = (n: number) => setMonth(new Date(year, mo + n, 1, 12));
+  const change = (n: number) => setMonth(new Date(Date.UTC(year, mo + n, 1, 12)));
   const calendar = (
     <>
       <div className="calendar-header">
@@ -166,7 +182,7 @@ export default function Plans() {
                   />
                 )}
                 <span className="day-number">{d}</span>
-                {data.events.some((e) => e.date === date) && (
+                {data.events.some((e) => eventOccursOn(e, date)) && (
                   <i className="event-dot" />
                 )}
               </button>
@@ -196,21 +212,22 @@ export default function Plans() {
         <section className="day-plans">
           <div className="day-heading">
             <h2>
-              {showUpcoming && shownEvents.length
+              {showUpcoming && shownItems.length
                 ? "Найближчі події"
                 : selected === today
                   ? "Сьогодні"
                   : new Intl.DateTimeFormat("uk-UA", {
                       day: "numeric",
                       month: "long",
-                    }).format(new Date(`${selected}T12:00:00`))}
-              <span className="count">{shownEvents.length}</span>
+                      timeZone: "UTC",
+                    }).format(new Date(`${selected}T12:00:00Z`))}
+              <span className="count">{shownItems.length}</span>
             </h2>
             <button
               className="text-button"
               onClick={() => {
                 setSelected(today);
-                setMonth(new Date(`${today.slice(0, 7)}-01T12:00:00`));
+                setMonth(new Date(`${today.slice(0, 7)}-01T12:00:00Z`));
               }}
             >
               До сьогодні
@@ -218,46 +235,56 @@ export default function Plans() {
           </div>
           <div className="screen-panel">
             <PagedList
-              items={shownEvents}
+              items={shownItems}
               empty={
                 <EmptyState
                   title="День відкритий для ідей"
                   description="Заплануємо щось хороше?"
                 />
               }
-              render={(event) => (
-                <button
-                  className={`calendar-event-row${showUpcoming ? " calendar-upcoming" : ""}`}
-                  key={event.id}
-                  onClick={() => {
-                    setDetail(event);
-                    setShowDescription(false);
-                  }}
-                >
-                  <span className="event-icon">
-                    <CalendarDays size={19} />
-                  </span>
-                  <div>
-                    <strong>{event.title}</strong>
-                    <p>
-                      {showUpcoming && (
-                        <span className="event-countdown">
-                          {remaining(event.date)} ·{" "}
-                          {new Intl.DateTimeFormat("uk-UA", {
-                            day: "numeric",
-                            month: "short",
-                          }).format(new Date(`${event.date}T12:00:00`))}
-                        </span>
-                      )}
-                      <Clock3 size={12} />
-                      {event.all_day
-                        ? "Увесь день"
-                        : event.time?.slice(0, 5) || "Без часу"}
-                    </p>
-                  </div>
-                  <ChevronRight size={16} />
-                </button>
-              )}
+              render={({ event, displayDate }) => {
+                const repeatLabel = recurrenceLabel(event.recurrence);
+                return (
+                  <button
+                    className={`calendar-event-row${showUpcoming ? " calendar-upcoming" : ""}`}
+                    key={`${event.id}-${displayDate}`}
+                    onClick={() => {
+                      setDetail(event);
+                      setShowDescription(false);
+                    }}
+                  >
+                    <span className="event-icon">
+                      <CalendarDays size={19} />
+                    </span>
+                    <div>
+                      <strong>{event.title}</strong>
+                      <p>
+                        {showUpcoming && (
+                          <span className="event-countdown">
+                            {remaining(displayDate)} ·{" "}
+                            {new Intl.DateTimeFormat("uk-UA", {
+                              day: "numeric",
+                              month: "short",
+                              timeZone: "UTC",
+                            }).format(new Date(`${displayDate}T12:00:00Z`))}
+                          </span>
+                        )}
+                        <Clock3 size={12} />
+                        {event.all_day
+                          ? "Увесь день"
+                          : event.time?.slice(0, 5) || "Без часу"}
+                        {repeatLabel && (
+                          <span className="event-recurrence-tag">
+                            <Repeat size={11} />
+                            {repeatLabel}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <ChevronRight size={16} />
+                  </button>
+                );
+              }}
             />
           </div>
         </section>
@@ -316,6 +343,12 @@ export default function Plans() {
                   ? "Увесь день"
                   : detail.time?.slice(0, 5) || "Без часу"}
               </p>
+              {recurrenceLabel(detail.recurrence) && (
+                <p>
+                  <Repeat size={16} />
+                  Повторюється: {recurrenceLabel(detail.recurrence).toLowerCase()}
+                </p>
+              )}
               {detail.description && (
                 <>
                   <Button

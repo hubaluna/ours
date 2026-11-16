@@ -26,6 +26,7 @@ export const expectedTables = [
   "plant_care_events",
   "recipe_favorites",
   "recipe_cooks",
+  "pantry_items",
 ];
 const schemaQuery = `select c.relname as name, c.relrowsecurity as rls
  from pg_class c join pg_namespace n on n.oid=c.relnamespace

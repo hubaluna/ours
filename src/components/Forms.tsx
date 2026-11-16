@@ -18,6 +18,7 @@ import {
 } from "../lib/grocery-catalog";
 import { quantityLabel } from "../lib/recipe-catalog";
 import { publicUrl } from "../../supabase/functions/_shared/urls";
+import { normalizeRecurrence, recurrenceOptions } from "../lib/recurrence";
 import { BottomSheet, Button, ConfirmDelete, Field } from "./ui";
 const textSchema = z
   .string()
@@ -334,9 +335,17 @@ export function WishForm({
       setError("Розмір або варіант має бути до 120 символів.");
       return;
     }
+    const parsedPrice = price(String(f.get("price") ?? "").trim());
+    if (
+      parsedPrice !== null &&
+      (!Number.isFinite(parsedPrice) || parsedPrice < 0)
+    ) {
+      setError("Перевірте ціну.");
+      return;
+    }
     const value = {
       name: parsed.data,
-      price: price(String(f.get("price"))),
+      price: parsedPrice,
       url,
       priority: String(f.get("priority")),
       note: String(f.get("note")),
@@ -515,6 +524,7 @@ export function EventForm({
       url,
       description: String(f.get("description")),
       category: event?.category ?? "Побачення",
+      recurrence: normalizeRecurrence(String(f.get("recurrence") ?? "none")),
     };
     const ok = event
       ? await update("events", event.id, value, "План оновлено")
@@ -572,6 +582,18 @@ export function EventForm({
           />
           Увесь день
         </label>
+        <Field label="Повтор">
+          <select
+            name="recurrence"
+            defaultValue={normalizeRecurrence(event?.recurrence)}
+          >
+            {recurrenceOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </Field>
         <Field label="Посилання · необов’язково">
           <input
             name="url"

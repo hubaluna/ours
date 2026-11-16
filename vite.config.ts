@@ -2,9 +2,11 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const base = env.VITE_BASE_PATH || "/";
+  const base =
+    env.VITE_BASE_PATH ||
+    (command === "build" && mode !== "test" ? "/Ours/" : "/");
   return {
     base,
     plugins: [
@@ -48,8 +50,20 @@ export default defineConfig(({ mode }) => {
           navigateFallback: "index.html",
           navigateFallbackDenylist: [/^\/auth/, /supabase/],
           importScripts: ["push-events.js"],
-          globPatterns: ["**/*.{js,css,html,png,jpg,jpeg,webp,svg,woff2}"],
-          runtimeCaching: [],
+          globPatterns: ["**/*.{js,css,html,png,svg,woff2}", "art/*.webp"],
+          runtimeCaching: [
+            {
+              urlPattern: /\/recipes\/.+\.(?:webp|png|jpe?g)$/,
+              handler: "CacheFirst",
+              options: {
+                cacheName: "ours-recipes-v1",
+                expiration: {
+                  maxEntries: 90,
+                  maxAgeSeconds: 30 * 24 * 60 * 60,
+                },
+              },
+            },
+          ],
           cleanupOutdatedCaches: true,
         },
       }),
@@ -62,9 +76,18 @@ export default defineConfig(({ mode }) => {
               ? "supabase"
               : id.includes("/motion") || id.includes("/framer-motion")
                 ? "motion"
-                : undefined,
+                : id.includes("lucide-react")
+                  ? "icons"
+                  : undefined,
         },
       },
+    },
+    server: {
+      host: "0.0.0.0",
+      port: 3000,
+      allowedHosts: true,
+      hmr: process.env.DISABLE_HMR !== "true",
+      watch: process.env.DISABLE_HMR === "true" ? null : {},
     },
   };
 });

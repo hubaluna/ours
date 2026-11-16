@@ -66,3 +66,53 @@ Deno.test("VAPID authorization is a valid ES256 token scoped to the push endpoin
   const claims = JSON.parse(decoder.decode(decodeBase64Url(jwtClaims)));
   if (claims.aud !== "https://fcm.googleapis.com" || claims.exp !== now + 43200) throw new Error("VAPID claims invalid");
 });
+
+Deno.test("smart push rules enforce after-11 window and skip noisy shopping actions", async () => {
+  const { isActivePushHour, shouldDispatchActivity, formatShoppingBatchBody } = await import("./smart-rules.ts");
+  if (isActivePushHour(10) || isActivePushHour(22) || !isActivePushHour(11) || !isActivePushHour(21)) {
+    throw new Error("Active push hours should be 11..21");
+  }
+  if (!shouldDispatchActivity("shopping", "added")) {
+    throw new Error("Added shopping items should be eligible");
+  }
+  if (shouldDispatchActivity("shopping", "purchased") || shouldDispatchActivity("shopping", "deleted")) {
+    throw new Error("Purchased or deleted shopping items should not ping");
+  }
+  if (!shouldDispatchActivity("events", "updated")) {
+    throw new Error("Non-shopping events should still dispatch");
+  }
+  const summary = formatShoppingBatchBody("Анна", ["Молоко", "Хліб", "Яйця", "Сир", "Масло"]);
+  if (!summary.includes("5 поз.") || !summary.includes("та ще 2")) {
+    throw new Error(`Unexpected batch summary: ${summary}`);
+  }
+});
+
+Deno.test("plantDueToday and nextEventOccurrence match seasonal care and recurring calendar rules", async () => {
+  const { plantDueToday, nextEventOccurrence } = await import("./smart-rules.ts");
+  const cactus = {
+    name: "Кактус",
+    species: "Cactaceae",
+    watering_interval_days: 10,
+    last_watered_at: "2026-01-01",
+    wet_checked_at: null,
+  };
+  if (plantDueToday(cactus, "2026-01-12")) {
+    throw new Error("Winter cactus should extend watering interval by 1.7x");
+  }
+  if (!plantDueToday(cactus, "2026-01-18")) {
+    throw new Error("Winter cactus should be due on day 17");
+  }
+  if (plantDueToday({ ...cactus, wet_checked_at: "2026-01-16" }, "2026-01-18")) {
+    throw new Error("Wet-soil check should postpone watering reminder");
+  }
+  if (nextEventOccurrence({ date: "2026-01-31", recurrence: "monthly" }, "2026-02-05") !== "2026-02-28") {
+    throw new Error("Monthly recurrence should clamp Jan 31 to Feb 28");
+  }
+  if (nextEventOccurrence({ date: "2026-05-01", recurrence: "weekly" }, "2026-05-10") !== "2026-05-15") {
+    throw new Error("Weekly recurrence should find next 7-day occurrence");
+  }
+  if (nextEventOccurrence({ date: "2024-02-29", recurrence: "yearly" }, "2026-01-01") !== "2026-02-28") {
+    throw new Error("Yearly recurrence should clamp leap day to Feb 28");
+  }
+});
+

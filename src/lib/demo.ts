@@ -13,6 +13,7 @@ export function createDemo(): Data {
   return {
     mealPlan: [],
     menuExcludedKeys: [],
+    pantry: [],
     recipes: [],
     profiles: [
       { id: DEMO_USER, name: "Анна", avatar_path: null },
@@ -234,6 +235,7 @@ export function readDemo(): Data {
           menuExcludedKeys: Array.isArray(data.menuExcludedKeys)
             ? data.menuExcludedKeys
             : [],
+          pantry: Array.isArray(data.pantry) ? data.pantry : [],
           recipes: Array.isArray(data.recipes) ? data.recipes : [],
           plants: Array.isArray(data.plants) ? data.plants : [],
           plantCare: Array.isArray(data.plantCare) ? data.plantCare : [],

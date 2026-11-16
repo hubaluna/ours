@@ -106,6 +106,7 @@ export function GiftReservationControl({ wish }: { wish: Wish }) {
 export default function Wishes() {
   const { data, userId } = useApp();
   const [view, setView] = useState("mine"),
+    [sort, setSort] = useState<"newest" | "priority" | "price-asc" | "price-desc">("newest"),
     [detail, setDetail] = useState<Wish | null>(null),
     [form, setForm] = useState<Wish | "new" | null>(null),
     [initial, setInitial] = useState<Partial<NewWish>>(),
@@ -113,13 +114,41 @@ export default function Wishes() {
     [exportSelection, setExportSelection] = useState<string[]>([]),
     [printItems, setPrintItems] = useState<Wish[]>([]),
     [importing, setImporting] = useState(false);
-  const wishes = data.wishes.filter(
-    (w) =>
-      !w.is_deleted &&
-      (view === "mine"
-        ? w.owner_id === userId
-        : w.owner_id !== userId && !w.is_private),
-  );
+  const priorityOrder: Record<string, number> = {
+    "Мрія": 0,
+    "Дуже хочу": 1,
+    "Просто хочу": 2,
+  };
+  const wishes = data.wishes
+    .filter(
+      (w) =>
+        !w.is_deleted &&
+        (view === "mine"
+          ? w.owner_id === userId
+          : w.owner_id !== userId && !w.is_private),
+    )
+    .sort((a, b) => {
+      if (sort === "priority") {
+        return (
+          (priorityOrder[a.priority] ?? 3) - (priorityOrder[b.priority] ?? 3) ||
+          b.created_at.localeCompare(a.created_at)
+        );
+      }
+      if (sort === "price-asc") {
+        return (
+          (a.price ?? Number.POSITIVE_INFINITY) -
+            (b.price ?? Number.POSITIVE_INFINITY) ||
+          b.created_at.localeCompare(a.created_at)
+        );
+      }
+      if (sort === "price-desc") {
+        return (
+          (b.price ?? -1) - (a.price ?? -1) ||
+          b.created_at.localeCompare(a.created_at)
+        );
+      }
+      return b.created_at.localeCompare(a.created_at);
+    });
   useEffect(() => {
     if (!printItems.length) return;
     let cancelled = false;
@@ -207,9 +236,25 @@ export default function Wishes() {
           { id: "partner", label: "Бажання партнера" },
         ]}
       />
+      <div className="filter-line">
+        <select
+          aria-label="Сортування бажань"
+          value={sort}
+          onChange={(e) =>
+            setSort(
+              e.target.value as "newest" | "priority" | "price-asc" | "price-desc",
+            )
+          }
+        >
+          <option value="newest">Спочатку нові</option>
+          <option value="priority">За силою бажання</option>
+          <option value="price-asc">Дешевші спочатку</option>
+          <option value="price-desc">Дорожчі спочатку</option>
+        </select>
+      </div>
       <div className="screen-panel media-panel">
         <PagedList
-          key={view}
+          key={`${view}-${sort}`}
           items={wishes}
           empty={
             <EmptyState

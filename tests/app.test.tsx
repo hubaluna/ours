@@ -443,4 +443,265 @@ describe("Compact seven-tab app", () => {
     expect(saved().activities).toHaveLength(activityCount);
     expect(saved().wishes[2]).not.toHaveProperty("status");
   });
+  it("sorts purchased shopping items first by purchase date and then by category", async () => {
+    cleanup();
+    const data = createDemo();
+    data.shopping = [
+      {
+        ...data.shopping[0],
+        id: "old-bread",
+        name: "Багет",
+        category: "Хліб і випічка",
+        purchased: true,
+        session_id: null,
+        created_at: "2026-11-10T10:00:00.000Z",
+        updated_at: "2026-11-10T14:00:00.000Z",
+      },
+      {
+        ...data.shopping[0],
+        id: "old-milk",
+        name: "Кефір",
+        category: "Молочне",
+        purchased: true,
+        session_id: null,
+        created_at: "2026-11-10T09:00:00.000Z",
+        updated_at: "2026-11-10T15:00:00.000Z",
+      },
+      {
+        ...data.shopping[0],
+        id: "new-cheese",
+        name: "Сир брі",
+        category: "Молочне",
+        purchased: true,
+        session_id: null,
+        created_at: "2026-11-12T09:00:00.000Z",
+        updated_at: "2026-11-12T12:00:00.000Z",
+      },
+    ];
+    localStorage.setItem("ours-demo-v1", JSON.stringify(data));
+    mount();
+    const user = userEvent.setup();
+    await user.click(nav().getByText("Покупки"));
+    await user.click(await screen.findByRole("button", { name: "Куплено · 3" }));
+    const dateGroups = [...document.querySelectorAll(".shopping-date-group")];
+    expect(dateGroups).toHaveLength(2);
+    expect(dateGroups[0].querySelector(".shopping-date-heading")?.textContent).toContain("12 листопада");
+    expect(dateGroups[0].textContent).toContain("Сир брі");
+    expect(dateGroups[1].querySelector(".shopping-date-heading")?.textContent).toContain("10 листопада");
+    const olderCategories = [...dateGroups[1].querySelectorAll(".shopping-category-heading")].map(
+      (el) => el.textContent,
+    );
+    expect(olderCategories).toEqual(["Молочне", "Хліб і випічка"]);
+  });
+
+  it("sorts wishes by priority and price", async () => {
+    const user = userEvent.setup();
+    await user.click(nav().getByText("Бажання"));
+    const sortSelect = await screen.findByLabelText("Сортування бажань");
+    await user.selectOptions(sortSelect, "price-asc");
+    const titlesAsc = [...document.querySelectorAll(".wish-row h2")].map(
+      (el) => el.textContent,
+    );
+    expect(titlesAsc).toEqual([
+      "Книга для повільних вихідних",
+      "Теплий светр",
+      "Навушники для улюбленої музики",
+    ]);
+
+    await user.selectOptions(sortSelect, "priority");
+    const titlesPrio = [...document.querySelectorAll(".wish-row h2")].map(
+      (el) => el.textContent,
+    );
+    expect(titlesPrio[0]).toBe("Навушники для улюбленої музики");
+  });
+
+  it("moves deleted items to Кошик and restores them", async () => {
+    const user = userEvent.setup();
+    await user.click(nav().getByText("Покупки"));
+    await user.click(
+      await screen.findByRole("button", { name: "Редагувати Молоко" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Видалити" }));
+    await user.click(within(dialog).getByRole("button", { name: "Так, видалити" }));
+    await closed();
+    expect(
+      saved().shopping.some((i: { name: string }) => i.name === "Молоко"),
+    ).toBe(false);
+
+    await user.click(
+      screen.getByRole("button", { name: "Відкрити налаштування" }),
+    );
+    const settingsDialog = await screen.findByRole("dialog", {
+      name: "Ваш простір",
+    });
+    await user.click(
+      within(settingsDialog).getByRole("button", { name: /Кошик/ }),
+    );
+    const trashDialog = await screen.findByRole("dialog", { name: "Кошик" });
+    expect(within(trashDialog).getByText("Молоко")).toBeInTheDocument();
+    await user.click(
+      within(trashDialog).getByRole("button", { name: "Відновити" }),
+    );
+    await waitFor(() =>
+      expect(
+        saved().shopping.some((i: { name: string }) => i.name === "Молоко"),
+      ).toBe(true),
+    );
+  });
+
+  it("creates a recurring calendar event and displays its repeat label", async () => {
+    const user = userEvent.setup();
+    await user.click(nav().getByText("Календар"));
+    await user.click(
+      await screen.findByRole("button", { name: "Додати план" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Назва"), "Наша дата");
+    await user.selectOptions(within(dialog).getByLabelText("Повтор"), "yearly");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Додати план" }),
+    );
+    await closed();
+    expect(await screen.findByText("Наша дата")).toBeInTheDocument();
+    expect(screen.getByText("Щороку")).toBeInTheDocument();
+  });
+
+  it("shows the На сьогодні summary dashboard (3 cards, no Меню) and replaces the empty feed state", async () => {
+    const user = userEvent.setup();
+    const todaySection = await screen.findByRole("region", {
+      name: "На сьогодні",
+    });
+    for (const label of ["Покупки", "Рослини", "Календар"]) {
+      const title = within(todaySection).getByText(label);
+      expect(
+        title.closest(".today-card-lead")?.querySelector(".today-card-icon"),
+      ).toBeTruthy();
+    }
+    expect(within(todaySection).queryByText("Меню")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Усе переглянуто" }));
+    expect(
+      await screen.findByText(/Усе нове вже бачили/),
+    ).toBeInTheDocument();
+    const emptyToday = screen.getByRole("region", { name: "На сьогодні" });
+    expect(within(emptyToday).queryByText("Меню")).not.toBeInTheDocument();
+    await user.click(within(emptyToday).getByRole("button", { name: /Покупки/ }));
+    expect(
+      await screen.findByRole("heading", { name: "Покупки" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows today-empty and upcoming days countdown on Calendar dashboard card", async () => {
+    const raw = JSON.parse(localStorage.getItem("ours-demo-v1")!);
+    raw.events = raw.events.filter((ev: { id: string }) => ev.id !== "event-1");
+    localStorage.setItem("ours-demo-v1", JSON.stringify(raw));
+
+    cleanup();
+    render(
+      <AppProvider>
+        <App />
+      </AppProvider>,
+    );
+    const todaySection = await screen.findByRole("region", {
+      name: "На сьогодні",
+    });
+    expect(within(todaySection).getByText("2 дн.")).toBeInTheDocument();
+    expect(
+      within(todaySection).getByText(
+        "Сьогодні нічого · Спільна прогулянка (через 2 дн.)",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("manages єВдома pantry products and excludes them from recipe shopping", async () => {
+    const user = userEvent.setup();
+    await user.click(nav().getByText("Меню"));
+    await user.click(await screen.findByRole("button", { name: "єВдома" }));
+    const pantryDialog = await screen.findByRole("dialog", { name: "єВдома" });
+
+    // One-click basic staple toggle
+    await user.click(
+      within(pantryDialog).getByRole("button", { name: /Рис/ }),
+    );
+    await waitFor(() =>
+      expect(
+        saved().pantry.some((p: { name: string }) => p.name === "Рис"),
+      ).toBe(true),
+    );
+
+    // Custom product add, edit, delete
+    await user.type(
+      within(pantryDialog).getByLabelText("Назва продукту вдома"),
+      "Морква",
+    );
+    await user.type(
+      within(pantryDialog).getByLabelText("Кількість або примітка"),
+      "500 г",
+    );
+    await user.click(
+      within(pantryDialog).getByRole("button", { name: "Додати" }),
+    );
+    await waitFor(() =>
+      expect(
+        saved().pantry.some((p: { name: string }) => p.name === "Морква"),
+      ).toBe(true),
+    );
+    await user.click(
+      within(pantryDialog).getByRole("button", { name: "Редагувати Морква" }),
+    );
+    const editQty = within(pantryDialog).getByLabelText(
+      "Редагувати кількість: Морква",
+    );
+    await user.clear(editQty);
+    await user.type(editQty, "1 кг");
+    await user.click(
+      within(pantryDialog).getByRole("button", { name: "Зберегти Морква" }),
+    );
+    await waitFor(() =>
+      expect(
+        saved().pantry.find((p: { name: string }) => p.name === "Морква")
+          ?.quantity,
+      ).toBe("1 кг"),
+    );
+    await user.click(
+      within(pantryDialog).getByRole("button", { name: "Видалити Морква" }),
+    );
+    await waitFor(() =>
+      expect(
+        saved().pantry.some((p: { name: string }) => p.name === "Морква"),
+      ).toBe(false),
+    );
+
+    await user.click(
+      within(pantryDialog).getByRole("button", { name: "Закрити", exact: true }),
+    );
+    await closed();
+
+    // Open catalog recipe "Рис" (has Рис, Вода, Сіль, Вершкове масло)
+    await user.click(
+      await screen.findByRole("button", { name: "Відкрити рецепт · Рис" }),
+    );
+    const recipeDialog = await screen.findByRole("dialog", { name: "Рис" });
+    expect(within(recipeDialog).getByText("є вдома: 3 із 4")).toBeInTheDocument();
+    expect(
+      within(recipeDialog).getByRole("button", {
+        name: "Додати те, чого бракує (1)",
+      }),
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(recipeDialog).getByRole("button", { name: "Додати до меню" }),
+    );
+    await closed();
+
+    const menuItems = saved().shopping.filter(
+      (i: { menu_key?: string }) => Boolean(i.menu_key),
+    );
+    expect(menuItems.map((i: { name: string }) => i.name)).toEqual([
+      "Вершкове масло",
+    ]);
+  });
 });
+
+

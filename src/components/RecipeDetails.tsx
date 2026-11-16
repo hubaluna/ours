@@ -1,12 +1,15 @@
 import { useState } from "react";
 import {
   ArrowLeft,
+  Check,
   Clock3,
   ExternalLink,
   Pencil,
   Plus,
   ShoppingBag,
 } from "lucide-react";
+import { useApp } from "../hooks/AppContext";
+import { isAtHomeIngredient } from "../lib/pantry";
 import type { RecipeView, MealPlanItem } from "../lib/types";
 import {
   categoryNames,
@@ -38,12 +41,27 @@ export function RecipeDetails({
   onEdit?: (recipe: RecipeView) => void;
   busy: boolean;
 }) {
+  const { data, addShoppingBatch } = useApp();
   const [servings, setServings] = useState(current?.servings ?? 1);
   const products = scaleIngredients(
     recipe.ingredients,
     servings,
     recipe.baseServings,
   );
+  const checkedProducts = products.map((item) => ({
+    item,
+    atHome: isAtHomeIngredient(item.name, data.pantry),
+  }));
+  const atHomeCount = checkedProducts.filter((entry) => entry.atHome).length;
+  const missingProducts = checkedProducts
+    .filter((entry) => !entry.atHome && entry.item.quantity !== 0)
+    .map((entry) => ({
+      name: entry.item.name,
+      quantity: entry.item.quantity,
+      unit: entry.item.unit,
+      category: entry.item.category,
+      price: null,
+    }));
   const recommendations = pairingRecommendations(recipe, library);
   const difficulty = (
     {
@@ -153,12 +171,27 @@ export function RecipeDetails({
         </div>
         <div className="recipe-detail-copy">
           <section>
-            <h3>Продукти · {servings} порц.</h3>
+            <div className="recipe-ingredients-head">
+              <h3>Продукти · {servings} порц.</h3>
+              {atHomeCount > 0 && (
+                <small className="recipe-pantry-summary">
+                  є вдома: {atHomeCount} із {products.length}
+                </small>
+              )}
+            </div>
             <ul className="scaled-ingredients">
-              {products.map((item, index) => (
-                <li key={index}>
+              {checkedProducts.map(({ item, atHome }, index) => (
+                <li
+                  key={index}
+                  className={atHome ? "ingredient-at-home" : undefined}
+                >
                   <span>
                     {item.name}
+                    {atHome && (
+                      <em className="ingredient-home-mark">
+                        <Check size={12} aria-hidden="true" />є вдома
+                      </em>
+                    )}
                     {item.note && (
                       <small className="ingredient-note">{item.note}</small>
                     )}
@@ -171,6 +204,23 @@ export function RecipeDetails({
                 </li>
               ))}
             </ul>
+            {missingProducts.length > 0 && (
+              <Button
+                className="secondary recipe-missing-shop-btn"
+                busy={busy}
+                onClick={() => void addShoppingBatch(missingProducts)}
+              >
+                <ShoppingBag size={15} />
+                {atHomeCount > 0
+                  ? `Додати те, чого бракує (${missingProducts.length})`
+                  : `Додати продукти до списку (${missingProducts.length})`}
+              </Button>
+            )}
+            {atHomeCount > 0 && missingProducts.length === 0 && (
+              <p className="subtle-note">
+                Усі інгредієнти вже є вдома — купувати нічого не потрібно.
+              </p>
+            )}
             {products.some(
               (item) =>
                 ["шт.", "зубчик"].includes(item.unit) &&

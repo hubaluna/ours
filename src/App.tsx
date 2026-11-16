@@ -18,6 +18,8 @@ import { Auth, PairSetup } from "./features/Auth";
 import { Avatar, Button, Skeleton, Toast } from "./components/ui";
 import { spring, enter } from "./lib/motion";
 import type { Tab } from "./lib/types";
+import { kyivDate } from "./lib/utils";
+import { syncLocalReminderNotifications } from "./lib/reminder-notifications";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { MascotContext, type MascotPose } from "./components/MascotContext";
 const screens = {
@@ -46,22 +48,26 @@ const tabs = [
   { id: "plans", label: "Календар", icon: CalendarDays },
   { id: "plants", label: "Рослини", icon: Sprout },
 ] as const;
-const catPhotos = [
-  "cat-sitting.webp",
-  "cat-nav-peek.webp",
-  "cat-carpet-sitting.webp",
-  "cat-sofa-loaf.webp",
-  "cat-bed-loaf.webp",
-  "cat-bed-paw.webp",
-  "cat-bed-look.webp",
-  "cat-sleeping.webp",
+const catScenes: Array<{
+  placement: "logo" | "title" | "nav" | "panel";
+  image: string;
+}> = [
+  { placement: "nav", image: "cat-nav-peek.webp" },
+  { placement: "title", image: "cat-sitting.webp" },
+  { placement: "panel", image: "cat-bed-loaf.webp" },
+  { placement: "nav", image: "cat-bed-look.webp" },
+  { placement: "logo", image: "cat-sitting.webp" },
+  { placement: "panel", image: "cat-sleeping.webp" },
+  { placement: "title", image: "cat-bed-loaf.webp" },
+  { placement: "nav", image: "cat-sitting.webp" },
+  { placement: "panel", image: "cat-sofa-loaf.webp" },
 ];
 function useOccasionalCat(): MascotPose {
   const [pose, setPose] = useState<MascotPose>(null);
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let moments = 0,
-      photoIndex = Math.floor(Math.random() * catPhotos.length),
+      sceneIndex = 0,
       showTimer: number | undefined,
       hideTimer: number | undefined;
     const isBusy = () =>
@@ -80,19 +86,21 @@ function useOccasionalCat(): MascotPose {
             schedule();
             return;
           }
-          const image = catPhotos[photoIndex];
+          const scene = catScenes[sceneIndex];
+          const navSlot = (sceneIndex * 2 + 1) % tabs.length;
           setPose({
-            placement: image === "cat-sitting.webp" ? "logo" : "section",
-            image,
+            placement: scene.placement,
+            image: scene.image,
+            navSlot,
           });
-          photoIndex = (photoIndex + 1) % catPhotos.length;
+          sceneIndex = (sceneIndex + 1) % catScenes.length;
           hideTimer = window.setTimeout(() => {
             setPose(null);
             moments++;
             schedule();
-          }, 10000);
+          }, 15000);
         },
-        moments === 0 ? 25000 : 40000,
+        moments === 0 ? 1200 : 4500,
       );
     };
     const pause = () => {
@@ -129,6 +137,7 @@ export default function App() {
     data,
     userId,
     online,
+    queuedShoppingCount,
     sync,
     refresh,
   } = useApp();
@@ -162,6 +171,26 @@ export default function App() {
     );
     return () => document.body.classList.remove("app-mode");
   }, [demo, session, coupleId]);
+  useEffect(() => {
+    if ((!demo && !coupleId) || loading) return;
+    const checkReminders = () => {
+      void syncLocalReminderNotifications(
+        data.plants,
+        data.events,
+        kyivDate(),
+      );
+    };
+    checkReminders();
+    const timer = window.setInterval(checkReminders, 5 * 60 * 1000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") checkReminders();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [demo, coupleId, loading, data.plants, data.events]);
   const me = data.profiles.find((p) => p.id === userId);
   return (
     <MotionConfig reducedMotion="user">
@@ -194,14 +223,21 @@ export default function App() {
               aria-label="ours. — головна"
             >
               ours<span>.</span>
-              {mascot?.placement === "logo" && (
-                <img
-                  className="brand-mascot"
-                  src={`${import.meta.env.BASE_URL}art/${mascot.image}`}
-                  alt=""
-                  aria-hidden="true"
-                />
-              )}
+              <AnimatePresence>
+                {mascot?.placement === "logo" && (
+                  <motion.img
+                    key={mascot.image}
+                    className="brand-mascot"
+                    src={`${import.meta.env.BASE_URL}art/${mascot.image}`}
+                    alt=""
+                    aria-hidden="true"
+                    initial={{ opacity: 0, y: 8, scale: 0.9 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.92 }}
+                    transition={{ type: "spring", stiffness: 320, damping: 24 }}
+                  />
+                )}
+              </AnimatePresence>
             </button>
             <div className="header-right">
               <span
@@ -226,15 +262,19 @@ export default function App() {
               </button>
             </div>
           </header>
-          {(!online || failure || (!demo && sync !== "live")) && (
+          {(!online || failure || (!demo && (sync !== "live" || queuedShoppingCount > 0))) && (
             <div className="connection-banner" role="status">
               <WifiOff size={14} />
               <span>
                 {!online
-                  ? "Без інтернету · зміни ще не збережені"
-                  : failure
-                    ? "Не вдалося оновити простір"
-                    : "Відновлюємо живе з’єднання"}
+                  ? queuedShoppingCount > 0
+                    ? `Без інтернету · збережено в черзі (${queuedShoppingCount})`
+                    : "Без інтернету · покупки зберігаються локально"
+                  : queuedShoppingCount > 0
+                    ? `Синхронізуємо покупки (${queuedShoppingCount})…`
+                    : failure
+                      ? "Не вдалося оновити простір"
+                      : "Відновлюємо живе з’єднання"}
               </span>
               {online && (
                 <button
@@ -247,7 +287,7 @@ export default function App() {
             </div>
           )}
           <MascotContext.Provider
-            value={mascot?.placement === "section" ? mascot : null}
+            value={mascot?.placement === "title" ? mascot : null}
           >
             <main id="main-content">
               {loading ? (
@@ -275,9 +315,42 @@ export default function App() {
                   </AnimatePresence>
                 </Suspense>
               )}
+              <AnimatePresence>
+                {mascot?.placement === "panel" && !loading && (
+                  <motion.img
+                    key={mascot.image}
+                    className="panel-mascot"
+                    src={`${import.meta.env.BASE_URL}art/${mascot.image}`}
+                    alt=""
+                    aria-hidden="true"
+                    initial={{ opacity: 0, y: 12, scale: 0.92 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.94 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 24 }}
+                  />
+                )}
+              </AnimatePresence>
             </main>
           </MascotContext.Provider>
           <nav className="bottom-nav glass" aria-label="Основна навігація">
+            <AnimatePresence>
+              {mascot?.placement === "nav" && (
+                <motion.img
+                  key={`${mascot.image}-${mascot.navSlot ?? 0}`}
+                  className={`nav-mascot ${mascot.image === "cat-nav-peek.webp" || mascot.image === "cat-bed-look.webp" ? "nav-mascot-peek" : ""}`}
+                  style={{
+                    left: `clamp(42px, ${((mascot.navSlot ?? 2) + 0.5) * (100 / tabs.length)}%, calc(100% - 42px))`,
+                  }}
+                  src={`${import.meta.env.BASE_URL}art/${mascot.image}`}
+                  alt=""
+                  aria-hidden="true"
+                  initial={{ opacity: 0, y: 14, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 12, scale: 0.92 }}
+                  transition={{ type: "spring", stiffness: 320, damping: 24 }}
+                />
+              )}
+            </AnimatePresence>
             {tabs.map(({ id, label, icon: Icon }) => (
               <motion.button
                 whileTap={{ scale: 0.97 }}

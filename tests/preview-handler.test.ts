@@ -83,3 +83,23 @@ it("returns a safe editable fallback when the source refuses reading", async () 
   expect(r.status).toBe(422);
   expect(await r.text()).not.toContain("secret upstream");
 });
+it("normalizes bare domains such as vt.tiktok.com/ZSpVxxHh1/ before loading", async () => {
+  const load = vi.fn(async (url: string) =>
+    parsePasted("Наш фільм", url, "movie"),
+  );
+  const handle = createPreviewHandler({
+    origins: [origin],
+    authorize: async () => 200,
+    load,
+  });
+  const r = await handle(
+    request({ url: "vt.tiktok.com/ZSpVxxHh1/", kind: "movie" }),
+  );
+  expect(r.status).toBe(200);
+  expect(load).toHaveBeenCalledWith(
+    "https://vt.tiktok.com/ZSpVxxHh1/",
+    "movie",
+    expect.any(AbortSignal),
+    undefined,
+  );
+});

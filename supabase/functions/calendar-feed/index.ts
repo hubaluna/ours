@@ -7,6 +7,7 @@ type CalendarEvent = {
   location: string;
   description: string;
   url: string;
+  recurrence?: string | null;
   created_at: string;
 };
 
@@ -41,6 +42,13 @@ function kyivTimeToUtc(date: string, time: string) {
     .toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }
 
+function rruleLine(recurrence?: string | null): string | null {
+  if (recurrence === "weekly") return "RRULE:FREQ=WEEKLY";
+  if (recurrence === "monthly") return "RRULE:FREQ=MONTHLY";
+  if (recurrence === "yearly") return "RRULE:FREQ=YEARLY";
+  return null;
+}
+
 function ical(events: CalendarEvent[]) {
   const lines = [
     "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//ours//Calendar//UK",
@@ -60,6 +68,8 @@ function ical(events: CalendarEvent[]) {
     } else {
       lines.push(`DTSTART:${kyivTimeToUtc(event.date, event.time || "00:00")}`);
     }
+    const rrule = rruleLine(event.recurrence);
+    if (rrule) lines.push(rrule);
     lines.push(`SUMMARY:${escapeIcs(event.title)}`);
     if (event.description) lines.push(`DESCRIPTION:${escapeIcs(event.description)}`);
     if (event.location) lines.push(`LOCATION:${escapeIcs(event.location)}`);

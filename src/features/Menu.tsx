@@ -1,6 +1,14 @@
 import { useState } from "react";
 import { AnimatePresence } from "motion/react";
-import { Check, Clock3, Link2, RotateCcw, Shuffle, Trash2 } from "lucide-react";
+import {
+  Check,
+  Clock3,
+  Link2,
+  PackageCheck,
+  RotateCcw,
+  Shuffle,
+  Trash2,
+} from "lucide-react";
 import { useApp } from "../hooks/AppContext";
 import type { Recipe, RecipeView } from "../lib/types";
 import type { LinkMetadata } from "../../supabase/functions/_shared/metadata";
@@ -16,6 +24,7 @@ import { LinkImport } from "../components/LinkImportLoader";
 import { RecipeCatalog, type CatalogFilter } from "../components/RecipeCatalog";
 import { RecipeDetails } from "../components/RecipeDetails";
 import { PortionCounter } from "../components/PortionCounter";
+import { PantrySheet } from "../components/PantrySheet";
 const initialFilter: CatalogFilter = {
   query: "",
   category: "all",
@@ -41,6 +50,7 @@ export default function Menu() {
     [form, setForm] = useState<Recipe | "new" | null>(null),
     [initial, setInitial] = useState<LinkMetadata>(),
     [importing, setImporting] = useState(false),
+    [pantryOpen, setPantryOpen] = useState(false),
     [lastRandom, setLastRandom] = useState("");
   const library = recipeLibrary(data.recipes),
     catalogLibrary = recipeLibrary(data.recipes, filter.scope === "own");
@@ -109,22 +119,36 @@ export default function Menu() {
           }}
         />
       </ScreenHeader>
-      <div className="menu-view-switch" role="group" aria-label="Перегляд меню">
+      <div className="menu-controls-bar">
+        <div className="menu-view-switch" role="group" aria-label="Перегляд меню">
+          <button
+            type="button"
+            aria-label="Страви"
+            aria-pressed={!showPlan}
+            onClick={openCatalog}
+          >
+            Страви
+          </button>
+          <button
+            type="button"
+            aria-label={`Готуємо · ${rows.length}`}
+            aria-pressed={showPlan}
+            onClick={() => setShowPlan(true)}
+          >
+            Готуємо <span>{rows.length}</span>
+          </button>
+        </div>
         <button
           type="button"
-          aria-label="Страви"
-          aria-pressed={!showPlan}
-          onClick={openCatalog}
+          className="pantry-trigger-btn"
+          aria-label="єВдома"
+          onClick={() => setPantryOpen(true)}
         >
-          Страви
-        </button>
-        <button
-          type="button"
-          aria-label={`Готуємо · ${rows.length}`}
-          aria-pressed={showPlan}
-          onClick={() => setShowPlan(true)}
-        >
-          Готуємо <span>{rows.length}</span>
+          <PackageCheck size={15} aria-hidden="true" />
+          <span>єВдома</span>
+          {data.pantry.length > 0 && (
+            <small>{data.pantry.length}</small>
+          )}
         </button>
       </div>
       <div className="screen-panel meal-menu-panel">
@@ -296,6 +320,11 @@ export default function Menu() {
                 setForm(value.custom);
               }
             }}
+          />
+        ) : pantryOpen ? (
+          <PantrySheet
+            key="pantry-sheet"
+            onClose={() => setPantryOpen(false)}
           />
         ) : null}
       </AnimatePresence>

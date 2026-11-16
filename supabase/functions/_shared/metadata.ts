@@ -3,6 +3,7 @@ export type ImportKind = "movie" | "wish" | "recipe";
 export type LinkMetadata = {
   instructions?: string[];
   metadata_url?: string;
+  alternate_title?: string;
   candidates?: MovieCandidate[];
   movie_query?: string;
   source_url: string;
@@ -111,6 +112,28 @@ export function parseMetadata(
     offer.priceCurrency || meta("product:price:currency"),
     8,
   ).toUpperCase();
+  const cleanMovieTitle = (title: string): string => {
+    const hasStreamingMarkers =
+      /\s+(?:дивитися|дивитись|смотреть)\s+онлайн(?:\s|$)|\s+онлайн\s+українською(?:\s|$)|\s+українською\s+онлайн(?:\s|$)|^дивитися\s+/i.test(
+        title,
+      );
+    if (!hasStreamingMarkers) return title;
+    const cleaned = title
+      .replace(/\s+(?:дивитися|дивитись|смотреть)\s+онлайн[\s\S]*$/i, "")
+      .replace(/\s+онлайн\s+українською[\s\S]*$/i, "")
+      .replace(/\s+українською\s+онлайн[\s\S]*$/i, "")
+      .replace(
+        /\s*\((?:(?:19|20)\d{2}[^)]*|фільм|серіал|film|movie|tv series)\)\s*$/i,
+        "",
+      )
+      .replace(
+        /^(?:дивитися\s+(?:онлайн\s+)?)?(?:фільм|серіал|мультфільм|мультсеріал|аніме)\s+/i,
+        "",
+      )
+      .replace(/\s+(?:19|20)\d{2}$/, "")
+      .trim();
+    return cleaned || title;
+  };
   const rawTitle = clean(
     item.name ||
       item.headline ||
@@ -120,11 +143,45 @@ export function parseMetadata(
       "",
     160,
   );
+  const rawDescription = clean(
+    item.description ||
+      meta("og:description") ||
+      meta("description") ||
+      meta("twitter:description"),
+  );
+  const posterAlt = clean(
+    document.querySelector('img[itemprop="image"]')?.getAttribute("alt") || "",
+    160,
+  );
+  const rawAlt = Array.isArray(item.alternateName)
+    ? item.alternateName.find((v): v is string => typeof v === "string" && v.trim().length > 0) || ""
+    : typeof item.alternateName === "string"
+      ? item.alternateName
+      : "";
+  const bilingualAlt = (sourceText: string): string => {
+    const m = sourceText.match(/\/\s*([A-Za-z0-9][^(/|]{1,70}?)(?:\s*\((?:19|20)\d{2}\)|\s+(?:українською|онлайн|$))/i);
+    return m?.[1]?.trim() || "";
+  };
+  const alternate_title =
+    kind === "movie"
+      ? clean(
+          rawAlt ||
+            bilingualAlt(rawTitle) ||
+            bilingualAlt(posterAlt) ||
+            bilingualAlt(rawDescription),
+          120,
+        )
+      : "";
   const quotedTitle =
     kind === "movie" ? rawTitle.match(/[«“"]([^»”"]+)[»”"]/) : null;
   const yearMatch =
     String(item.datePublished || "").match(/^(\d{4})/) ||
-    (kind === "movie" ? rawTitle.match(/[»”"]\s*((?:19|20)\d{2})\b/) : null);
+    (kind === "movie"
+      ? rawTitle.match(/[»”"]\s*((?:19|20)\d{2})\b/) ||
+        rawTitle.match(/\(((?:19|20)\d{2})\)/) ||
+        rawTitle.match(/\b((?:19|20)\d{2})\s+(?:українською|онлайн)/i) ||
+        rawDescription.match(/\/\s*[^(/)]{2,80}\(((?:19|20)\d{2})\)/)
+      : null);
   const year = yearMatch ? Number(yearMatch[1]) : null;
   const genres = [item.genre || []]
     .flat()
@@ -154,23 +211,28 @@ export function parseMetadata(
             .slice(0, 60),
         );
   }
+  const rawImage = (
+    imageValue(item.image || item.thumbnailUrl) ||
+    meta("og:image") ||
+    meta("twitter:image") ||
+    document.querySelector('img[itemprop="image"]')?.getAttribute("src") ||
+    ""
+  ).trim();
+  const baseTitle =
+    quotedTitle?.[1] ||
+    (kind === "movie" ? cleanMovieTitle(rawTitle) : rawTitle);
+  const resolvedTitle =
+    kind === "movie" && baseTitle.includes(" / ")
+      ? baseTitle.split(" / ")[0].trim() || baseTitle
+      : baseTitle;
   return {
     source_url,
-    title: quotedTitle?.[1] || rawTitle,
-    description: clean(
-      item.description ||
-        meta("og:description") ||
-        meta("description") ||
-        meta("twitter:description"),
-    ),
-    image_url: publicUrl(
-      imageValue(item.image || item.thumbnailUrl) ||
-        meta("og:image") ||
-        meta("twitter:image") ||
-        document.querySelector('img[itemprop="image"]')?.getAttribute("src") ||
-        "",
-      source_url,
-    ),
+    title: resolvedTitle,
+    ...(alternate_title && alternate_title.toLowerCase() !== resolvedTitle.toLowerCase()
+      ? { alternate_title }
+      : {}),
+    description: rawDescription,
+    image_url: rawImage ? publicUrl(rawImage, source_url) : "",
     year: year && year >= 1888 && year <= 2200 ? year : null,
     genres,
     price:

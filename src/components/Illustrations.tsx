@@ -3,7 +3,7 @@ export function TogetherArt() {
   return (
     <img
       className="together-art brand-art"
-      src={`${import.meta.env.BASE_URL}art/ours-glass.png`}
+      src={`${import.meta.env.BASE_URL}art/ours-glass.webp`}
       alt=""
       aria-hidden="true"
     />

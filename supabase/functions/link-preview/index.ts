@@ -6,7 +6,13 @@ import {
   type ImportKind,
   publicUrl,
 } from "../_shared/metadata.ts";
-import { enrichMovie, tiktokMetadata } from "../_shared/movie-search.ts";
+import {
+  enrichMovie,
+  movieTitleFromUrl,
+  movieYearFromUrl,
+  resolveTikTokUrl,
+  tiktokMetadata,
+} from "../_shared/movie-search.ts";
 import { fetchPublicPage } from "../_shared/fetch-page.ts";
 import { createPreviewHandler } from "../_shared/preview-handler.ts";
 const origins = (
@@ -59,9 +65,35 @@ Deno.serve(
       if (kind === "movie" && query?.trim())
         return enrichMovie(metadata, read, query);
       if (kind === "recipe" && /(^|\.)tiktok\.com$/.test(host)) {
-        const page = await read(url);
-        metadata = parseMetadata(page.html, page.url, kind);
-        return tiktokRecipeCaption(tiktokMetadata(page.html, url, metadata));
+        try {
+          const page = await read(url);
+          const target = resolveTikTokUrl(page.url, page.html) || page.url;
+          metadata = parseMetadata(page.html, target, kind);
+          return tiktokRecipeCaption(tiktokMetadata(page.html, target, metadata));
+        } catch (error) {
+          const target = resolveTikTokUrl(
+            (error as { sourceUrl?: string }).sourceUrl || url,
+          );
+          if (target) {
+            const value = JSON.parse(
+              (
+                await read(
+                  `https://www.tiktok.com/oembed?url=${encodeURIComponent(target)}`,
+                )
+              ).html,
+            );
+            const title = String(value.title || "").trim();
+            return tiktokRecipeCaption({
+              ...metadata,
+              source_url: target,
+              title: title.slice(0, 160) || metadata.title,
+              description: String(value.description || title).slice(0, 1000),
+              image_url: publicUrl(value.thumbnail_url || "") || metadata.image_url,
+              provider: "TikTok",
+            });
+          }
+          throw error;
+        }
       }
       if (
         kind === "movie" &&
@@ -71,16 +103,18 @@ Deno.serve(
         if (host.endsWith("tiktok.com")) {
           try {
             const page = await read(url);
-            target = page.url;
+            target = resolveTikTokUrl(page.url, page.html) || page.url;
             metadata = tiktokMetadata(
               page.html,
-              url,
-              parseMetadata(page.html, url, kind),
+              target,
+              parseMetadata(page.html, target, kind),
             );
           } catch (error) {
             target =
-              publicUrl((error as { sourceUrl?: string }).sourceUrl || "") ||
-              url;
+              resolveTikTokUrl(
+                (error as { sourceUrl?: string }).sourceUrl || url,
+              ) || url;
+            metadata = { ...metadata, source_url: target, provider: "TikTok" };
           }
         }
         const endpoint = host.includes("tiktok")
@@ -88,32 +122,66 @@ Deno.serve(
           : host.includes("vimeo")
             ? "https://vimeo.com/api/oembed.json"
             : "https://www.youtube.com/oembed";
+        const oembedQuery = host.includes("tiktok")
+          ? `${endpoint}?url=${encodeURIComponent(target)}`
+          : `${endpoint}?url=${encodeURIComponent(target)}&format=json`;
         try {
-          const value = JSON.parse(
-            (
-              await read(
-                `${endpoint}?url=${encodeURIComponent(target)}&format=json`,
-              )
-            ).html,
-          );
+          const value = JSON.parse((await read(oembedQuery)).html);
+          const oembedTitle = String(value.title || "").trim();
+          const oembedDesc = String(value.description || "").trim();
           metadata = {
             ...metadata,
-            title: String(value.title || metadata.title).slice(0, 160),
-            description: String(
-              value.description || metadata.description,
+            source_url: target || metadata.source_url,
+            title: (oembedTitle || metadata.title).slice(0, 160),
+            description: (
+              oembedDesc ||
+              metadata.description ||
+              oembedTitle
             ).slice(0, 1000),
             image_url:
               publicUrl(value.thumbnail_url || "") || metadata.image_url,
+            provider: host.includes("tiktok") ? "TikTok" : metadata.provider,
           };
         } catch {
           /* Offer a title search if the video provider refuses access. */
         }
         return enrichMovie(metadata, read);
       }
+      if (kind === "movie") {
+        try {
+          const page = await read(url);
+          metadata = parseMetadata(page.html, page.url, kind);
+          return enrichMovie(metadata, read);
+        } catch {
+          const guesses = movieTitleFromUrl(url);
+          const urlYear = movieYearFromUrl(url);
+          const merged: NonNullable<typeof metadata.candidates> = [];
+          for (const guess of guesses.slice(0, 2)) {
+            const enriched = await enrichMovie(
+              { ...metadata, title: guess, year: urlYear },
+              read,
+              guess,
+            );
+            if (urlYear && enriched.metadata_url) return enriched;
+            for (const item of enriched.candidates || []) {
+              if (!merged.some((existing) => existing.url === item.url))
+                merged.push(item);
+            }
+          }
+          merged.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+          return {
+            ...metadata,
+            title: guesses[0] || "",
+            year: urlYear,
+            movie_query: guesses[0] || "",
+            candidates: merged.slice(0, 5),
+          };
+        }
+      }
       const page = await read(url);
       metadata = parseMetadata(page.html, page.url, kind);
       if (kind === "recipe") metadata = parseArticleRecipe(page.html, metadata);
-      return kind === "movie" ? enrichMovie(metadata, read) : metadata;
+      return metadata;
     },
   }),
 );

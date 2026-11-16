@@ -25,6 +25,7 @@ export type ShoppingItem = {
   purchased: boolean;
   session_id: string | null;
   created_at: string;
+  updated_at?: string;
 };
 export type ShoppingSession = {
   id: string;
@@ -65,6 +66,7 @@ export type Plan = {
   url?: string;
   description: string;
   category: string;
+  recurrence?: "none" | "weekly" | "monthly" | "yearly";
   created_by: string;
   created_at: string;
 };
@@ -221,9 +223,26 @@ export type RecipeView = {
   recommendedSideIds: string[];
   custom?: Recipe;
 };
+export type PantryItem = {
+  id: string;
+  couple_id: string;
+  name: string;
+  normalized_name: string;
+  quantity: string;
+  is_basic: boolean;
+  added_by: string;
+  created_at: string;
+  updated_at: string;
+};
+export type NewPantryItem = {
+  name: string;
+  quantity?: string;
+  is_basic?: boolean;
+};
 export type Data = {
   mealPlan: MealPlanItem[];
   menuExcludedKeys?: string[];
+  pantry: PantryItem[];
   recipes: Recipe[];
   profiles: Profile[];
   movies: Movie[];
@@ -273,6 +292,7 @@ export type NewPlan = Pick<
   | "url"
   | "description"
   | "category"
+  | "recurrence"
 >;
 export type NewPlant = Pick<
   Plant,

@@ -75,7 +75,7 @@ export function EmptyState({
     <div className="empty-state">
       <img
         className="empty-art-image"
-        src={`${import.meta.env.BASE_URL}art/ours-glass.png`}
+        src={`${import.meta.env.BASE_URL}art/ours-glass.webp`}
         alt=""
         aria-hidden="true"
       />
@@ -389,7 +389,7 @@ export function ConfirmDelete({
   const [confirm, setConfirm] = useState(false);
   return confirm ? (
     <div className="confirm-delete">
-      <span>Видалити назавжди?</span>
+      <span>Перемістити в кошик?</span>
       <Button className="danger" busy={busy} onClick={onConfirm}>
         Так, видалити
       </Button>

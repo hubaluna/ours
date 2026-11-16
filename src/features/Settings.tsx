@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
+  ArrowLeft,
   Camera,
   Bell,
   Check,
@@ -8,21 +9,31 @@ import {
   LogOut,
   Monitor,
   Moon,
+  RotateCcw,
   Smartphone,
   Sun,
+  Trash2,
   UsersRound,
+  X,
 } from "lucide-react";
 import { useApp } from "../hooks/AppContext";
 import { checked, supabase, uploadImage } from "../lib/supabase";
 import { downloadJson } from "../lib/utils";
 import type { Theme } from "../lib/types";
-import { Avatar, BottomSheet, Button, Field } from "../components/ui";
+import { Avatar, BottomSheet, Button, Field, IconButton } from "../components/ui";
 import {
   pushSupportMessage,
   savePushPreferences,
   savePushSubscription,
   subscribeToPush,
 } from "../lib/push-notifications";
+import {
+  enableReminderNotifications,
+  getReminderPushEnabled,
+  isReminderNotificationSupported,
+  sendTestReminderNotification,
+  setReminderPushEnabled,
+} from "../lib/reminder-notifications";
 export default function Settings({
   onClose,
   theme,
@@ -32,19 +43,100 @@ export default function Settings({
   theme: Theme;
   setTheme: (theme: Theme) => void;
 }) {
-  const { data, userId, coupleId, demo, pending, saveProfile, run, notify } =
-    useApp();
+  const {
+    data,
+    userId,
+    coupleId,
+    demo,
+    pending,
+    saveProfile,
+    run,
+    notify,
+    trash,
+    restoreFromTrash,
+    deleteTrashEntry,
+    emptyTrash,
+  } = useApp();
   const me = data.profiles.find((p) => p.id === userId),
     partner = data.profiles.find((p) => p.id !== userId);
   const [name, setName] = useState(me?.name ?? ""),
     [avatar, setAvatar] = useState(me?.avatar_path ?? null),
     [uploading, setUploading] = useState(false),
-    [invite, setInvite] = useState("");
+    [invite, setInvite] = useState(""),
+    [showTrash, setShowTrash] = useState(false);
   const file = useRef<HTMLInputElement>(null);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (await saveProfile(name.trim(), avatar)) onClose();
   };
+  if (showTrash) {
+    return (
+      <BottomSheet title="Кошик" onClose={onClose}>
+        <div className="trash-panel">
+          <div className="trash-toolbar">
+            <Button
+              type="button"
+              className="ghost"
+              onClick={() => setShowTrash(false)}
+            >
+              <ArrowLeft size={16} />
+              Назад до налаштувань
+            </Button>
+            {trash.length > 0 && (
+              <Button
+                type="button"
+                className="danger ghost"
+                onClick={() => emptyTrash()}
+              >
+                Очистити
+              </Button>
+            )}
+          </div>
+          {trash.length === 0 ? (
+            <p className="settings-help trash-empty">
+              Кошик порожній. Видалені покупки, бажання, події, фільми, рецепти
+              та рослини зберігаються тут 14 днів.
+            </p>
+          ) : (
+            <div className="trash-list">
+              {trash.map((entry) => (
+                <div className="trash-row" key={entry.id}>
+                  <div className="trash-copy">
+                    <small>
+                      {entry.kindLabel} ·{" "}
+                      {new Intl.DateTimeFormat("uk-UA", {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        timeZone: "Europe/Kyiv",
+                      }).format(new Date(entry.deletedAt))}
+                    </small>
+                    <strong>{entry.label}</strong>
+                  </div>
+                  <Button
+                    type="button"
+                    className="secondary"
+                    busy={pending.includes(`restore-${entry.id}`)}
+                    onClick={() => void restoreFromTrash(entry.id)}
+                  >
+                    <RotateCcw size={14} />
+                    Відновити
+                  </Button>
+                  <IconButton
+                    label={`Видалити назавжди ${entry.label}`}
+                    onClick={() => deleteTrashEntry(entry.id)}
+                  >
+                    <X size={15} />
+                  </IconButton>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </BottomSheet>
+    );
+  }
   return (
     <BottomSheet title="Ваш простір" onClose={onClose}>
       <form className="form" onSubmit={submit}>
@@ -194,6 +286,15 @@ export default function Settings({
       <section className="settings-section">
         <h3>Ваші дані</h3>
         <Button
+          type="button"
+          className="settings-row ghost"
+          onClick={() => setShowTrash(true)}
+        >
+          <Trash2 size={18} />
+          <span>Кошик · Нещодавно видалене</span>
+          {trash.length > 0 && <span className="count">{trash.length}</span>}
+        </Button>
+        <Button
           className="settings-row ghost"
           onClick={() => {
             downloadJson({
@@ -242,6 +343,10 @@ const defaultPushPrefs: PushPrefs = { enabled: false, shopping: true, wishes: tr
 function PushSettings({ userId, coupleId, demo, notify }: { userId: string; coupleId: string | null; demo: boolean; notify: (text: string) => void }) {
   const [preferences, setPreferences] = useState(defaultPushPrefs);
   const [busy, setBusy] = useState(false);
+  const [remindersEnabled, setRemindersEnabled] = useState(() =>
+    getReminderPushEnabled(),
+  );
+  const [testing, setTesting] = useState(false);
   useEffect(() => {
     if (!supabase || demo || !userId) return;
     let alive = true;
@@ -258,7 +363,7 @@ function PushSettings({ userId, coupleId, demo, notify }: { userId: string; coup
 
   const toggle = async () => {
     if (demo || !coupleId) {
-      notify("Сповіщення доступні після підключення акаунта.");
+      notify("Сповіщення про зміни партнера доступні після входу в акаунт.");
       return;
     }
     setBusy(true);
@@ -274,12 +379,49 @@ function PushSettings({ userId, coupleId, demo, notify }: { userId: string; coup
         const next = { ...preferences, enabled: true };
         await savePushPreferences(userId, next);
         setPreferences(next);
+        setReminderPushEnabled(true);
+        setRemindersEnabled(true);
         notify("Push-сповіщення увімкнено на цьому пристрої.");
       }
     } catch (error) {
       notify(error instanceof Error ? error.message : "Не вдалося змінити сповіщення.");
     } finally {
       setBusy(false);
+    }
+  };
+  const toggleReminders = async (checkedValue: boolean) => {
+    if (!checkedValue) {
+      setReminderPushEnabled(false);
+      setRemindersEnabled(false);
+      notify("Нагадування про полив і події вимкнено.");
+      return;
+    }
+    try {
+      await enableReminderNotifications();
+      setRemindersEnabled(true);
+      notify("Нагадування про рослини та події увімкнено.");
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "Не вдалося увімкнути нагадування.",
+      );
+    }
+  };
+  const testNotification = async () => {
+    setTesting(true);
+    try {
+      await sendTestReminderNotification();
+      setRemindersEnabled(true);
+      notify("Тестове сповіщення надіслано.");
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "Не вдалося надіслати тестове сповіщення.",
+      );
+    } finally {
+      setTesting(false);
     }
   };
   const updateKind = (key: keyof Omit<PushPrefs, "enabled">, value: boolean) => {
@@ -291,12 +433,34 @@ function PushSettings({ userId, coupleId, demo, notify }: { userId: string; coup
   return (
     <section className="settings-section push-settings">
       <h3><Bell size={16} /> Сповіщення</h3>
-      <p className="settings-help">Push на телефон про зміни партнера, навіть коли Ours закритий. На iPhone застосунок має бути доданий на екран «Додому».</p>
+      <p className="settings-help">Push приходять з 11:00 до 22:00, а нові покупки збираються в одне повідомлення без спаму з магазину. На iPhone додайте Ours на екран «Додому».</p>
+      {isReminderNotificationSupported() && (
+        <label className="push-reminder-toggle">
+          <input
+            type="checkbox"
+            checked={remindersEnabled}
+            onChange={(event) => void toggleReminders(event.target.checked)}
+          />
+          <span>
+            <strong>Нагадування про полив і календар</strong>
+            <small>Після 11:00: полив — лише в день поливу; календар — за 7 днів, 3 дні й у день події.</small>
+          </span>
+        </label>
+      )}
       {demo ? <p className="settings-help">Підключіть акаунт і спільний простір, щоб увімкнути push.</p> : supportMessage ? <p className="settings-help">{supportMessage}</p> : null}
       {typeof window !== "undefined" && "Notification" in window && Notification.permission === "denied" && <p className="settings-help">Доступ заборонено в браузері. Змініть дозвіл у налаштуваннях сайту на телефоні.</p>}
-      <Button className={preferences.enabled ? "secondary" : "ghost"} busy={busy} onClick={() => void toggle()}>
-        {preferences.enabled ? "Вимкнути push" : "Увімкнути push на цьому пристрої"}
-      </Button>
+      <div className="push-actions">
+        {!demo && (
+          <Button className={preferences.enabled ? "secondary" : "ghost"} busy={busy} onClick={() => void toggle()}>
+            {preferences.enabled ? "Вимкнути push" : "Увімкнути push на цьому пристрої"}
+          </Button>
+        )}
+        {isReminderNotificationSupported() && (
+          <Button className="ghost push-test-btn" busy={testing} onClick={() => void testNotification()}>
+            Перевірити сповіщення
+          </Button>
+        )}
+      </div>
       {preferences.enabled && <div className="push-kind-list">
         {([
           ["shopping", "Покупки"], ["wishes", "Бажання"], ["movies", "Кіно"], ["events", "Календар"], ["recipes", "Меню"],

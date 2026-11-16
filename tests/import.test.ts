@@ -7,11 +7,15 @@ import {
   parsePasted,
   publicUrl,
 } from "../supabase/functions/_shared/metadata";
+import { normalizeImportUrl } from "../supabase/functions/_shared/urls";
 import {
   isPublicAddress,
   resolvePublicUrl,
 } from "../supabase/functions/_shared/url-safety";
-import { tiktokMetadata } from "../supabase/functions/_shared/movie-search";
+import {
+  resolveTikTokUrl,
+  tiktokMetadata,
+} from "../supabase/functions/_shared/movie-search";
 import { isTikTokVideoUrl } from "../src/lib/recipe-source";
 describe("Link metadata and safe imports", () => {
   it("extracts Movie JSON-LD, year, genre, title and poster without executing scripts", () => {
@@ -196,5 +200,32 @@ describe("Link metadata and safe imports", () => {
       (await resolvePublicUrl("https://example.com", async () => ["8.8.8.8"]))
         .addresses,
     ).toEqual(["8.8.8.8"]);
+  });
+  it("normalizes bare TikTok short links and share-sheet text into HTTPS URLs", () => {
+    expect(normalizeImportUrl("vt.tiktok.com/ZSpVxxHh1/")).toBe(
+      "https://vt.tiktok.com/ZSpVxxHh1/",
+    );
+    expect(
+      normalizeImportUrl(
+        "Подивись фільм! https://vt.tiktok.com/ZSpVxxHh1/?_t=8abc.",
+      ),
+    ).toBe("https://vt.tiktok.com/ZSpVxxHh1/?_t=8abc");
+    expect(
+      normalizeImportUrl("https://en.wikipedia.org/wiki/Inception_(film)"),
+    ).toBe("https://en.wikipedia.org/wiki/Inception_(film)");
+    expect(normalizeImportUrl("http://example.com")).toBe("http://example.com");
+  });
+  it("cleans TikTok tracking parameters and extracts canonical video URL from HTML", () => {
+    expect(
+      resolveTikTokUrl(
+        "https://m.tiktok.com/@cinema.ua/video/7456789012345678901?_t=8abc&_r=1",
+      ),
+    ).toBe("https://www.tiktok.com/@cinema.ua/video/7456789012345678901");
+    expect(
+      resolveTikTokUrl(
+        "https://vt.tiktok.com/ZSpVxxHh1/",
+        `<link rel="canonical" href="https://www.tiktok.com/@cinema.ua/video/7456789012345678901?is_from_webapp=1">`,
+      ),
+    ).toBe("https://www.tiktok.com/@cinema.ua/video/7456789012345678901");
   });
 });

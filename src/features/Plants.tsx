@@ -55,7 +55,7 @@ function PlantForm({ onClose }: { onClose: () => void }) {
   const [recognitionNote, setRecognitionNote] = useState("");
   const [name, setName] = useState("");
   const [species, setSpecies] = useState("");
-  const [interval, setInterval] = useState(7);
+  const [intervalText, setIntervalText] = useState("7");
   const [light, setLight] = useState("");
   const [notes, setNotes] = useState("");
   const [infoUrl, setInfoUrl] = useState("");
@@ -82,9 +82,14 @@ function PlantForm({ onClose }: { onClose: () => void }) {
       }
       setName((current) => current || String(data.name || ""));
       setSpecies(String(data.species || ""));
-      setInterval((current) =>
-        current === 7 ? Number(data.interval || 7) : current,
-      );
+      setIntervalText((current) => {
+        if (current !== "7") return current;
+        const parsed = Number(data.interval || 7);
+        const clamped = Number.isFinite(parsed)
+          ? Math.max(1, Math.min(120, Math.round(parsed)))
+          : 7;
+        return String(clamped);
+      });
       setLight((current) => current || String(data.light || ""));
       setNotes((current) => current || String(data.notes || ""));
       setInfoUrl((current) => current || String(data.info_url || ""));
@@ -105,6 +110,19 @@ function PlantForm({ onClose }: { onClose: () => void }) {
     const form = new FormData(event.currentTarget);
     if (!name.trim()) return setError("Додай назву рослини.");
     if (!photo) return setError("Додай фото рослини.");
+    const parsedInterval = Number(intervalText);
+    if (
+      !intervalText.trim() ||
+      !Number.isFinite(parsedInterval) ||
+      parsedInterval < 1 ||
+      parsedInterval > 120
+    ) {
+      return setError("Вкажи інтервал перевірки від 1 до 120 днів.");
+    }
+    const rawLastWatered = String(form.get("lastWatered") ?? kyivDate());
+    const lastWatered = /^\d{4}-\d{2}-\d{2}$/.test(rawLastWatered)
+      ? rawLastWatered
+      : kyivDate();
     setSaving(true);
     setError("");
     try {
@@ -117,8 +135,11 @@ function PlantForm({ onClose }: { onClose: () => void }) {
         name: name.trim(),
         species: species.trim(),
         image_path,
-        watering_interval_days: Math.max(1, Math.min(120, interval)),
-        last_watered_at: String(form.get("lastWatered") ?? kyivDate()),
+        watering_interval_days: Math.max(
+          1,
+          Math.min(120, Math.round(parsedInterval)),
+        ),
+        last_watered_at: lastWatered,
         light: light.trim(),
         watering_notes: notes.trim(),
         info_url: safeUrl(infoUrl)?.startsWith("https://")
@@ -195,8 +216,8 @@ function PlantForm({ onClose }: { onClose: () => void }) {
               <Field label="Інтервал перевірки, днів">
                 <input
                   name="interval"
-                  value={interval}
-                  onChange={(event) => setInterval(Number(event.target.value))}
+                  value={intervalText}
+                  onChange={(event) => setIntervalText(event.target.value)}
                   type="number"
                   min="1"
                   max="120"
