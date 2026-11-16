@@ -87,6 +87,7 @@ function useOccasionalCat(): MascotContextValue {
   const [isSquishing, setIsSquishing] = useState(false);
 
   const tapCountRef = useRef(0);
+  const lastTapTimeRef = useRef(0);
   const previousReactionRef = useRef<string | undefined>(undefined);
   const hideTimerRef = useRef<number | undefined>(undefined);
   const bubbleTimerRef = useRef<number | undefined>(undefined);
@@ -101,60 +102,44 @@ function useOccasionalCat(): MascotContextValue {
   };
 
   const tapCat = useCallback(() => {
+    const now = Date.now();
+    // After 2.5s of inactivity, reset streak so the next tap plays sound
+    if (now - lastTapTimeRef.current > 2500) {
+      tapCountRef.current = 0;
+    }
+    lastTapTimeRef.current = now;
+    tapCountRef.current++;
+    const taps = tapCountRef.current;
+
+    // Reset 10-second hide timer on tap to extend visibility
+    if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = window.setTimeout(() => {
+      setPose(null);
+      setBubble(null);
+      momentsRef.current++;
+      scheduleRef.current();
+    }, 10000);
+
+    // Trigger squish animation on every tap
+    setIsSquishing(true);
+    if (squishTimerRef.current) window.clearTimeout(squishTimerRef.current);
+    squishTimerRef.current = window.setTimeout(() => {
+      setIsSquishing(false);
+    }, 380);
+
     setPose((currentPose) => {
       if (!currentPose) return null;
 
-      // Reset 10-second hide timer on tap to extend visibility
-      if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
-      hideTimerRef.current = window.setTimeout(() => {
-        setPose(null);
-        setBubble(null);
-        momentsRef.current++;
-        scheduleRef.current();
-      }, 10000);
+      const image = currentPose.image;
 
-      tapCountRef.current++;
-      const taps = tapCountRef.current;
-
-      let nextImage = currentPose.image;
-
-      // Pose change on repeat taps (2nd tap and beyond)
-      if (taps >= 2) {
-        if (currentPose.image === "cat-sleeping.webp") {
-          const wakeOptions = ["cat-bed-look.webp", "cat-bed-paw.webp"];
-          nextImage =
-            wakeOptions[Math.floor(Math.random() * wakeOptions.length)];
-        } else {
-          const allImages = [
-            "cat-sitting.webp",
-            "cat-nav-peek.webp",
-            "cat-carpet-sitting.webp",
-            "cat-sofa-loaf.webp",
-            "cat-bed-loaf.webp",
-            "cat-bed-paw.webp",
-            "cat-bed-look.webp",
-            "cat-sleeping.webp",
-          ];
-          const otherImages = allImages.filter(
-            (img) => img !== currentPose.image,
-          );
-          nextImage = otherImages[Math.floor(Math.random() * otherImages.length)];
-        }
+      // Play sound on alternating taps (через один тап: 1-й, 3-й, 5-й...)
+      if (taps % 2 === 1) {
+        playCatSound(image);
       }
-
-      // Play procedural sound for current/new pose
-      playCatSound(nextImage);
-
-      // Trigger squish animation
-      setIsSquishing(true);
-      if (squishTimerRef.current) window.clearTimeout(squishTimerRef.current);
-      squishTimerRef.current = window.setTimeout(() => {
-        setIsSquishing(false);
-      }, 380);
 
       // Trigger speech bubble with reaction
       const reactionText = getCatReaction(
-        nextImage,
+        image,
         previousReactionRef.current,
       );
       previousReactionRef.current = reactionText;
@@ -165,12 +150,7 @@ function useOccasionalCat(): MascotContextValue {
         setBubble(null);
       }, 1400);
 
-      if (nextImage !== currentPose.image) {
-        return {
-          ...currentPose,
-          image: nextImage,
-        };
-      }
+      // Keep original cat image without changing pose
       return currentPose;
     });
   }, []);
