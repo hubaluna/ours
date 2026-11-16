@@ -20,7 +20,13 @@ import { useApp } from "../hooks/AppContext";
 import { checked, supabase, uploadImage } from "../lib/supabase";
 import { downloadJson } from "../lib/utils";
 import type { Theme } from "../lib/types";
-import { Avatar, BottomSheet, Button, Field, IconButton } from "../components/ui";
+import {
+  Avatar,
+  BottomSheet,
+  Button,
+  Field,
+  IconButton,
+} from "../components/ui";
 import {
   pushSupportMessage,
   savePushPreferences,
@@ -34,6 +40,7 @@ import {
   sendTestReminderNotification,
   setReminderPushEnabled,
 } from "../lib/reminder-notifications";
+import { isCatMuted, setCatMuted } from "../lib/cat-sound";
 export default function Settings({
   onClose,
   theme,
@@ -63,7 +70,8 @@ export default function Settings({
     [avatar, setAvatar] = useState(me?.avatar_path ?? null),
     [uploading, setUploading] = useState(false),
     [invite, setInvite] = useState(""),
-    [showTrash, setShowTrash] = useState(false);
+    [showTrash, setShowTrash] = useState(false),
+    [catSoundEnabled, setCatSoundEnabled] = useState(() => !isCatMuted());
   const file = useRef<HTMLInputElement>(null);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -212,8 +220,28 @@ export default function Settings({
             </button>
           ))}
         </div>
+        <label className="push-reminder-toggle cat-sound-toggle">
+          <input
+            type="checkbox"
+            checked={catSoundEnabled}
+            onChange={(e) => {
+              const next = e.target.checked;
+              setCatMuted(!next);
+              setCatSoundEnabled(next);
+            }}
+          />
+          <span>
+            <strong>Звуки кішки</strong>
+            <small>Муркотіння та мявкання при погладжуванні</small>
+          </span>
+        </label>
       </section>
-      <PushSettings userId={userId} coupleId={coupleId} demo={demo} notify={notify} />
+      <PushSettings
+        userId={userId}
+        coupleId={coupleId}
+        demo={demo}
+        notify={notify}
+      />
       <section className="settings-section">
         <h3>
           <UsersRound size={16} /> Наш маленький світ
@@ -338,9 +366,33 @@ export default function Settings({
   );
 }
 
-type PushPrefs = { enabled: boolean; shopping: boolean; wishes: boolean; movies: boolean; events: boolean; recipes: boolean };
-const defaultPushPrefs: PushPrefs = { enabled: false, shopping: true, wishes: true, movies: true, events: true, recipes: true };
-function PushSettings({ userId, coupleId, demo, notify }: { userId: string; coupleId: string | null; demo: boolean; notify: (text: string) => void }) {
+type PushPrefs = {
+  enabled: boolean;
+  shopping: boolean;
+  wishes: boolean;
+  movies: boolean;
+  events: boolean;
+  recipes: boolean;
+};
+const defaultPushPrefs: PushPrefs = {
+  enabled: false,
+  shopping: true,
+  wishes: true,
+  movies: true,
+  events: true,
+  recipes: true,
+};
+function PushSettings({
+  userId,
+  coupleId,
+  demo,
+  notify,
+}: {
+  userId: string;
+  coupleId: string | null;
+  demo: boolean;
+  notify: (text: string) => void;
+}) {
   const [preferences, setPreferences] = useState(defaultPushPrefs);
   const [busy, setBusy] = useState(false);
   const [remindersEnabled, setRemindersEnabled] = useState(() =>
@@ -352,13 +404,21 @@ function PushSettings({ userId, coupleId, demo, notify }: { userId: string; coup
     let alive = true;
     void (async () => {
       try {
-        const row = await checked(supabase.from("push_preferences").select("*").eq("user_id", userId).maybeSingle());
+        const row = await checked(
+          supabase
+            .from("push_preferences")
+            .select("*")
+            .eq("user_id", userId)
+            .maybeSingle(),
+        );
         if (alive && row) setPreferences({ ...defaultPushPrefs, ...row });
       } catch {
         if (alive) notify("Не вдалося завантажити налаштування сповіщень.");
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [demo, userId, notify]);
 
   const toggle = async () => {
@@ -384,7 +444,11 @@ function PushSettings({ userId, coupleId, demo, notify }: { userId: string; coup
         notify("Push-сповіщення увімкнено на цьому пристрої.");
       }
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Не вдалося змінити сповіщення.");
+      notify(
+        error instanceof Error
+          ? error.message
+          : "Не вдалося змінити сповіщення.",
+      );
     } finally {
       setBusy(false);
     }
@@ -424,16 +488,29 @@ function PushSettings({ userId, coupleId, demo, notify }: { userId: string; coup
       setTesting(false);
     }
   };
-  const updateKind = (key: keyof Omit<PushPrefs, "enabled">, value: boolean) => {
+  const updateKind = (
+    key: keyof Omit<PushPrefs, "enabled">,
+    value: boolean,
+  ) => {
     const next = { ...preferences, [key]: value };
     setPreferences(next);
-    if (!demo && userId) void savePushPreferences(userId, next).catch(() => notify("Не вдалося зберегти типи сповіщень."));
+    if (!demo && userId)
+      void savePushPreferences(userId, next).catch(() =>
+        notify("Не вдалося зберегти типи сповіщень."),
+      );
   };
-  const supportMessage = typeof window === "undefined" ? null : pushSupportMessage();
+  const supportMessage =
+    typeof window === "undefined" ? null : pushSupportMessage();
   return (
     <section className="settings-section push-settings">
-      <h3><Bell size={16} /> Сповіщення</h3>
-      <p className="settings-help">Push приходять з 11:00 до 22:00, а нові покупки збираються в одне повідомлення без спаму з магазину. На iPhone додайте Ours на екран «Додому».</p>
+      <h3>
+        <Bell size={16} /> Сповіщення
+      </h3>
+      <p className="settings-help">
+        Push приходять з 11:00 до 22:00, а нові покупки збираються в одне
+        повідомлення без спаму з магазину. На iPhone додайте Ours на екран
+        «Додому».
+      </p>
       {isReminderNotificationSupported() && (
         <label className="push-reminder-toggle">
           <input
@@ -443,32 +520,72 @@ function PushSettings({ userId, coupleId, demo, notify }: { userId: string; coup
           />
           <span>
             <strong>Нагадування про полив і календар</strong>
-            <small>Після 11:00: полив — лише в день поливу; календар — за 7 днів, 3 дні й у день події.</small>
+            <small>
+              Після 11:00: полив — лише в день поливу; календар — за 7 днів, 3
+              дні й у день події.
+            </small>
           </span>
         </label>
       )}
-      {demo ? <p className="settings-help">Підключіть акаунт і спільний простір, щоб увімкнути push.</p> : supportMessage ? <p className="settings-help">{supportMessage}</p> : null}
-      {typeof window !== "undefined" && "Notification" in window && Notification.permission === "denied" && <p className="settings-help">Доступ заборонено в браузері. Змініть дозвіл у налаштуваннях сайту на телефоні.</p>}
+      {demo ? (
+        <p className="settings-help">
+          Підключіть акаунт і спільний простір, щоб увімкнути push.
+        </p>
+      ) : supportMessage ? (
+        <p className="settings-help">{supportMessage}</p>
+      ) : null}
+      {typeof window !== "undefined" &&
+        "Notification" in window &&
+        Notification.permission === "denied" && (
+          <p className="settings-help">
+            Доступ заборонено в браузері. Змініть дозвіл у налаштуваннях сайту
+            на телефоні.
+          </p>
+        )}
       <div className="push-actions">
         {!demo && (
-          <Button className={preferences.enabled ? "secondary" : "ghost"} busy={busy} onClick={() => void toggle()}>
-            {preferences.enabled ? "Вимкнути push" : "Увімкнути push на цьому пристрої"}
+          <Button
+            className={preferences.enabled ? "secondary" : "ghost"}
+            busy={busy}
+            onClick={() => void toggle()}
+          >
+            {preferences.enabled
+              ? "Вимкнути push"
+              : "Увімкнути push на цьому пристрої"}
           </Button>
         )}
         {isReminderNotificationSupported() && (
-          <Button className="ghost push-test-btn" busy={testing} onClick={() => void testNotification()}>
+          <Button
+            className="ghost push-test-btn"
+            busy={testing}
+            onClick={() => void testNotification()}
+          >
             Перевірити сповіщення
           </Button>
         )}
       </div>
-      {preferences.enabled && <div className="push-kind-list">
-        {([
-          ["shopping", "Покупки"], ["wishes", "Бажання"], ["movies", "Кіно"], ["events", "Календар"], ["recipes", "Меню"],
-        ] as const).map(([key, label]) => <label key={key}>
-          <input type="checkbox" checked={preferences[key]} onChange={(event) => updateKind(key, event.target.checked)} />
-          <span>{label}</span>
-        </label>)}
-      </div>}
+      {preferences.enabled && (
+        <div className="push-kind-list">
+          {(
+            [
+              ["shopping", "Покупки"],
+              ["wishes", "Бажання"],
+              ["movies", "Кіно"],
+              ["events", "Календар"],
+              ["recipes", "Меню"],
+            ] as const
+          ).map(([key, label]) => (
+            <label key={key}>
+              <input
+                type="checkbox"
+                checked={preferences[key]}
+                onChange={(event) => updateKind(key, event.target.checked)}
+              />
+              <span>{label}</span>
+            </label>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

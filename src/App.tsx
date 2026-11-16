@@ -1,4 +1,11 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { AnimatePresence, motion, MotionConfig } from "motion/react";
 import {
   CalendarDays,
@@ -21,7 +28,13 @@ import type { Tab } from "./lib/types";
 import { kyivDate } from "./lib/utils";
 import { syncLocalReminderNotifications } from "./lib/reminder-notifications";
 import { useRegisterSW } from "virtual:pwa-register/react";
-import { MascotContext, type MascotPose } from "./components/MascotContext";
+import {
+  MascotContext,
+  type MascotContextValue,
+  type MascotPose,
+} from "./components/MascotContext";
+import { CatMascot } from "./components/CatMascot";
+import { getCatReaction, playCatSound } from "./lib/cat-sound";
 const screens = {
   home: () => import("./features/Home"),
   shopping: () => import("./features/Shopping"),
@@ -61,15 +74,111 @@ const catScenes: Array<{
   { placement: "title", image: "cat-bed-loaf.webp" },
   { placement: "nav", image: "cat-sitting.webp" },
   { placement: "panel", image: "cat-sofa-loaf.webp" },
+  { placement: "panel", image: "cat-carpet-sitting.webp" },
+  { placement: "title", image: "cat-bed-paw.webp" },
+  { placement: "nav", image: "cat-bed-paw.webp" },
 ];
-function useOccasionalCat(): MascotPose {
+
+function useOccasionalCat(): MascotContextValue {
   const [pose, setPose] = useState<MascotPose>(null);
+  const [bubble, setBubble] = useState<{ text: string; key: number } | null>(
+    null,
+  );
+  const [isSquishing, setIsSquishing] = useState(false);
+
+  const tapCountRef = useRef(0);
+  const previousReactionRef = useRef<string | undefined>(undefined);
+  const hideTimerRef = useRef<number | undefined>(undefined);
+  const bubbleTimerRef = useRef<number | undefined>(undefined);
+  const squishTimerRef = useRef<number | undefined>(undefined);
+  const scheduleRef = useRef<() => void>(() => {});
+  const momentsRef = useRef(0);
+
+  const clearTimers = () => {
+    if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+    if (bubbleTimerRef.current) window.clearTimeout(bubbleTimerRef.current);
+    if (squishTimerRef.current) window.clearTimeout(squishTimerRef.current);
+  };
+
+  const tapCat = useCallback(() => {
+    setPose((currentPose) => {
+      if (!currentPose) return null;
+
+      // Reset 10-second hide timer on tap to extend visibility
+      if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = window.setTimeout(() => {
+        setPose(null);
+        setBubble(null);
+        momentsRef.current++;
+        scheduleRef.current();
+      }, 10000);
+
+      tapCountRef.current++;
+      const taps = tapCountRef.current;
+
+      let nextImage = currentPose.image;
+
+      // Pose change on repeat taps (2nd tap and beyond)
+      if (taps >= 2) {
+        if (currentPose.image === "cat-sleeping.webp") {
+          const wakeOptions = ["cat-bed-look.webp", "cat-bed-paw.webp"];
+          nextImage =
+            wakeOptions[Math.floor(Math.random() * wakeOptions.length)];
+        } else {
+          const allImages = [
+            "cat-sitting.webp",
+            "cat-nav-peek.webp",
+            "cat-carpet-sitting.webp",
+            "cat-sofa-loaf.webp",
+            "cat-bed-loaf.webp",
+            "cat-bed-paw.webp",
+            "cat-bed-look.webp",
+            "cat-sleeping.webp",
+          ];
+          const otherImages = allImages.filter(
+            (img) => img !== currentPose.image,
+          );
+          nextImage = otherImages[Math.floor(Math.random() * otherImages.length)];
+        }
+      }
+
+      // Play procedural sound for current/new pose
+      playCatSound(nextImage);
+
+      // Trigger squish animation
+      setIsSquishing(true);
+      if (squishTimerRef.current) window.clearTimeout(squishTimerRef.current);
+      squishTimerRef.current = window.setTimeout(() => {
+        setIsSquishing(false);
+      }, 380);
+
+      // Trigger speech bubble with reaction
+      const reactionText = getCatReaction(
+        nextImage,
+        previousReactionRef.current,
+      );
+      previousReactionRef.current = reactionText;
+      setBubble({ text: reactionText, key: Date.now() });
+
+      if (bubbleTimerRef.current) window.clearTimeout(bubbleTimerRef.current);
+      bubbleTimerRef.current = window.setTimeout(() => {
+        setBubble(null);
+      }, 1400);
+
+      if (nextImage !== currentPose.image) {
+        return {
+          ...currentPose,
+          image: nextImage,
+        };
+      }
+      return currentPose;
+    });
+  }, []);
+
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    let moments = 0,
-      sceneIndex = 0,
-      showTimer: number | undefined,
-      hideTimer: number | undefined;
+    let sceneIndex = 0,
+      showTimer: number | undefined;
     const isBusy = () =>
       document.visibilityState !== "visible" ||
       Boolean(document.querySelector('[role="dialog"], [aria-modal="true"]')) ||
@@ -82,29 +191,43 @@ function useOccasionalCat(): MascotPose {
       showTimer = window.setTimeout(
         () => {
           if (isBusy()) {
-            moments++;
+            momentsRef.current++;
             schedule();
             return;
           }
           const scene = catScenes[sceneIndex];
           const navSlot = (sceneIndex * 2 + 1) % tabs.length;
-          setPose({
+          const newPose: MascotPose = {
             placement: scene.placement,
             image: scene.image,
             navSlot,
-          });
+          };
+          tapCountRef.current = 0;
+          setBubble(null);
+          setIsSquishing(false);
+          setPose(newPose);
+
           sceneIndex = (sceneIndex + 1) % catScenes.length;
-          hideTimer = window.setTimeout(() => {
+
+          if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+          hideTimerRef.current = window.setTimeout(() => {
             setPose(null);
-            moments++;
+            setBubble(null);
+            momentsRef.current++;
             schedule();
-          }, 15000);
+          }, 10000);
         },
-        moments === 0 ? 1200 : 4500,
+        momentsRef.current === 0 ? 1200 : 4500,
       );
     };
+
+    scheduleRef.current = schedule;
+
     const pause = () => {
-      if (isBusy()) setPose(null);
+      if (isBusy()) {
+        setPose(null);
+        setBubble(null);
+      }
     };
     document.addEventListener("focusin", pause);
     document.addEventListener("visibilitychange", pause);
@@ -118,13 +241,21 @@ function useOccasionalCat(): MascotPose {
     schedule();
     return () => {
       if (showTimer) window.clearTimeout(showTimer);
-      if (hideTimer) window.clearTimeout(hideTimer);
+      clearTimers();
       document.removeEventListener("focusin", pause);
       document.removeEventListener("visibilitychange", pause);
       observer.disconnect();
     };
   }, []);
-  return pose;
+
+  if (!pose) return null;
+
+  return {
+    ...pose,
+    tapCat,
+    bubble,
+    isSquishing,
+  };
 }
 export default function App() {
   const {
@@ -174,11 +305,7 @@ export default function App() {
   useEffect(() => {
     if ((!demo && !coupleId) || loading) return;
     const checkReminders = () => {
-      void syncLocalReminderNotifications(
-        data.plants,
-        data.events,
-        kyivDate(),
-      );
+      void syncLocalReminderNotifications(data.plants, data.events, kyivDate());
     };
     checkReminders();
     const timer = window.setInterval(checkReminders, 5 * 60 * 1000);
@@ -215,80 +342,70 @@ export default function App() {
           <PairSetup />
         )
       ) : (
-        <div className="app-shell">
-          <header className="app-header">
-            <button
-              className="brand"
-              onClick={() => setTab("home")}
-              aria-label="ours. — головна"
-            >
-              ours<span>.</span>
-              <AnimatePresence>
-                {mascot?.placement === "logo" && (
-                  <motion.img
-                    key={mascot.image}
-                    className="brand-mascot"
-                    src={`${import.meta.env.BASE_URL}art/${mascot.image}`}
-                    alt=""
-                    aria-hidden="true"
-                    initial={{ opacity: 0, y: 8, scale: 0.9 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 6, scale: 0.92 }}
-                    transition={{ type: "spring", stiffness: 320, damping: 24 }}
-                  />
-                )}
-              </AnimatePresence>
-            </button>
-            <div className="header-right">
-              <span
-                className={demo ? "demo-badge" : "sync-badge"}
-                title={
-                  demo
-                    ? "Деморежим · лише на цьому пристрої"
-                    : sync === "live"
-                      ? "Ваш приватний простір"
-                      : "Відновлюємо з’єднання"
-                }
-              >
-                <i />
-                {demo ? "Демо" : "Для двох"}
-              </span>
+        <MascotContext.Provider value={mascot}>
+          <div className="app-shell">
+            <header className="app-header">
               <button
-                className="avatar-button"
-                onClick={() => setSettings(true)}
-                aria-label="Відкрити налаштування"
+                className="brand"
+                onClick={() => setTab("home")}
+                aria-label="ours. — головна"
               >
-                <Avatar name={me?.name ?? "Я"} path={me?.avatar_path} />
+                ours<span>.</span>
+                <AnimatePresence>
+                  {mascot?.placement === "logo" && (
+                    <CatMascot placement="logo" />
+                  )}
+                </AnimatePresence>
               </button>
-            </div>
-          </header>
-          {(!online || failure || (!demo && (sync !== "live" || queuedShoppingCount > 0))) && (
-            <div className="connection-banner" role="status">
-              <WifiOff size={14} />
-              <span>
-                {!online
-                  ? queuedShoppingCount > 0
-                    ? `Без інтернету · збережено в черзі (${queuedShoppingCount})`
-                    : "Без інтернету · покупки зберігаються локально"
-                  : queuedShoppingCount > 0
-                    ? `Синхронізуємо покупки (${queuedShoppingCount})…`
-                    : failure
-                      ? "Не вдалося оновити простір"
-                      : "Відновлюємо живе з’єднання"}
-              </span>
-              {online && (
-                <button
-                  aria-label="Оновити дані"
-                  onClick={() => void refresh()}
+              <div className="header-right">
+                <span
+                  className={demo ? "demo-badge" : "sync-badge"}
+                  title={
+                    demo
+                      ? "Деморежим · лише на цьому пристрої"
+                      : sync === "live"
+                        ? "Ваш приватний простір"
+                        : "Відновлюємо з’єднання"
+                  }
                 >
-                  <RefreshCw size={15} />
+                  <i />
+                  {demo ? "Демо" : "Для двох"}
+                </span>
+                <button
+                  className="avatar-button"
+                  onClick={() => setSettings(true)}
+                  aria-label="Відкрити налаштування"
+                >
+                  <Avatar name={me?.name ?? "Я"} path={me?.avatar_path} />
                 </button>
-              )}
-            </div>
-          )}
-          <MascotContext.Provider
-            value={mascot?.placement === "title" ? mascot : null}
-          >
+              </div>
+            </header>
+            {(!online ||
+              failure ||
+              (!demo && (sync !== "live" || queuedShoppingCount > 0))) && (
+              <div className="connection-banner" role="status">
+                <WifiOff size={14} />
+                <span>
+                  {!online
+                    ? queuedShoppingCount > 0
+                      ? `Без інтернету · збережено в черзі (${queuedShoppingCount})`
+                      : "Без інтернету · покупки зберігаються локально"
+                    : queuedShoppingCount > 0
+                      ? `Синхронізуємо покупки (${queuedShoppingCount})…`
+                      : failure
+                        ? "Не вдалося оновити простір"
+                        : "Відновлюємо живе з’єднання"}
+                </span>
+                {online && (
+                  <button
+                    aria-label="Оновити дані"
+                    onClick={() => void refresh()}
+                  >
+                    <RefreshCw size={15} />
+                  </button>
+                )}
+              </div>
+            )}
             <main id="main-content">
               {loading ? (
                 <Skeleton />
@@ -317,98 +434,73 @@ export default function App() {
               )}
               <AnimatePresence>
                 {mascot?.placement === "panel" && !loading && (
-                  <motion.img
-                    key={mascot.image}
-                    className="panel-mascot"
-                    src={`${import.meta.env.BASE_URL}art/${mascot.image}`}
-                    alt=""
-                    aria-hidden="true"
-                    initial={{ opacity: 0, y: 12, scale: 0.92 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.94 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 24 }}
-                  />
+                  <CatMascot placement="panel" />
                 )}
               </AnimatePresence>
             </main>
-          </MascotContext.Provider>
-          <nav className="bottom-nav glass" aria-label="Основна навігація">
-            <AnimatePresence>
-              {mascot?.placement === "nav" && (
-                <motion.img
-                  key={`${mascot.image}-${mascot.navSlot ?? 0}`}
-                  className={`nav-mascot ${mascot.image === "cat-nav-peek.webp" || mascot.image === "cat-bed-look.webp" ? "nav-mascot-peek" : ""}`}
-                  style={{
-                    left: `clamp(42px, ${((mascot.navSlot ?? 2) + 0.5) * (100 / tabs.length)}%, calc(100% - 42px))`,
+            <nav className="bottom-nav glass" aria-label="Основна навігація">
+              <AnimatePresence>
+                {mascot?.placement === "nav" && <CatMascot placement="nav" />}
+              </AnimatePresence>
+              {tabs.map(({ id, label, icon: Icon }) => (
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  key={id}
+                  aria-label={label}
+                  aria-current={tab === id ? "page" : undefined}
+                  onClick={() => setTab(id)}
+                  onPointerEnter={() => {
+                    void screens[id]().catch(() => {});
                   }}
-                  src={`${import.meta.env.BASE_URL}art/${mascot.image}`}
-                  alt=""
-                  aria-hidden="true"
-                  initial={{ opacity: 0, y: 14, scale: 0.9 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 12, scale: 0.92 }}
-                  transition={{ type: "spring", stiffness: 320, damping: 24 }}
-                />
+                  onFocus={() => {
+                    void screens[id]().catch(() => {});
+                  }}
+                  className={`${tab === id ? "active" : ""} tab-${id}`}
+                >
+                  {tab === id && (
+                    <motion.span
+                      className="navigation-active"
+                      layoutId="navigation-active"
+                      transition={spring}
+                    />
+                  )}
+                  <span className="nav-content">
+                    <Icon size={20} strokeWidth={tab === id ? 2 : 1.7} />
+                    <span>{label}</span>
+                  </span>
+                </motion.button>
+              ))}
+            </nav>
+            <AnimatePresence>
+              {settings && (
+                <Suspense fallback={null}>
+                  <Settings
+                    onClose={() => setSettings(false)}
+                    theme={theme}
+                    setTheme={setTheme}
+                  />
+                </Suspense>
               )}
             </AnimatePresence>
-            {tabs.map(({ id, label, icon: Icon }) => (
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                key={id}
-                aria-label={label}
-                aria-current={tab === id ? "page" : undefined}
-                onClick={() => setTab(id)}
-                onPointerEnter={() => {
-                  void screens[id]().catch(() => {});
-                }}
-                onFocus={() => {
-                  void screens[id]().catch(() => {});
-                }}
-                className={`${tab === id ? "active" : ""} tab-${id}`}
-              >
-                {tab === id && (
-                  <motion.span
-                    className="navigation-active"
-                    layoutId="navigation-active"
-                    transition={spring}
-                  />
-                )}
-                <span className="nav-content">
-                  <Icon size={20} strokeWidth={tab === id ? 2 : 1.7} />
-                  <span>{label}</span>
-                </span>
-              </motion.button>
-            ))}
-          </nav>
-          <AnimatePresence>
-            {settings && (
-              <Suspense fallback={null}>
-                <Settings
-                  onClose={() => setSettings(false)}
-                  theme={theme}
-                  setTheme={setTheme}
-                />
-              </Suspense>
+            {needRefresh && !settings && (
+              <div className="update-banner glass">
+                <span>Нова версія ours.</span>
+                <Button
+                  className="ghost"
+                  onClick={() => void updateServiceWorker(true)}
+                >
+                  Оновити
+                </Button>
+                <button
+                  aria-label="Оновити пізніше"
+                  onClick={() => setNeedRefresh(false)}
+                >
+                  <X size={16} />
+                </button>
+              </div>
             )}
-          </AnimatePresence>
-          {needRefresh && !settings && (
-            <div className="update-banner glass">
-              <span>Нова версія ours.</span>
-              <Button
-                className="ghost"
-                onClick={() => void updateServiceWorker(true)}
-              >
-                Оновити
-              </Button>
-              <button
-                aria-label="Оновити пізніше"
-                onClick={() => setNeedRefresh(false)}
-              >
-                <X size={16} />
-              </button>
-            </div>
-          )}
-        </div>
+          </div>
+        </MascotContext.Provider>
       )}
     </MotionConfig>
   );

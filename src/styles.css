@@ -50,11 +50,9 @@
   --glass-edge: rgba(34, 52, 41, 0.075);
   --glass-specular: rgba(255, 255, 255, 0.94);
   --glass-shadow:
-    0 10px 30px rgba(31, 49, 37, 0.075),
-    0 1px 3px rgba(31, 49, 37, 0.04);
+    0 10px 30px rgba(31, 49, 37, 0.075), 0 1px 3px rgba(31, 49, 37, 0.04);
   --glass-dock-shadow:
-    0 16px 40px rgba(31, 49, 37, 0.11),
-    0 2px 8px rgba(31, 49, 37, 0.05);
+    0 16px 40px rgba(31, 49, 37, 0.11), 0 2px 8px rgba(31, 49, 37, 0.05);
   --input-bg: rgba(255, 255, 255, 0.78);
   --radius: 24px;
   color: var(--text);
@@ -88,12 +86,9 @@
   --glass-border: rgba(255, 255, 255, 0.115);
   --glass-edge: rgba(255, 255, 255, 0.07);
   --glass-specular: rgba(255, 255, 255, 0.17);
-  --glass-shadow:
-    0 12px 34px rgba(0, 0, 0, 0.3),
-    0 1px 3px rgba(0, 0, 0, 0.18);
+  --glass-shadow: 0 12px 34px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.18);
   --glass-dock-shadow:
-    0 18px 44px rgba(0, 0, 0, 0.4),
-    0 2px 10px rgba(0, 0, 0, 0.24);
+    0 18px 44px rgba(0, 0, 0, 0.4), 0 2px 10px rgba(0, 0, 0, 0.24);
   --input-bg: rgba(20, 27, 22, 0.64);
   color-scheme: dark;
 }
@@ -132,11 +127,32 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 68% 54% at 56% 36%, var(--gradient-rose), transparent 64%),
-    radial-gradient(ellipse 60% 52% at 88% 10%, var(--gradient-violet), transparent 58%),
-    radial-gradient(ellipse 64% 58% at 4% 38%, var(--gradient-cool), transparent 62%),
-    radial-gradient(ellipse 62% 54% at 88% 96%, var(--gradient-warm), transparent 60%),
-    linear-gradient(155deg, var(--bg) 6%, var(--gradient-mint) 56%, var(--bg) 100%);
+    radial-gradient(
+      ellipse 68% 54% at 56% 36%,
+      var(--gradient-rose),
+      transparent 64%
+    ),
+    radial-gradient(
+      ellipse 60% 52% at 88% 10%,
+      var(--gradient-violet),
+      transparent 58%
+    ),
+    radial-gradient(
+      ellipse 64% 58% at 4% 38%,
+      var(--gradient-cool),
+      transparent 62%
+    ),
+    radial-gradient(
+      ellipse 62% 54% at 88% 96%,
+      var(--gradient-warm),
+      transparent 60%
+    ),
+    linear-gradient(
+      155deg,
+      var(--bg) 6%,
+      var(--gradient-mint) 56%,
+      var(--bg) 100%
+    );
   will-change: transform;
   animation: mesh-drift 28s ease-in-out infinite alternate;
 }
@@ -280,11 +296,11 @@ p {
   height: 44px;
   width: auto;
   max-width: 68px;
-  margin-left: 8px;
   align-self: center;
   flex-shrink: 0;
   object-fit: contain;
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: pointer;
   filter: drop-shadow(0 5px 10px rgba(20, 34, 25, 0.18));
 }
 .header-right {
@@ -392,20 +408,17 @@ p {
   max-width: 78px;
   object-fit: contain;
   align-self: flex-end;
-  margin-bottom: -4px;
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: pointer;
   filter: drop-shadow(0 6px 10px rgba(20, 34, 25, 0.18));
 }
 .panel-mascot {
-  position: absolute;
-  right: 16px;
-  bottom: -4px;
   height: 64px;
   width: auto;
   max-width: 110px;
   object-fit: contain;
-  pointer-events: none;
-  z-index: 5;
+  pointer-events: auto;
+  cursor: pointer;
   filter: drop-shadow(0 8px 14px rgba(20, 34, 25, 0.2));
 }
 .screen-header h1 {
@@ -783,7 +796,9 @@ p {
   text-align: left;
   background: transparent;
 }
-.plant-card-photo-button { flex: 0 0 auto; }
+.plant-card-photo-button {
+  flex: 0 0 auto;
+}
 .plant-card-content {
   display: grid;
   flex: 1;
@@ -838,10 +853,27 @@ p {
   font-size: 10px;
   text-align: left;
 }
-.plant-wet-button:disabled { opacity: .55; }
-.plant-care-history summary { color: var(--accent); font-size: 11px; cursor: pointer; }
-.plant-care-history ul { list-style: none; padding: 0; margin: 7px 0 0; }
-.plant-care-history li { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; font-size: 11px; border-top: 1px solid var(--line); }
+.plant-wet-button:disabled {
+  opacity: 0.55;
+}
+.plant-care-history summary {
+  color: var(--accent);
+  font-size: 11px;
+  cursor: pointer;
+}
+.plant-care-history ul {
+  list-style: none;
+  padding: 0;
+  margin: 7px 0 0;
+}
+.plant-care-history li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 11px;
+  border-top: 1px solid var(--line);
+}
 .plant-card-next time {
   color: var(--accent);
   font-size: 13px;
@@ -860,7 +892,7 @@ p {
   height: 100%;
   border-radius: inherit;
   background: var(--sage);
-  transition: width .4s ease;
+  transition: width 0.4s ease;
 }
 .plant-water-button {
   display: grid;
@@ -872,10 +904,17 @@ p {
   border-radius: 50%;
   color: var(--accent);
   background: var(--accent-light);
-  transition: transform .2s ease, background .2s ease;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease;
 }
-.plant-water-button:hover { background: var(--gradient-mint); transform: scale(1.06); }
-.plant-water-button:disabled { opacity: .55; }
+.plant-water-button:hover {
+  background: var(--gradient-mint);
+  transform: scale(1.06);
+}
+.plant-water-button:disabled {
+  opacity: 0.55;
+}
 .plant-water-button:focus-visible,
 .plant-card-main:focus-visible,
 .plant-card-photo-button:focus-visible {
@@ -1347,19 +1386,15 @@ p {
   z-index: 3;
 }
 .nav-mascot {
-  position: absolute;
-  bottom: calc(100% - 4px);
-  translate: -50% 0;
   height: 52px;
   width: auto;
   max-width: 96px;
   object-fit: contain;
-  pointer-events: none;
-  z-index: 4;
+  pointer-events: auto;
+  cursor: pointer;
   filter: drop-shadow(0 6px 12px rgba(20, 34, 25, 0.2));
 }
 .nav-mascot-peek {
-  bottom: calc(100% - 14px);
   height: 48px;
 }
 .bottom-nav > button {
@@ -2900,19 +2935,25 @@ p {
   .brand {
     font-size: 28px;
   }
+  .cat-mascot-wrap-logo {
+    margin-left: 6px;
+  }
+  .cat-mascot-wrap-title {
+    margin-bottom: -3px;
+  }
+  .cat-mascot-wrap-panel {
+    right: 10px;
+    bottom: -2px;
+  }
   .brand-mascot {
     height: 38px;
     max-width: 56px;
-    margin-left: 6px;
   }
   .title-mascot {
     height: 42px;
     max-width: 66px;
-    margin-bottom: -3px;
   }
   .panel-mascot {
-    right: 10px;
-    bottom: -2px;
     height: 54px;
     max-width: 94px;
   }
@@ -2943,14 +2984,18 @@ p {
     padding: 4px;
     border-radius: 23px;
   }
+  .cat-mascot-wrap-nav {
+    bottom: calc(100% - 6px);
+  }
+  .cat-mascot-wrap-nav.nav-mascot-peek {
+    bottom: calc(100% - 12px);
+  }
   .nav-mascot {
     height: 46px;
     max-width: 84px;
-    bottom: calc(100% - 6px);
   }
   .nav-mascot-peek {
     height: 42px;
-    bottom: calc(100% - 12px);
   }
   .bottom-nav > button {
     height: 55px;
@@ -4090,16 +4135,20 @@ p {
   }
 }
 @media (max-height: 500px) {
+  .cat-mascot-wrap-title {
+    margin-bottom: -2px;
+  }
+  .cat-mascot-wrap-panel {
+    right: 10px;
+    bottom: 0;
+  }
   .title-mascot {
     height: 34px;
     max-width: 54px;
-    margin-bottom: -2px;
   }
   .panel-mascot {
     height: 44px;
     max-width: 78px;
-    right: 10px;
-    bottom: 0;
   }
   .nav-mascot {
     height: 38px;
@@ -4110,8 +4159,14 @@ p {
   }
 }
 @media (max-width: 380px) {
-  .nav-content { font-size: 8px; gap: 4px; }
-  .nav-content svg { width: 17px; height: 17px; }
+  .nav-content {
+    font-size: 8px;
+    gap: 4px;
+  }
+  .nav-content svg {
+    width: 17px;
+    height: 17px;
+  }
   .plant-card {
     gap: 10px;
     padding: 9px;
@@ -4667,8 +4722,12 @@ p {
   background: color-mix(in srgb, var(--card) 90%, transparent);
   color: var(--muted);
 }
-.catalog-card-favorite[aria-pressed="true"] { color: #bd6c83; }
-.catalog-card-inline .catalog-card-copy { padding-right: 37px; }
+.catalog-card-favorite[aria-pressed="true"] {
+  color: #bd6c83;
+}
+.catalog-card-inline .catalog-card-copy {
+  padding-right: 37px;
+}
 .catalog-inline-pager {
   flex-shrink: 0;
   display: flex;
@@ -4840,7 +4899,11 @@ p {
   color: var(--text);
   font-size: 10px;
 }
-.meal-row-actions > button:not(.icon-button) { display: inline-flex; align-items: center; gap: 4px; }
+.meal-row-actions > button:not(.icon-button) {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 .meal-row-actions > .icon-button {
   min-width: 27px;
   width: 27px;
@@ -5155,7 +5218,10 @@ p {
   box-shadow:
     0 4px 14px rgba(31, 49, 37, 0.045),
     inset 0 1px 0 var(--glass-specular);
-  transition: transform 0.16s ease, border-color 0.18s ease, background 0.18s ease;
+  transition:
+    transform 0.16s ease,
+    border-color 0.18s ease,
+    background 0.18s ease;
 }
 .today-card:active {
   transform: scale(0.985);
@@ -5360,7 +5426,9 @@ p {
   font-size: 11px;
   font-weight: 500;
   white-space: nowrap;
-  transition: background 0.18s ease, border-color 0.18s ease;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
 }
 .pantry-trigger-btn svg {
   color: var(--accent);
@@ -5479,7 +5547,9 @@ p {
   background: var(--surface);
   color: var(--text);
   text-align: left;
-  transition: background 0.16s ease, border-color 0.16s ease;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease;
 }
 .pantry-staple-btn.active {
   background: var(--accent-light);
@@ -5619,5 +5689,151 @@ p {
 }
 .recipe-missing-shop-btn {
   width: 100%;
+  margin-top: 12px;
+}
+
+/* --------------------------------------------------------------------------
+   Cat Mascot Interactive Reactions, Squish & Speech Bubble
+-------------------------------------------------------------------------- */
+.cat-mascot-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  pointer-events: auto;
+}
+
+.cat-mascot-wrap-logo {
+  display: inline-flex;
+  align-self: center;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.cat-mascot-wrap-title {
+  display: inline-flex;
+  align-self: flex-end;
+  flex: 0 0 auto;
+  margin-bottom: -4px;
+}
+
+.cat-mascot-wrap-panel {
+  position: absolute;
+  right: 16px;
+  bottom: -4px;
+  z-index: 5;
+}
+
+.cat-mascot-wrap-nav {
+  position: absolute;
+  bottom: calc(100% - 4px);
+  translate: -50% 0;
+  z-index: 4;
+}
+
+.cat-mascot-wrap-nav.nav-mascot-peek {
+  bottom: calc(100% - 14px);
+}
+
+@keyframes cat-squish {
+  0% {
+    transform: scale(1, 1);
+  }
+  30% {
+    transform: scale(1.14, 0.88);
+  }
+  65% {
+    transform: scale(0.96, 1.03);
+  }
+  100% {
+    transform: scale(1, 1);
+  }
+}
+
+.brand-mascot.is-squishing,
+.title-mascot.is-squishing,
+.panel-mascot.is-squishing,
+.nav-mascot.is-squishing {
+  animation: cat-squish 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: 50% 90%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-mascot.is-squishing,
+  .title-mascot.is-squishing,
+  .panel-mascot.is-squishing,
+  .nav-mascot.is-squishing {
+    animation: none !important;
+  }
+}
+
+.cat-bubble {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translate(-50%, 0);
+  font-size: 10px;
+  line-height: 1.25;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--line);
+  color: var(--text);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 30;
+  animation: cat-bubble-float 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes cat-bubble-float {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 6px) scale(0.85);
+  }
+  16% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  75% {
+    opacity: 1;
+    transform: translate(-50%, -6px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -14px) scale(0.92);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes cat-bubble-float {
+    0% {
+      opacity: 0;
+      transform: translate(-50%, 0);
+    }
+    16% {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+    75% {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+    100% {
+      opacity: 0;
+      transform: translate(-50%, 0);
+    }
+  }
+}
+
+.cat-sound-toggle {
   margin-top: 12px;
 }

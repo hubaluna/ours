@@ -11,3 +11,4 @@ playwright-report/
 .aistudio/
 coverage/
 *.zip
+supabase/.temp/
