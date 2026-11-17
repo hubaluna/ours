@@ -59,7 +59,7 @@ describe("UniversalShareImport & LinkImport Enhancements", () => {
     });
   });
 
-  it("auto-detects destination for movie link in UniversalShareImport", () => {
+  it("auto-detects destination for movie link in UniversalShareImport", async () => {
     const movieUrl = "https://www.imdb.com/title/tt1375666/";
     render(
       <AppProvider>
@@ -71,11 +71,11 @@ describe("UniversalShareImport & LinkImport Enhancements", () => {
       </AppProvider>,
     );
 
-    const movieBtn = screen.getByRole("button", { name: /У кіно/i });
+    const movieBtn = await screen.findByRole("button", { name: /У кіно/i });
     expect(movieBtn).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("auto-detects destination for culinary/tiktok link in UniversalShareImport", () => {
+  it("auto-detects destination for culinary/tiktok link in UniversalShareImport", async () => {
     const tiktokUrl = "https://www.tiktok.com/@chef/video/123456";
     render(
       <AppProvider>
@@ -87,7 +87,7 @@ describe("UniversalShareImport & LinkImport Enhancements", () => {
       </AppProvider>,
     );
 
-    const menuBtn = screen.getByRole("button", { name: /У меню/i });
+    const menuBtn = await screen.findByRole("button", { name: /У меню/i });
     expect(menuBtn).toHaveAttribute("aria-pressed", "true");
   });
 });
