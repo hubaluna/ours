@@ -35,6 +35,12 @@ import {
 } from "./components/MascotContext";
 import { CatMascot } from "./components/CatMascot";
 import { getCatReaction, playCatSound } from "./lib/cat-sound";
+import { extractShareTargetUrl } from "./lib/share-target";
+const UniversalShareImport = lazy(() =>
+  import("./components/UniversalShareImport").then((m) => ({
+    default: m.UniversalShareImport,
+  })),
+);
 const screens = {
   home: () => import("./features/Home"),
   shopping: () => import("./features/Shopping"),
@@ -256,6 +262,22 @@ export default function App() {
   const mascot = useOccasionalCat();
   const [tab, setTab] = useState<Tab>("home"),
     [settings, setSettings] = useState(false);
+  const [sharedUrl, setSharedUrl] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const extracted = extractShareTargetUrl(window.location.search);
+    if (extracted) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    return extracted;
+  });
+
+  useEffect(() => {
+    const extracted = extractShareTargetUrl(window.location.search);
+    if (extracted) {
+      window.history.replaceState({}, "", window.location.pathname);
+      setSharedUrl(extracted);
+    }
+  }, []);
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
@@ -458,6 +480,15 @@ export default function App() {
                     onClose={() => setSettings(false)}
                     theme={theme}
                     setTheme={setTheme}
+                  />
+                </Suspense>
+              )}
+              {sharedUrl && (
+                <Suspense fallback={null}>
+                  <UniversalShareImport
+                    url={sharedUrl}
+                    onClose={() => setSharedUrl(null)}
+                    onNavigateTab={(targetTab) => setTab(targetTab)}
                   />
                 </Suspense>
               )}

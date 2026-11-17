@@ -1606,10 +1606,13 @@ function useStore() {
           ],
         }));
     });
-  const addShoppingBatch = (items: NewShopping[]) => {
-    const products = items.filter(
-      (item) => !isAtHomeIngredient(item.name, data.pantry),
-    );
+  const addShoppingBatch = (
+    items: NewShopping[],
+    options?: { skipPantryFilter?: boolean },
+  ) => {
+    const products = options?.skipPantryFilter
+      ? items
+      : items.filter((item) => !isAtHomeIngredient(item.name, data.pantry));
     if (!products.length) {
       notify("Усі потрібні продукти вже є вдома.");
       return Promise.resolve(false);
@@ -1634,7 +1637,11 @@ function useStore() {
           queuedAt: now,
         });
       }
-      notify(`Продукти (${products.length}) збережено офлайн`);
+      notify(
+        options?.skipPantryFilter
+          ? `Товари (${products.length}) збережено офлайн`
+          : `Продукти (${products.length}) збережено офлайн`,
+      );
       return Promise.resolve(true);
     }
     return run(
@@ -1658,12 +1665,18 @@ function useStore() {
             return demoActivity(
               { ...d, shopping: [...d.shopping, ...rows] },
               "shopping_items",
-              { name: `Продукти з рецепта · ${products.length}` },
+              {
+                name: options?.skipPantryFilter
+                  ? `Покупки (${products.length})`
+                  : `Продукти з рецепта · ${products.length}`,
+              },
               "added",
             );
           });
       },
-      "Продукти додано до списку",
+      options?.skipPantryFilter
+        ? `Товари додано до списку (${products.length})`
+        : "Продукти додано до списку",
     );
   };
   const archive = () =>

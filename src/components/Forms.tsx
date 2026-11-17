@@ -16,6 +16,10 @@ import {
   groceryCatalogCategory,
   groceryCatalogMatches,
 } from "../lib/grocery-catalog";
+import {
+  isBatchShoppingInput,
+  parseBatchShoppingInput,
+} from "../lib/shopping-parser";
 import { quantityLabel } from "../lib/recipe-catalog";
 import { publicUrl } from "../../supabase/functions/_shared/urls";
 import { normalizeRecurrence, recurrenceOptions } from "../lib/recurrence";
@@ -33,13 +37,17 @@ export function ShoppingForm({
   onClose: () => void;
   item?: ShoppingItem;
 }) {
-  const { addShopping, update, remove, pending, data } = useApp();
+  const { addShopping, addShoppingBatch, update, remove, pending, data } = useApp();
   const [name, setName] = useState(item?.name ?? ""),
     [manualCategory, setManualCategory] = useState<string | null>(null),
     [error, setError] = useState(""),
     [another, setAnother] = useState(false);
   const [unit, setUnit] = useState(item?.unit ?? "шт.");
   const input = useRef<HTMLInputElement>(null);
+
+  const isBatch = !item && isBatchShoppingInput(name);
+  const batchItems = isBatch ? parseBatchShoppingInput(name, unit) : [];
+
   const category =
     manualCategory ??
     (item?.name === name ? item.category : undefined) ??
@@ -57,12 +65,36 @@ export function ShoppingForm({
   ]
     .filter(
       (i) =>
-        name.length > 0 && i.name.toLowerCase().includes(name.toLowerCase()),
+        !isBatch &&
+        name.length > 0 &&
+        i.name.toLowerCase().includes(name.toLowerCase()),
     )
     .slice(0, 4);
-  const catalogSuggestions = item ? [] : groceryCatalogMatches(name, 5);
+  const catalogSuggestions =
+    item || isBatch ? [] : groceryCatalogMatches(name, 5);
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isBatch && batchItems.length > 1) {
+      const itemsToSave = batchItems.map((b) => ({
+        name: b.name,
+        quantity: b.quantity,
+        unit: b.unit,
+        category: manualCategory ?? b.category,
+        price: null,
+      }));
+      const ok = await addShoppingBatch(itemsToSave, {
+        skipPantryFilter: true,
+      });
+      if (ok) {
+        if (another && !item) {
+          setName("");
+          setManualCategory(null);
+          setError("");
+          input.current?.focus();
+        } else onClose();
+      }
+      return;
+    }
     const parsed = textSchema.safeParse(name);
     if (!parsed.success) {
       setError(parsed.error.issues[0].message);
@@ -141,7 +173,11 @@ export function ShoppingForm({
             busy={pending.includes(item?.id ?? "add-shopping")}
           >
             <Plus size={18} />
-            {item ? "Зберегти зміни" : "Додати до списку"}
+            {item
+              ? "Зберегти зміни"
+              : isBatch && batchItems.length > 1
+                ? `Додати ${batchItems.length} до списку`
+                : "Додати до списку"}
           </Button>
         </div>
         <Field label="Назва товару">
@@ -153,11 +189,38 @@ export function ShoppingForm({
               setName(e.target.value);
               setManualCategory(null);
             }}
-            placeholder="Наприклад, вівсяне молоко"
+            placeholder={
+              item
+                ? "Наприклад, вівсяне молоко"
+                : "Наприклад, молоко 1 л, яйця 10 шт, сир 200 г, авокадо"
+            }
             required
-            maxLength={160}
+            maxLength={280}
           />
         </Field>
+        {isBatch && batchItems.length > 1 && (
+          <div className="batch-preview" aria-label="Пакетний ввід покупок">
+            <div className="batch-preview-title">
+              <span>Пакетне додавання · {batchItems.length} поз.</span>
+              <small>розпізнано окремо</small>
+            </div>
+            <div className="batch-chips">
+              {batchItems.map((b, idx) => (
+                <span key={idx} className="batch-chip">
+                  <strong>{b.name}</strong>
+                  {b.quantity !== null && (
+                    <span className="batch-chip-qty">
+                      {b.quantity} {b.unit}
+                    </span>
+                  )}
+                  <span className="batch-chip-category">
+                    {manualCategory ?? b.category}
+                  </span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
         {catalogSuggestions.length > 0 && !item && (
           <div
             className="suggestions catalog-suggestions"
@@ -201,7 +264,7 @@ export function ShoppingForm({
             ))}
           </div>
         )}
-        {name.trim() && (
+        {name.trim() && !isBatch && (
           <p className="category-hint">
             {category} ·{" "}
             {manualCategory ? "обрано вами" : "визначено автоматично"}

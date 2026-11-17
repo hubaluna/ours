@@ -1,10 +1,14 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Link2,
   ClipboardPaste,
   ArrowRight,
   Check,
   ExternalLink,
+  Gift,
+  UtensilsCrossed,
+  ShoppingCart,
+  Film,
 } from "lucide-react";
 import { BottomSheet, Button, Field } from "./ui";
 import { supabase } from "../lib/supabase";
@@ -15,7 +19,6 @@ import {
   type LinkMetadata,
 } from "../../supabase/functions/_shared/metadata";
 import type { NewShopping } from "../lib/types";
-import { groceryCatalogCategory } from "../lib/grocery-catalog";
 import { movieSynopsis } from "../../supabase/functions/_shared/movie-synopsis";
 import { normalizeImportUrl } from "../../supabase/functions/_shared/urls";
 import { isGenericTikTokTitle } from "../../supabase/functions/_shared/movie-search";
@@ -23,22 +26,45 @@ import {
   needsClientMovieRefresh,
   resolveMovieClientSide,
 } from "../lib/client-movie-search";
-import { isTikTokVideoUrl } from "../lib/recipe-source";
 import { retryLinkPreview422 } from "../lib/link-preview-retry";
 import { useApp } from "../hooks/AppContext";
+import {
+  extractShareTargetUrl,
+  type ShareTargetDestination,
+} from "../lib/share-target";
+
 export function LinkImport({
-  kind,
+  kind: initialKind = "wish",
+  initialUrl = "",
+  autoLoad = false,
+  allowTargetChange = false,
+  target,
+  onTargetChange,
   onClose,
   onResult,
   onRecipe,
 }: {
-  kind: ImportKind;
+  kind?: ImportKind;
+  initialUrl?: string;
+  autoLoad?: boolean;
+  allowTargetChange?: boolean;
+  target?: ShareTargetDestination;
+  onTargetChange?: (target: ShareTargetDestination) => void;
   onClose: () => void;
   onResult?: (result: LinkMetadata) => void;
   onRecipe?: (items: NewShopping[]) => Promise<boolean>;
 }) {
   const { pending } = useApp();
-  const [url, setUrl] = useState(""),
+  const [activeKind, setActiveKind] = useState<ImportKind>(initialKind);
+  const [localTarget, setLocalTarget] = useState<ShareTargetDestination>(() => {
+    if (target) return target;
+    if (initialKind === "movie") return "movie";
+    if (initialKind === "wish") return "wish";
+    return onRecipe && !onResult ? "shopping" : "menu";
+  });
+  const currentTarget = target ?? localTarget;
+
+  const [url, setUrl] = useState(initialUrl),
     [movieQuery, setMovieQuery] = useState(""),
     [text, setText] = useState(""),
     [paste, setPaste] = useState(false),
@@ -48,130 +74,264 @@ export function LinkImport({
     [ingredients, setIngredients] = useState<
       (NewShopping & { selected: boolean; note?: string })[]
     >([]);
-  const receive = (value: LinkMetadata) => {
-    if (kind === "movie") {
-      value = {
-        ...value,
-        description: movieSynopsis(value.description),
-        image_url:
-          value.image_url === value.source_url ? "" : value.image_url,
-      };
-    }
-    setResult(value);
-    setIngredients(
-      value.ingredients.map((line) => ({
-        ...parseIngredient(line),
-        selected: true,
-      })),
-    );
-    setError("");
-  };
-  const load = async () => {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    const normalizedUrl = url.trim() ? normalizeImportUrl(url) : "";
-    if (normalizedUrl && normalizedUrl !== url) setUrl(normalizedUrl);
-    try {
-      if (supabase) {
-        try {
-          const client = supabase;
-          const { data, error } = await retryLinkPreview422<{
-            data: LinkMetadata;
-            movie_query?: string;
-          }>(() =>
-            client.functions.invoke("link-preview", {
-              body: {
-                url:
-                  normalizedUrl ||
-                  (kind === "movie" ? "https://uk.wikipedia.org/" : ""),
-                kind,
-                ...(kind === "movie" && movieQuery.trim()
-                  ? { query: movieQuery.trim() }
-                  : {}),
-              },
-            }),
+
+  const receive = useCallback(
+    (value: LinkMetadata, forKind: ImportKind = activeKind) => {
+      if (forKind === "movie") {
+        value = {
+          ...value,
+          description: movieSynopsis(value.description),
+          image_url:
+            value.image_url === value.source_url ? "" : value.image_url,
+        };
+      }
+      setResult(value);
+      setIngredients(
+        (value.ingredients || []).map((line) => ({
+          ...parseIngredient(line),
+          selected: true,
+        })),
+      );
+      setError("");
+    },
+    [activeKind],
+  );
+
+  const load = useCallback(
+    async (overrideUrl?: string, overrideKind?: ImportKind) => {
+      if (busy) return;
+      const targetUrl = overrideUrl ?? url;
+      const currentKind = overrideKind ?? activeKind;
+      setBusy(true);
+      setError("");
+      const normalizedUrl = targetUrl.trim()
+        ? normalizeImportUrl(targetUrl)
+        : "";
+      if (normalizedUrl && normalizedUrl !== targetUrl) setUrl(normalizedUrl);
+      try {
+        if (supabase) {
+          try {
+            const client = supabase;
+            const { data, error } = await retryLinkPreview422<{
+              data: LinkMetadata;
+              movie_query?: string;
+            }>(() =>
+              client.functions.invoke("link-preview", {
+                body: {
+                  url:
+                    normalizedUrl ||
+                    (currentKind === "movie"
+                      ? "https://uk.wikipedia.org/"
+                      : ""),
+                  kind: currentKind,
+                  ...(currentKind === "movie" && movieQuery.trim()
+                    ? { query: movieQuery.trim() }
+                    : {}),
+                },
+              }),
+            );
+            if (!error && data?.data) {
+              let payload = data.data;
+              if (
+                currentKind === "movie" &&
+                isGenericTikTokTitle(payload.title)
+              ) {
+                payload = {
+                  ...payload,
+                  title: "",
+                  description: /^TikTok/i.test(payload.description.trim())
+                    ? ""
+                    : payload.description,
+                  provider: "TikTok",
+                };
+              }
+              if (
+                currentKind === "movie" &&
+                !movieQuery.trim() &&
+                needsClientMovieRefresh(payload, normalizedUrl)
+              ) {
+                const refreshed = await resolveMovieClientSide(normalizedUrl);
+                if (refreshed) payload = refreshed;
+              }
+              if (
+                currentKind === "movie" &&
+                !payload.image_url &&
+                result?.image_url
+              ) {
+                payload = { ...payload, image_url: result.image_url };
+              }
+              receive(payload, currentKind);
+              if (currentKind === "movie" && !movieQuery)
+                setMovieQuery(payload.movie_query || "");
+              return;
+            }
+          } catch {
+            /* Fall through to browser CORS fallback for movies or show paste box. */
+          }
+        }
+
+        if (currentKind === "movie") {
+          let fallback = await resolveMovieClientSide(
+            normalizedUrl,
+            movieQuery,
           );
-          if (!error && data?.data) {
-            let payload = data.data;
-            if (kind === "movie" && isGenericTikTokTitle(payload.title)) {
-              payload = {
-                ...payload,
-                title: "",
-                description: /^TikTok/i.test(payload.description.trim())
-                  ? ""
-                  : payload.description,
-                provider: "TikTok",
-              };
+          if (fallback) {
+            if (!fallback.image_url && result?.image_url) {
+              fallback = { ...fallback, image_url: result.image_url };
             }
-            if (
-              kind === "movie" &&
-              !movieQuery.trim() &&
-              needsClientMovieRefresh(payload, normalizedUrl)
-            ) {
-              const refreshed = await resolveMovieClientSide(normalizedUrl);
-              if (refreshed) payload = refreshed;
-            }
-            if (kind === "movie" && !payload.image_url && result?.image_url) {
-              payload = { ...payload, image_url: result.image_url };
-            }
-            receive(payload);
-            if (kind === "movie" && !movieQuery)
-              setMovieQuery(payload.movie_query || "");
+            receive(fallback, currentKind);
+            if (!movieQuery && fallback.movie_query)
+              setMovieQuery(fallback.movie_query);
             return;
           }
-        } catch {
-          /* Fall through to browser CORS fallback for movies or show paste box. */
+        }
+
+        setPaste(true);
+        setError(
+          !supabase
+            ? "Автоматичне читання ще не підключене. Можна вставити текст зі сторінки."
+            : "Не вдалося прочитати посилання. Спробуйте ще раз або вставте текст зі сторінки.",
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [activeKind, busy, movieQuery, receive, result, url],
+  );
+
+  const autoLoadedRef = useRef(false);
+  useEffect(() => {
+    if (initialUrl && autoLoad && !autoLoadedRef.current) {
+      autoLoadedRef.current = true;
+      void load(initialUrl, activeKind);
+    }
+  }, [initialUrl, autoLoad, activeKind, load]);
+
+  const pasteFromClipboard = async () => {
+    try {
+      if (typeof navigator === "undefined" || !navigator.clipboard?.readText) {
+        return;
+      }
+      const clipboardText = await navigator.clipboard.readText();
+      if (!clipboardText) return;
+      const extracted =
+        extractShareTargetUrl(`?text=${encodeURIComponent(clipboardText)}`) ||
+        normalizeImportUrl(clipboardText);
+      const targetUrl = extracted || clipboardText.trim();
+      if (targetUrl) {
+        setUrl(targetUrl);
+        setError("");
+        if (!busy) {
+          void load(targetUrl, activeKind);
         }
       }
-
-      if (kind === "movie") {
-        let fallback = await resolveMovieClientSide(normalizedUrl, movieQuery);
-        if (fallback) {
-          if (!fallback.image_url && result?.image_url) {
-            fallback = { ...fallback, image_url: result.image_url };
-          }
-          receive(fallback);
-          if (!movieQuery && fallback.movie_query)
-            setMovieQuery(fallback.movie_query);
-          return;
-        }
-      }
-
-      setPaste(true);
-      setError(
-        !supabase
-          ? "Автоматичне читання ще не підключене. Можна вставити текст зі сторінки."
-          : "Не вдалося прочитати посилання. Спробуйте ще раз або вставте текст зі сторінки.",
-      );
-    } finally {
-      setBusy(false);
+    } catch {
+      // Clipboard access denied or canceled
     }
   };
-  const selected = ingredients.filter((i) => i.selected);
-  return (
-    <BottomSheet
-      title={
-        kind === "recipe"
-          ? onResult
-            ? "Рецепт із посилання"
-            : "Покупки з рецепта"
-          : "Додати з посилання"
+
+  const handleTargetChange = (newTarget: ShareTargetDestination) => {
+    if (onTargetChange) onTargetChange(newTarget);
+    setLocalTarget(newTarget);
+    const newKind: ImportKind =
+      newTarget === "movie" ? "movie" : newTarget === "wish" ? "wish" : "recipe";
+    if (newKind !== activeKind) {
+      setActiveKind(newKind);
+      if (url.trim()) {
+        void load(url, newKind);
       }
-      onClose={onClose}
-    >
+    }
+  };
+
+  const selected = ingredients.filter((i) => i.selected);
+
+  const isShoppingTarget = allowTargetChange
+    ? currentTarget === "shopping"
+    : activeKind === "recipe" && Boolean(onRecipe) && !onResult;
+  const isMenuTarget = allowTargetChange
+    ? currentTarget === "menu"
+    : activeKind === "recipe" && Boolean(onResult);
+
+  const title = allowTargetChange
+    ? "Імпорт посилання"
+    : isShoppingTarget
+      ? "Покупки з рецепта"
+      : isMenuTarget
+        ? "Рецепт із посилання"
+        : activeKind === "movie"
+          ? "Додати фільм із посилання"
+          : "Додати з посилання";
+
+  return (
+    <BottomSheet title={title} onClose={onClose}>
+      {allowTargetChange && (
+        <div
+          className="import-target-selector"
+          role="radiogroup"
+          aria-label="Призначення імпорту"
+        >
+          <button
+            type="button"
+            className="import-target-btn"
+            aria-pressed={currentTarget === "wish"}
+            onClick={() => handleTargetChange("wish")}
+          >
+            <Gift size={16} />
+            <span>У бажання</span>
+          </button>
+          <button
+            type="button"
+            className="import-target-btn"
+            aria-pressed={currentTarget === "menu"}
+            onClick={() => handleTargetChange("menu")}
+          >
+            <UtensilsCrossed size={16} />
+            <span>У меню (рецепт)</span>
+          </button>
+          <button
+            type="button"
+            className="import-target-btn"
+            aria-pressed={currentTarget === "shopping"}
+            onClick={() => handleTargetChange("shopping")}
+          >
+            <ShoppingCart size={16} />
+            <span>У покупки (продукти з рецепта)</span>
+          </button>
+          <button
+            type="button"
+            className="import-target-btn"
+            aria-pressed={currentTarget === "movie"}
+            onClick={() => handleTargetChange("movie")}
+          >
+            <Film size={16} />
+            <span>У кіно</span>
+          </button>
+        </div>
+      )}
+
       {!result ? (
         <div className="form">
           <Field label="Посилання">
-            <input
-              data-autofocus
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://…"
-            />
+            <div className="url-input-row">
+              <input
+                data-autofocus
+                type="url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://…"
+              />
+              <Button
+                type="button"
+                className="ghost paste-btn"
+                onClick={() => void pasteFromClipboard()}
+                title="Вставити посилання з буфера обміну"
+              >
+                <ClipboardPaste size={16} />
+                <span>З буфера</span>
+              </Button>
+            </div>
           </Field>
-          {kind === "movie" && (
+          {activeKind === "movie" && (
             <Field label="Назва фільму · якщо відома">
               <input
                 value={movieQuery}
@@ -203,7 +363,7 @@ export function LinkImport({
             <>
               <Field
                 label={
-                  kind === "recipe"
+                  activeKind === "recipe"
                     ? "Інгредієнти · кожен із нового рядка"
                     : "Текст або HTML сторінки"
                 }
@@ -214,7 +374,7 @@ export function LinkImport({
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   placeholder={
-                    kind === "recipe"
+                    activeKind === "recipe"
                       ? "200 г рису\nМолоко — 1 л"
                       : "Назва\nКороткий опис"
                   }
@@ -230,7 +390,7 @@ export function LinkImport({
                       : "";
                     if (normalizedUrl && normalizedUrl !== url)
                       setUrl(normalizedUrl);
-                    receive(parsePasted(text, normalizedUrl, kind));
+                    receive(parsePasted(text, normalizedUrl, activeKind));
                   } catch {
                     setError("Для HTML потрібне повне посилання на сторінку.");
                   }
@@ -252,77 +412,75 @@ export function LinkImport({
       ) : (
         <div className="form">
           <div className="sheet-actions import-save-actions">
-            {kind === "recipe" ? (
-              <>
-                {onRecipe && (
-                  <Button
-                    busy={pending.includes("recipe")}
-                    disabled={
-                      !selected.length ||
-                      selected.some(
-                        (i) =>
-                          !i.name.trim() ||
-                          i.quantity === null ||
-                          !Number.isFinite(i.quantity) ||
-                          i.quantity <= 0,
+            {isShoppingTarget ? (
+              onRecipe && (
+                <Button
+                  busy={pending.includes("recipe")}
+                  disabled={
+                    !selected.length ||
+                    selected.some(
+                      (i) =>
+                        !i.name.trim() ||
+                        i.quantity === null ||
+                        !Number.isFinite(i.quantity) ||
+                        i.quantity <= 0,
+                    )
+                  }
+                  onClick={async () => {
+                    if (
+                      await onRecipe?.(
+                        selected.map(
+                          ({ name, quantity, unit, category, price }) => ({
+                            name,
+                            quantity,
+                            unit,
+                            category,
+                            price,
+                          }),
+                        ),
                       )
-                    }
-                    onClick={async () => {
-                      if (
-                        await onRecipe?.(
-                          selected.map(
-                            ({ name, quantity, unit, category, price }) => ({
-                              name,
-                              quantity,
-                              unit,
-                              category,
-                              price,
-                            }),
-                          ),
-                        )
-                      )
-                        onClose();
-                    }}
-                  >
-                    Додати {selected.length} до покупок
-                  </Button>
-                )}
-
-                {onResult && (
-                  <Button
-                    disabled={
-                      !selected.length ||
-                      selected.some(
-                        (item) =>
-                          !item.name.trim() ||
-                          (item.quantity === null
-                            ? !["за рецептом", "за смаком"].includes(item.unit)
-                            : !Number.isFinite(item.quantity) ||
-                              item.quantity <= 0),
-                      )
-                    }
-                    onClick={() =>
-                      onResult({
-                        ...result,
-                        ingredients: ingredients.flatMap((item, index) => {
-                          if (!item.selected) return [];
-                          const original = result.ingredients[index],
-                            parsed = parseIngredient(original);
-                          return [
-                            parsed.name === item.name &&
-                            parsed.quantity === item.quantity &&
-                            parsed.unit === item.unit
-                              ? original
-                              : `${item.quantity} ${item.unit} ${item.name}`,
-                          ];
-                        }),
-                      })
-                    }
-                  >
-                    Перевірити й зберегти рецепт <ArrowRight size={17} />
-                  </Button>
-                )}
-              </>
+                    )
+                      onClose();
+                  }}
+                >
+                  Додати {selected.length} до покупок
+                </Button>
+              )
+            ) : isMenuTarget ? (
+              onResult && (
+                <Button
+                  disabled={
+                    !selected.length ||
+                    selected.some(
+                      (item) =>
+                        !item.name.trim() ||
+                        (item.quantity === null
+                          ? !["за рецептом", "за смаком"].includes(item.unit)
+                          : !Number.isFinite(item.quantity) ||
+                            item.quantity <= 0),
+                    )
+                  }
+                  onClick={() =>
+                    onResult({
+                      ...result,
+                      ingredients: ingredients.flatMap((item, index) => {
+                        if (!item.selected) return [];
+                        const original = result.ingredients[index],
+                          parsed = parseIngredient(original);
+                        return [
+                          parsed.name === item.name &&
+                          parsed.quantity === item.quantity &&
+                          parsed.unit === item.unit
+                            ? original
+                            : `${item.quantity} ${item.unit} ${item.name}`,
+                        ];
+                      }),
+                    })
+                  }
+                >
+                  Перевірити й зберегти рецепт <ArrowRight size={17} />
+                </Button>
+              )
             ) : (
               <Button onClick={() => onResult?.(result)}>
                 Перевірити й зберегти <ArrowRight size={17} />
@@ -333,7 +491,7 @@ export function LinkImport({
             <Check size={17} />
             {result.provider}
           </div>
-          {kind === "movie" && (
+          {activeKind === "movie" && (
             <>
               <Field label="Знайти фільм за назвою">
                 <input
@@ -379,253 +537,137 @@ export function LinkImport({
                               ? "Wikidata"
                               : candidate.url.includes("tvmaze.com")
                                 ? "TVMaze"
-                                : "Apple TV",
+                                : "Вебсторінка",
                         })
                       }
                     >
-                      {candidate.image_url && (
-                        <img
-                          src={candidate.image_url}
-                          alt=""
-                          loading="lazy"
-                          referrerPolicy="no-referrer"
-                        />
-                      )}
                       <span>
                         {candidate.title}
-                        <small>{candidate.year ?? ""}</small>
+                        {candidate.year ? ` (${candidate.year})` : ""}
                       </span>
-                      <Check size={14} />
+                      {candidate.genres && <small>{candidate.genres}</small>}
                     </button>
                   ))}
                 </div>
               )}
-              {!result.metadata_url && (
-                <div className="video-recipe-steps">
-                  <p className="subtle-note">
-                    {!result.title
-                      ? "У цьому відео назва фільму не вказана в описі — введіть її вище й натисніть «Знайти опис і постер» або заповніть вручну нижче."
-                      : "Якщо потрібного опису ще немає, уточніть назву фільму вище й натисніть «Знайти опис і постер»."}
-                  </p>
-                  {!result.title && isTikTokVideoUrl(result.source_url) && (
-                    <a
-                      className="button secondary"
-                      href={result.source_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Відкрити відео у TikTok <ExternalLink size={15} />
-                    </a>
-                  )}
-                </div>
-              )}
             </>
           )}
-          {result.image_url && (
-            <img
-              className="import-preview-image"
-              src={result.image_url}
-              alt={result.title}
-              referrerPolicy="no-referrer"
-            />
-          )}
-          {result.metadata_url && (
-            <a
-              className="source-credit text-button"
-              href={result.metadata_url}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Джерело опису та зображення ·{" "}
-              {result.metadata_url.includes("wikipedia.org")
-                ? "Wikipedia"
-                : result.metadata_url.includes("wikidata.org")
-                  ? "Wikidata"
-                  : result.metadata_url.includes("tvmaze.com")
-                    ? "TVMaze"
-                    : "Apple TV"}
-            </a>
-          )}
-          <Field label={kind === "recipe" ? "Назва рецепта" : "Назва"}>
-            <input
-              value={result.title}
-              onChange={(e) => setResult({ ...result, title: e.target.value })}
-              maxLength={160}
-            />
-          </Field>
-          {kind === "recipe" ? (
+          {activeKind === "recipe" ? (
             <>
-              <p className="subtle-note">
-                Виберіть потрібне й перевірте кількість. Нерозпізнані міри
-                залишені в назві.
-              </p>
-              {ingredients.length === 0 ? (
-                <p className="form-error">
-                  На сторінці не знайдено списку інгредієнтів. Вставте його
-                  текст.
-                </p>
-              ) : (
-                <div className="ingredient-list">
-                  {ingredients.map((item, index) => (
-                    <div className="ingredient" key={index}>
-                      <input
-                        aria-label={`Додати ${item.name}`}
-                        type="checkbox"
-                        checked={item.selected}
-                        onChange={(e) =>
-                          setIngredients((values) =>
-                            values.map((v, i) =>
-                              i === index
-                                ? { ...v, selected: e.target.checked }
-                                : v,
-                            ),
-                          )
-                        }
-                      />
-                      <input
-                        aria-label={`Інгредієнт ${index + 1}`}
-                        value={item.name}
-                        maxLength={160}
-                        onChange={(e) =>
-                          setIngredients((values) =>
-                            values.map((v, i) =>
-                              i === index
-                                ? {
-                                    ...v,
-                                    name: e.target.value,
-                                    category: groceryCatalogCategory(
-                                      e.target.value,
-                                    ),
-                                  }
-                                : v,
-                            ),
-                          )
-                        }
-                      />
-                      {item.note && (
-                        <small className="ingredient-note">
-                          З джерела: {item.note}
-                        </small>
-                      )}
-                      <details className="ingredient-extra">
-                        <summary>Додатково</summary>
-                        <div className="form-grid">
-                          <input
-                            aria-label={`Кількість ${index + 1}`}
-                            type="number"
-                            min="0.01"
-                            step="any"
-                            value={item.quantity ?? ""}
-                            onChange={(e) =>
-                              setIngredients((values) =>
-                                values.map((v, i) =>
-                                  i === index
-                                    ? { ...v, quantity: Number(e.target.value) }
-                                    : v,
-                                ),
-                              )
-                            }
-                          />
-                          <select
-                            aria-label={`Одиниця ${index + 1}`}
-                            value={item.unit}
-                            onChange={(e) =>
-                              setIngredients((values) =>
-                                values.map((v, i) =>
-                                  i === index
-                                    ? { ...v, unit: e.target.value }
-                                    : v,
-                                ),
-                              )
-                            }
-                          >
-                            {[
-                              "шт.",
-                              "кг",
-                              "г",
-                              "л",
-                              "мл",
-                              "уп.",
-                              "за рецептом",
-                              "за смаком",
-                            ].map((unit) => (
-                              <option key={unit}>{unit}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <small>{item.category}</small>
-                      </details>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {onResult && (
-                <>
-                  {!result.instructions?.length && (
-                    <div className="video-recipe-steps">
-                      <p className="subtle-note">
-                        У тексті джерела немає кроків приготування. Перегляньте
-                        відео або сторінку, щоб бачити процес.
-                      </p>
-                      {isTikTokVideoUrl(result.source_url) && (
-                        <a
-                          className="button secondary"
-                          href={result.source_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Дивитися, як готувати <ExternalLink size={15} />
-                        </a>
-                      )}
-                    </div>
-                  )}
-                  <Field label="Кроки приготування">
-                    <textarea
-                      rows={6}
-                      value={result.instructions?.join("\n") ?? ""}
-                      maxLength={30000}
-                      placeholder="Текстових кроків не знайдено. Перегляньте джерело й додайте їх вручну."
-                      onChange={(e) =>
-                        setResult({
-                          ...result,
-                          instructions: e.target.value.split("\n"),
-                        })
-                      }
-                    />
-                  </Field>
-                </>
-              )}
-            </>
-          ) : (
-            <>
-              <Field label="Короткий опис">
-                <textarea
-                  rows={4}
+              <Field label="Назва страви">
+                <input
+                  value={result.title}
+                  onChange={(e) =>
+                    setResult({ ...result, title: e.target.value })
+                  }
+                />
+              </Field>
+              <Field label="Опис або джерело">
+                <input
                   value={result.description}
-                  maxLength={kind === "movie" ? 650 : 1000}
                   onChange={(e) =>
                     setResult({ ...result, description: e.target.value })
                   }
                 />
               </Field>
-              {kind === "movie" && (
-                <p className="subtle-note">
-                  {result.year ?? "Рік не вказаний"} ·{" "}
-                  {result.genres.join(", ") || "Жанр не вказаний"}
-                </p>
+              <div className="ingredients-head">
+                <span>Інгредієнти ({selected.length})</span>
+                <button
+                  type="button"
+                  className="ghost small"
+                  onClick={() =>
+                    setIngredients(
+                      ingredients.map((i) => ({
+                        ...i,
+                        selected: !selected.length,
+                      })),
+                    )
+                  }
+                >
+                  {selected.length ? "Зняти всі" : "Вибрати всі"}
+                </button>
+              </div>
+              <div className="ingredients-list">
+                {ingredients.map((item, index) => (
+                  <div
+                    key={index}
+                    className={`ingredient-row ${item.selected ? "selected" : ""}`}
+                  >
+                    <label className="ingredient-check">
+                      <input
+                        type="checkbox"
+                        checked={item.selected}
+                        onChange={(e) =>
+                          setIngredients(
+                            ingredients.map((ing, i) =>
+                              i === index
+                                ? { ...ing, selected: e.target.checked }
+                                : ing,
+                            ),
+                          )
+                        }
+                      />
+                      <span className="ingredient-name">{item.name}</span>
+                    </label>
+                    <span className="ingredient-qty">
+                      {item.quantity === null
+                        ? item.unit
+                        : `${item.quantity} ${item.unit}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <Field label="Назва">
+                <input
+                  value={result.title}
+                  onChange={(e) =>
+                    setResult({ ...result, title: e.target.value })
+                  }
+                />
+              </Field>
+              {result.image_url && (
+                <div className="import-preview-image">
+                  <img src={result.image_url} alt={result.title} />
+                </div>
               )}
               {result.price !== null && (
-                <p className="subtle-note">
-                  Ціна у джерелі: {result.price}{" "}
-                  {result.currency || "валюта не вказана"}. Ціну в гривнях можна
-                  ввести на наступному кроці.
-                </p>
+                <Field label="Ціна, ₴">
+                  <input
+                    type="number"
+                    value={result.price}
+                    onChange={(e) =>
+                      setResult({
+                        ...result,
+                        price: e.target.value ? Number(e.target.value) : null,
+                      })
+                    }
+                  />
+                </Field>
               )}
+              <Field label="Опис">
+                <textarea
+                  rows={4}
+                  value={result.description}
+                  onChange={(e) =>
+                    setResult({ ...result, description: e.target.value })
+                  }
+                />
+              </Field>
             </>
           )}
-          <Button className="ghost" onClick={() => setResult(null)}>
-            Інше посилання або текст
-          </Button>
+          {result.source_url && (
+            <a
+              href={result.source_url}
+              target="_blank"
+              rel="noreferrer"
+              className="source-link"
+            >
+              Відкрити джерело <ExternalLink size={14} />
+            </a>
+          )}
         </div>
       )}
     </BottomSheet>

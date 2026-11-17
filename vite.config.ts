@@ -30,6 +30,15 @@ export default defineConfig(({ command, mode }) => {
           display: "standalone",
           start_url: base,
           scope: base,
+          share_target: {
+            action: base,
+            method: "GET",
+            params: {
+              title: "title",
+              text: "text",
+              url: "url",
+            },
+          },
           icons: [
             { src: "icon-192.png", sizes: "192x192", type: "image/png" },
             {
