@@ -27,6 +27,11 @@ export const expectedTables = [
   "recipe_favorites",
   "recipe_cooks",
   "pantry_items",
+  "budget_categories",
+  "budget_transactions",
+  "budget_merchant_rules",
+  "budget_settings",
+  "budget_ingest_tokens",
 ];
 const schemaQuery = `select c.relname as name, c.relrowsecurity as rls
  from pg_class c join pg_namespace n on n.oid=c.relnamespace

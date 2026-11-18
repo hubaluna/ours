@@ -14,3 +14,7 @@ verify_jwt = false
 [functions.plant-identify]
 # The handler checks the user JWT and couple membership.
 verify_jwt = false
+
+[functions.expense-ingest]
+# Apple Pay Shortcuts authenticate using a per-user revocable 43-char ingest token.
+verify_jwt = false

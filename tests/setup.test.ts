@@ -19,9 +19,10 @@ it("applies the one-query mobile setup atomically to a fresh project", async () 
     const tables = await db.query(
       "select tablename from pg_tables where schemaname='public'",
     );
-    expect(tables.rows).toHaveLength(23);
+    expect(tables.rows).toHaveLength(28);
     expect(tables.rows.map((row) => row.tablename)).toContain("plants");
     expect(tables.rows.map((row) => row.tablename)).toContain("pantry_items");
+    expect(tables.rows.map((row) => row.tablename)).toContain("budget_transactions");
     const bucket = await db.query<{ public: boolean }>(
       "select public from storage.buckets where id='photos'",
     );
@@ -41,7 +42,7 @@ it("applies the one-query mobile setup atomically to a fresh project", async () 
           "select tablename from pg_tables where schemaname='public'",
         )
       ).rows,
-    ).toHaveLength(23);
+    ).toHaveLength(28);
   } finally {
     await db.close();
   }
@@ -86,6 +87,8 @@ it("upgrades an existing 012 database cleanly and idempotently with update-exist
     expect(names).toContain("plants");
     expect(names).toContain("pending_push_digest");
     expect(names).toContain("calendar_feed_tokens");
+    expect(names).toContain("budget_transactions");
+    expect(names).toContain("budget_merchant_rules");
     const security = await db.query<{ relrowsecurity: boolean }>(
       "select relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r'",
     );

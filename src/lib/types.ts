@@ -1,7 +1,14 @@
 import { groceryCategories } from "../../supabase/functions/_shared/grocery-category";
 
 export type Tab =
-  "home" | "shopping" | "movies" | "wishes" | "plans" | "menu" | "plants";
+  | "home"
+  | "shopping"
+  | "budget"
+  | "movies"
+  | "wishes"
+  | "plans"
+  | "menu"
+  | "plants";
 export type Theme = "light" | "dark" | "system";
 export const categories = groceryCategories;
 export const eventCategories = [
@@ -239,6 +246,79 @@ export type NewPantryItem = {
   quantity?: string;
   is_basic?: boolean;
 };
+export type BudgetKind = "expense" | "income";
+export type BudgetTransactionStatus = "confirmed" | "needs_review";
+export type BudgetTransactionSource = "manual" | "apple_pay";
+export type BudgetCategory = {
+  id: string;
+  couple_id: string;
+  kind: BudgetKind;
+  name: string;
+  emoji: string;
+  sort_order: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at?: string;
+};
+export type NewBudgetCategory = {
+  kind: BudgetKind;
+  name: string;
+  emoji: string;
+};
+export type BudgetTransaction = {
+  id: string;
+  couple_id: string;
+  user_id: string;
+  kind: BudgetKind;
+  amount: number;
+  merchant: string;
+  note: string;
+  category_key: string | null;
+  status: BudgetTransactionStatus;
+  source: BudgetTransactionSource;
+  is_private: boolean;
+  card_label?: string;
+  occurred_on: string;
+  occurred_at: string;
+  created_at: string;
+  updated_at?: string;
+};
+export type NewBudgetTransaction = {
+  kind: BudgetKind;
+  amount: number;
+  merchant: string;
+  note: string;
+  category_key: string | null;
+  status?: BudgetTransactionStatus;
+  source?: BudgetTransactionSource;
+  is_private: boolean;
+  card_label?: string;
+  occurred_on: string;
+};
+export type BudgetMerchantRule = {
+  id: string;
+  couple_id: string;
+  merchant_pattern: string;
+  normalized_pattern?: string;
+  category_key: string;
+  kind: BudgetKind;
+  created_by: string | null;
+  created_at: string;
+  updated_at?: string;
+};
+export type BudgetSettings = {
+  user_id: string;
+  couple_id: string;
+  share_income_with_partner: boolean;
+  updated_at?: string;
+};
+export type BudgetTokenStatus = {
+  has_token: boolean;
+  token_hint: string;
+  last_used_at: string | null;
+  created_at: string | null;
+};
+
 export type Data = {
   mealPlan: MealPlanItem[];
   menuExcludedKeys?: string[];
@@ -258,6 +338,10 @@ export type Data = {
   recipeFavorites: RecipeFavorite[];
   recipeCooks: RecipeCook[];
   history: ProductHistory[];
+  budgetCategories: BudgetCategory[];
+  budgetTransactions: BudgetTransaction[];
+  budgetMerchantRules: BudgetMerchantRule[];
+  budgetSettings: BudgetSettings[];
 };
 export type Table =
   | "recipes"

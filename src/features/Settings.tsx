@@ -334,6 +334,9 @@ export default function Settings({
               movies: data.movies,
               recipes: data.recipes,
               meal_plan: data.mealPlan,
+              budget_transactions: data.budgetTransactions,
+              budget_categories: data.budgetCategories,
+              budget_merchant_rules: data.budgetMerchantRules,
             });
             notify("Експорт підготовлено");
           }}
@@ -373,6 +376,7 @@ type PushPrefs = {
   movies: boolean;
   events: boolean;
   recipes: boolean;
+  budget: boolean;
 };
 const defaultPushPrefs: PushPrefs = {
   enabled: false,
@@ -381,6 +385,7 @@ const defaultPushPrefs: PushPrefs = {
   movies: true,
   events: true,
   recipes: true,
+  budget: true,
 };
 function PushSettings({
   userId,
@@ -573,6 +578,7 @@ function PushSettings({
               ["movies", "Кіно"],
               ["events", "Календар"],
               ["recipes", "Меню"],
+              ["budget", "Бюджет (Apple Pay)"],
             ] as const
           ).map(([key, label]) => (
             <label key={key}>

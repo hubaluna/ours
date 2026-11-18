@@ -4,7 +4,8 @@ export type TrashKind =
   | "events"
   | "movies"
   | "recipes"
-  | "plants";
+  | "plants"
+  | "budget_transactions";
 
 export type TrashEntry = {
   id: string;
@@ -28,6 +29,7 @@ const kindLabels: Record<TrashKind, string> = {
   movies: "Кіно",
   recipes: "Рецепти",
   plants: "Рослини",
+  budget_transactions: "Бюджет",
 };
 
 function prune(entries: TrashEntry[], now = Date.now()): TrashEntry[] {
@@ -83,7 +85,7 @@ export function pushTrash(
   payload: Record<string, unknown>,
   scope = "demo",
 ): { entry: TrashEntry; entries: TrashEntry[] } {
-  const label = String(payload.name || payload.title || "Елемент").trim();
+  const label = String(payload.name || payload.title || payload.merchant || "Елемент").trim();
   const entry: TrashEntry = {
     id: crypto.randomUUID(),
     kind,

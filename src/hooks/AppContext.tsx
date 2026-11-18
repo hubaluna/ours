@@ -31,7 +31,30 @@ import type {
   PantryItem,
   NewPantryItem,
   ShoppingItem,
+  BudgetCategory,
+  BudgetTransaction,
+  BudgetMerchantRule,
+  BudgetSettings,
+  BudgetTokenStatus,
+  BudgetKind,
+  NewBudgetTransaction,
+  NewBudgetCategory,
 } from "../lib/types";
+import {
+  SKARBO_SEED_NOTE,
+  buildSkarboSeedTransactions,
+  findCategoryMeta,
+  generateBudgetIngestToken,
+  normalizeCategoryKey,
+  normalizeMerchantName,
+} from "../lib/budget";
+import {
+  isMissingBudgetTableError,
+  markLocalBudgetSynced,
+  peekLocalBudgetPendingSync,
+  readLocalBudgetState,
+  writeLocalBudgetState,
+} from "../lib/budget-local";
 import { customRecipeView, syncDemoMenuShopping } from "../lib/recipe-catalog";
 import { isAtHomeIngredient, normalizePantryName } from "../lib/pantry";
 import {
@@ -89,6 +112,10 @@ const empty: Data = {
   recipeFavorites: [],
   recipeCooks: [],
   history: [],
+  budgetCategories: [],
+  budgetTransactions: [],
+  budgetMerchantRules: [],
+  budgetSettings: [],
 };
 type Notice = {
   text: string;
@@ -120,7 +147,8 @@ function useStore() {
   );
   const shoppingQueueRef = useRef<ShoppingQueueOp[]>(shoppingQueue),
     flushingQueue = useRef(false),
-    coupleIdRef = useRef<string | null>(coupleId);
+    coupleIdRef = useRef<string | null>(coupleId),
+    budgetLocalModeRef = useRef(false);
   const busy = useRef(new Set<string>()),
     revision = useRef(0);
   useEffect(() => {
@@ -301,6 +329,7 @@ function useStore() {
         }
         return;
       }
+      let budgetSchemaMissing = false;
       const [
         profiles,
         shopping,
@@ -319,6 +348,10 @@ function useStore() {
         plantCare,
         recipeFavorites,
         recipeCooks,
+        budgetCategories,
+        budgetTransactions,
+        budgetMerchantRules,
+        budgetSettings,
       ] = await Promise.all([
         readAll<Profile>("profiles"),
         readAll<Data["shopping"][number]>("shopping_items", {
@@ -385,7 +418,228 @@ function useStore() {
           "cooked_at",
           false,
         ),
+        readAll<BudgetCategory>(
+          "budget_categories",
+          { couple_id: couple },
+          "sort_order",
+        ).catch((err) => {
+          if (isMissingBudgetTableError(err)) budgetSchemaMissing = true;
+          return [] as BudgetCategory[];
+        }),
+        readAll<BudgetTransaction>(
+          "budget_transactions",
+          { couple_id: couple },
+          "occurred_on",
+          false,
+        ).catch((err) => {
+          if (isMissingBudgetTableError(err)) budgetSchemaMissing = true;
+          return [] as BudgetTransaction[];
+        }),
+        readAll<BudgetMerchantRule>(
+          "budget_merchant_rules",
+          { couple_id: couple },
+          "created_at",
+          false,
+        ).catch((err) => {
+          if (isMissingBudgetTableError(err)) budgetSchemaMissing = true;
+          return [] as BudgetMerchantRule[];
+        }),
+        readAll<BudgetSettings>(
+          "budget_settings",
+          { couple_id: couple },
+          "user_id",
+        ).catch((err) => {
+          if (isMissingBudgetTableError(err)) budgetSchemaMissing = true;
+          return [] as BudgetSettings[];
+        }),
       ]);
+      let finalBudgetCategories = budgetCategories;
+      let finalBudgetTransactions = budgetTransactions;
+      let finalBudgetMerchantRules = budgetMerchantRules;
+      let finalBudgetSettings = budgetSettings;
+
+      if (budgetSchemaMissing) {
+        budgetLocalModeRef.current = true;
+        const localBudget = readLocalBudgetState(couple, userId);
+        finalBudgetCategories = localBudget.categories;
+        finalBudgetTransactions = localBudget.transactions;
+        finalBudgetMerchantRules = localBudget.merchantRules;
+        finalBudgetSettings = localBudget.settings;
+      } else {
+        budgetLocalModeRef.current = false;
+        const pendingLocal = peekLocalBudgetPendingSync(couple);
+        if (pendingLocal) {
+          try {
+            if (pendingLocal.categories.length > 0) {
+              await checked(
+                supabase.from("budget_categories").upsert(
+                  pendingLocal.categories.map((c) => ({
+                    id: c.id,
+                    couple_id: couple,
+                    kind: c.kind,
+                    name: c.name,
+                    emoji: c.emoji,
+                    sort_order: c.sort_order,
+                    created_by: c.created_by || userId,
+                  })),
+                  { onConflict: "id", ignoreDuplicates: true },
+                ),
+              );
+            }
+            if (pendingLocal.transactions.length > 0) {
+              await checked(
+                supabase.from("budget_transactions").upsert(
+                  pendingLocal.transactions.map((r) => ({
+                    id: r.id,
+                    couple_id: couple,
+                    user_id: r.user_id || userId,
+                    kind: r.kind,
+                    amount: r.amount,
+                    merchant: r.merchant,
+                    note: r.note,
+                    category_key: r.category_key,
+                    status: r.status,
+                    source: r.source,
+                    is_private: r.is_private,
+                    card_label: r.card_label,
+                    occurred_on: r.occurred_on,
+                    occurred_at: r.occurred_at,
+                  })),
+                  { onConflict: "id", ignoreDuplicates: true },
+                ),
+              );
+            }
+            if (pendingLocal.merchantRules.length > 0) {
+              await checked(
+                supabase.from("budget_merchant_rules").upsert(
+                  pendingLocal.merchantRules.map((r) => ({
+                    couple_id: couple,
+                    merchant_pattern: r.merchant_pattern,
+                    category_key: r.category_key,
+                    kind: r.kind,
+                    created_by: r.created_by || userId,
+                  })),
+                  { onConflict: "couple_id,normalized_pattern" },
+                ),
+              );
+            }
+            const mySetting = pendingLocal.settings.find(
+              (s) => s.user_id === userId,
+            );
+            if (mySetting) {
+              await checked(
+                supabase.rpc("set_budget_income_sharing", {
+                  p_share: mySetting.share_income_with_partner,
+                }),
+              );
+            }
+            markLocalBudgetSynced(couple);
+            [
+              finalBudgetCategories,
+              finalBudgetTransactions,
+              finalBudgetMerchantRules,
+              finalBudgetSettings,
+            ] = await Promise.all([
+              readAll<BudgetCategory>(
+                "budget_categories",
+                { couple_id: couple },
+                "sort_order",
+              ),
+              readAll<BudgetTransaction>(
+                "budget_transactions",
+                { couple_id: couple },
+                "occurred_on",
+                false,
+              ),
+              readAll<BudgetMerchantRule>(
+                "budget_merchant_rules",
+                { couple_id: couple },
+                "created_at",
+                false,
+              ),
+              readAll<BudgetSettings>(
+                "budget_settings",
+                { couple_id: couple },
+                "user_id",
+              ),
+            ]);
+          } catch {
+            // Keep pendingSync = true to retry on next refresh
+          }
+        }
+        const seedFlagKey = `ours-skarbo-seed-v1:${couple}`;
+        const hasSeedFlag = (() => {
+          try {
+            return localStorage.getItem(seedFlagKey) === "1";
+          } catch {
+            return false;
+          }
+        })();
+        if (!hasSeedFlag) {
+          const seedRows = buildSkarboSeedTransactions(couple, userId);
+          const seedIds = new Set(seedRows.map((r) => r.id));
+          const alreadySeeded = finalBudgetTransactions.some(
+            (tx) => seedIds.has(tx.id) || tx.note === SKARBO_SEED_NOTE,
+          );
+          if (alreadySeeded) {
+            try {
+              localStorage.setItem(seedFlagKey, "1");
+            } catch {
+              /* ignore */
+            }
+          } else {
+            try {
+              const insertedSeeds = (await checked(
+                supabase
+                  .from("budget_transactions")
+                  .upsert(
+                    seedRows.map((r) => ({
+                      id: r.id,
+                      couple_id: r.couple_id,
+                      user_id: r.user_id,
+                      kind: r.kind,
+                      amount: r.amount,
+                      merchant: r.merchant,
+                      note: r.note,
+                      category_key: r.category_key,
+                      status: r.status,
+                      source: r.source,
+                      is_private: r.is_private,
+                      card_label: r.card_label,
+                      occurred_on: r.occurred_on,
+                      occurred_at: r.occurred_at,
+                    })),
+                    { onConflict: "id", ignoreDuplicates: true },
+                  )
+                  .select("*"),
+              )) as BudgetTransaction[] | null;
+              if (Array.isArray(insertedSeeds) && insertedSeeds.length > 0) {
+                const existingIds = new Set(
+                  finalBudgetTransactions.map((t) => t.id),
+                );
+                finalBudgetTransactions = [
+                  ...finalBudgetTransactions,
+                  ...insertedSeeds.filter((s) => !existingIds.has(s.id)),
+                ];
+              } else {
+                finalBudgetTransactions = await readAll<BudgetTransaction>(
+                  "budget_transactions",
+                  { couple_id: couple },
+                  "occurred_on",
+                  false,
+                ).catch(() => finalBudgetTransactions);
+              }
+              try {
+                localStorage.setItem(seedFlagKey, "1");
+              } catch {
+                /* ignore */
+              }
+            } catch {
+              // Skip silently if budget_transactions is unavailable yet
+            }
+          }
+        }
+      }
       if (current !== revision.current) return;
       const mergedShopping = applyShoppingQueue(
         shopping,
@@ -416,6 +670,10 @@ function useStore() {
         movies,
         activities,
         reads,
+        budgetCategories: finalBudgetCategories,
+        budgetTransactions: finalBudgetTransactions,
+        budgetMerchantRules: finalBudgetMerchantRules,
+        budgetSettings: finalBudgetSettings,
       });
       setFailure(false);
     } catch {
@@ -471,6 +729,10 @@ function useStore() {
       "plant_care_events",
       "recipe_cooks",
       "activity_events",
+      "budget_categories",
+      "budget_transactions",
+      "budget_merchant_rules",
+      "budget_settings",
     ]) {
       for (const event of ["INSERT", "UPDATE"] as const)
         channel.on(
@@ -1637,11 +1899,7 @@ function useStore() {
           queuedAt: now,
         });
       }
-      notify(
-        options?.skipPantryFilter
-          ? `Товари (${products.length}) збережено офлайн`
-          : `Продукти (${products.length}) збережено офлайн`,
-      );
+      notify(`Продукти (${products.length}) збережено офлайн`);
       return Promise.resolve(true);
     }
     return run(
@@ -1665,18 +1923,12 @@ function useStore() {
             return demoActivity(
               { ...d, shopping: [...d.shopping, ...rows] },
               "shopping_items",
-              {
-                name: options?.skipPantryFilter
-                  ? `Покупки (${products.length})`
-                  : `Продукти з рецепта · ${products.length}`,
-              },
+              { name: `Продукти з рецепта · ${products.length}` },
               "added",
             );
           });
       },
-      options?.skipPantryFilter
-        ? `Товари додано до списку (${products.length})`
-        : "Продукти додано до списку",
+      "Продукти додано до списку",
     );
   };
   const archive = () =>
@@ -1943,6 +2195,95 @@ function useStore() {
         },
         "Рослину відновлено з кошика",
       );
+    } else if (entry.kind === "budget_transactions") {
+      const amount = Number(p.amount ?? 0);
+      if (Number.isFinite(amount) && amount > 0) {
+        const kind: BudgetKind = p.kind === "income" ? "income" : "expense";
+        const myShareIncome =
+          data.budgetSettings.find((s) => s.user_id === userId)
+            ?.share_income_with_partner ?? false;
+        const isPrivate = kind === "income" ? !myShareIncome : false;
+        ok = await run(
+          `restore-${entry.id}`,
+          async () => {
+            const restored: BudgetTransaction = {
+              id: crypto.randomUUID(),
+              couple_id: coupleId ?? DEMO_COUPLE,
+              user_id: userId,
+              kind,
+              amount: Math.round(amount * 100) / 100,
+              merchant: String(p.merchant ?? "").trim(),
+              note: String(p.note ?? "").trim(),
+              category_key:
+                typeof p.category_key === "string" && p.category_key
+                  ? normalizeCategoryKey(p.category_key, kind)
+                  : kind === "income"
+                    ? "refund"
+                    : "other",
+              status: "confirmed",
+              source: p.source === "apple_pay" ? "apple_pay" : "manual",
+              is_private: isPrivate,
+              card_label: String(p.card_label ?? ""),
+              occurred_on:
+                typeof p.occurred_on === "string" &&
+                /^\d{4}-\d{2}-\d{2}$/.test(p.occurred_on)
+                  ? p.occurred_on
+                  : kyivDate(),
+              occurred_at:
+                typeof p.occurred_at === "string" && p.occurred_at
+                  ? p.occurred_at
+                  : new Date().toISOString(),
+              created_at: new Date().toISOString(),
+            };
+            const activeCoupleId = coupleId ?? coupleIdRef.current ?? DEMO_COUPLE;
+            const applyLocalRestore = () => {
+              if (supabase) {
+                writeLocalBudgetState(activeCoupleId, userId, (prev) => ({
+                  ...prev,
+                  pendingSync: true,
+                  transactions: [restored, ...prev.transactions],
+                }));
+              }
+              setData((d) => ({
+                ...d,
+                budgetTransactions: [restored, ...d.budgetTransactions],
+              }));
+            };
+            if (supabase && !budgetLocalModeRef.current) {
+              try {
+                await checked(
+                  supabase
+                    .from("budget_transactions")
+                    .insert({
+                      couple_id: restored.couple_id,
+                      user_id: restored.user_id,
+                      kind: restored.kind,
+                      amount: restored.amount,
+                      merchant: restored.merchant,
+                      note: restored.note,
+                      category_key: restored.category_key,
+                      status: restored.status,
+                      source: restored.source,
+                      is_private: restored.is_private,
+                      card_label: restored.card_label,
+                      occurred_on: restored.occurred_on,
+                      occurred_at: restored.occurred_at,
+                    })
+                    .select("id")
+                    .single(),
+                );
+              } catch (err) {
+                if (!isMissingBudgetTableError(err)) throw err;
+                budgetLocalModeRef.current = true;
+                applyLocalRestore();
+              }
+            } else {
+              applyLocalRestore();
+            }
+          },
+          "Операцію відновлено з кошика",
+        );
+      }
     }
     if (ok) setTrash(removeTrashEntry(entry.id, trashScope));
     return ok;
@@ -1954,6 +2295,803 @@ function useStore() {
     setTrash(clearTrash(trashScope));
     notify("Кошик очищено");
   };
+
+  const addBudgetTransaction = (input: NewBudgetTransaction) => {
+    const cleanAmount = Math.round(Number(input.amount) * 100) / 100;
+    if (!Number.isFinite(cleanAmount) || cleanAmount <= 0 || cleanAmount >= 100_000_000) {
+      notify("Вкажіть коректну суму більше 0 ₴");
+      return Promise.resolve(false);
+    }
+    const activeCoupleId = coupleId ?? coupleIdRef.current;
+    if (supabase && !activeCoupleId) {
+      notify("Зачекайте завершення синхронізації простору");
+      return Promise.resolve(false);
+    }
+    const myShareIncome =
+      data.budgetSettings.find((s) => s.user_id === userId)
+        ?.share_income_with_partner ?? false;
+    const isPrivate =
+      input.is_private ?? (input.kind === "income" ? !myShareIncome : false);
+    const now = new Date().toISOString();
+    const status = input.status ?? (input.category_key ? "confirmed" : "needs_review");
+    const catMeta = findCategoryMeta(
+      input.category_key,
+      data.budgetCategories,
+      input.kind,
+    );
+    const cleanMerchant =
+      input.merchant.trim().slice(0, 160) ||
+      (input.category_key ? catMeta.name : "");
+    const row: BudgetTransaction = {
+      id: crypto.randomUUID(),
+      couple_id: activeCoupleId ?? DEMO_COUPLE,
+      user_id: userId,
+      kind: input.kind,
+      amount: cleanAmount,
+      merchant: cleanMerchant,
+      note: (input.note ?? "").trim().slice(0, 500),
+      category_key: input.category_key,
+      status,
+      source: input.source ?? "manual",
+      is_private: isPrivate,
+      card_label: (input.card_label ?? "").trim().slice(0, 60),
+      occurred_on: input.occurred_on || kyivDate(),
+      occurred_at: now,
+      created_at: now,
+      updated_at: now,
+    };
+    return run(
+      "add-budget-tx",
+      async () => {
+        const saveLocal = () => {
+          if (supabase && activeCoupleId) {
+            writeLocalBudgetState(activeCoupleId, userId, (prev) => ({
+              ...prev,
+              pendingSync: true,
+              transactions: [
+                row,
+                ...prev.transactions.filter((tx) => tx.id !== row.id),
+              ],
+            }));
+          }
+          setData((d) => ({
+            ...d,
+            budgetTransactions: [row, ...d.budgetTransactions],
+          }));
+        };
+        if (supabase && !budgetLocalModeRef.current) {
+          try {
+            const inserted = (await checked(
+              supabase
+                .from("budget_transactions")
+                .insert({
+                  couple_id: row.couple_id,
+                  user_id: row.user_id,
+                  kind: row.kind,
+                  amount: row.amount,
+                  merchant: row.merchant,
+                  note: row.note,
+                  category_key: row.category_key,
+                  status: row.status,
+                  source: row.source,
+                  is_private: row.is_private,
+                  card_label: row.card_label,
+                  occurred_on: row.occurred_on,
+                  occurred_at: row.occurred_at,
+                })
+                .select("*")
+                .single(),
+            )) as BudgetTransaction;
+            setData((d) => ({
+              ...d,
+              budgetTransactions: [
+                inserted,
+                ...d.budgetTransactions.filter((tx) => tx.id !== inserted.id),
+              ],
+            }));
+          } catch (err) {
+            if (!isMissingBudgetTableError(err)) throw err;
+            budgetLocalModeRef.current = true;
+            saveLocal();
+          }
+        } else {
+          saveLocal();
+        }
+      },
+      input.kind === "income" ? "Дохід записано" : "Витрату записано",
+    );
+  };
+
+  const updateBudgetTransaction = (
+    id: string,
+    patch: Partial<
+      Pick<
+        BudgetTransaction,
+        | "kind"
+        | "amount"
+        | "merchant"
+        | "note"
+        | "category_key"
+        | "status"
+        | "is_private"
+        | "occurred_on"
+        | "occurred_at"
+      >
+    >,
+  ) => {
+    const activeCoupleId = coupleId ?? coupleIdRef.current;
+    return run(
+      `budget-tx-${id}`,
+      async () => {
+        const now = new Date().toISOString();
+        const applyLocalUpdate = () => {
+          if (supabase && activeCoupleId) {
+            writeLocalBudgetState(activeCoupleId, userId, (prev) => ({
+              ...prev,
+              pendingSync: true,
+              transactions: prev.transactions.map((tx) =>
+                tx.id === id ? { ...tx, ...patch, updated_at: now } : tx,
+              ),
+            }));
+          }
+          setData((d) => ({
+            ...d,
+            budgetTransactions: d.budgetTransactions.map((tx) =>
+              tx.id === id ? { ...tx, ...patch, updated_at: now } : tx,
+            ),
+          }));
+        };
+        if (supabase && !budgetLocalModeRef.current) {
+          try {
+            const updated = (await checked(
+              supabase
+                .from("budget_transactions")
+                .update(patch)
+                .eq("id", id)
+                .select("*")
+                .single(),
+            )) as BudgetTransaction;
+            setData((d) => ({
+              ...d,
+              budgetTransactions: d.budgetTransactions.map((tx) =>
+                tx.id === id ? updated : tx,
+              ),
+            }));
+          } catch (err) {
+            if (!isMissingBudgetTableError(err)) throw err;
+            budgetLocalModeRef.current = true;
+            applyLocalUpdate();
+          }
+        } else {
+          applyLocalUpdate();
+        }
+      },
+      "Операцію оновлено",
+    );
+  };
+
+  const removeBudgetTransaction = async (id: string) => {
+    const activeCoupleId = coupleId ?? coupleIdRef.current;
+    const snap = data.budgetTransactions.find((tx) => tx.id === id) as
+      | Record<string, unknown>
+      | undefined;
+    let trashedEntry: TrashEntry | null = null;
+    const ok = await run(`budget-tx-${id}`, async () => {
+      if (supabase && !budgetLocalModeRef.current) {
+        try {
+          await checked(
+            supabase
+              .from("budget_transactions")
+              .delete()
+              .eq("id", id)
+              .select("id")
+              .single(),
+          );
+        } catch (err) {
+          if (!isMissingBudgetTableError(err)) throw err;
+          budgetLocalModeRef.current = true;
+        }
+      }
+      if (supabase && budgetLocalModeRef.current && activeCoupleId) {
+        writeLocalBudgetState(activeCoupleId, userId, (prev) => ({
+          ...prev,
+          pendingSync: true,
+          transactions: prev.transactions.filter((tx) => tx.id !== id),
+        }));
+      }
+      setData((d) => ({
+        ...d,
+        budgetTransactions: d.budgetTransactions.filter((tx) => tx.id !== id),
+      }));
+      if (snap) {
+        const res = pushTrash("budget_transactions", snap, trashScope);
+        trashedEntry = res.entry;
+        setTrash(res.entries);
+      }
+    });
+    if (ok) {
+      if (trashedEntry) {
+        const entryId = (trashedEntry as TrashEntry).id;
+        notify(
+          "Операцію переміщено в кошик",
+          () => void restoreFromTrash(entryId),
+          "Відновити",
+        );
+      } else {
+        notify("Операцію видалено");
+      }
+    }
+    return ok;
+  };
+
+  const categorizeBudgetTransaction = (
+    txId: string,
+    categoryKey: string,
+    saveRule = true,
+    rulePattern?: string,
+  ) => {
+    const activeCoupleId = coupleId ?? coupleIdRef.current ?? DEMO_COUPLE;
+    return run(
+      `categorize-${txId}`,
+      async () => {
+        const applyLocalCategorize = () => {
+          const applyOnCollections = (
+            transactions: BudgetTransaction[],
+            merchantRules: BudgetMerchantRule[],
+          ) => {
+            const target = transactions.find((tx) => tx.id === txId);
+            if (!target) return { transactions, merchantRules };
+            const now = new Date().toISOString();
+            const targetNorm = normalizeMerchantName(target.merchant);
+            const patternRaw = (
+              rulePattern?.trim() ||
+              target.merchant ||
+              ""
+            ).slice(0, 120);
+            const patternNorm = normalizeMerchantName(patternRaw);
+
+            const nextTxs = transactions.map((tx) => {
+              if (tx.id === txId) {
+                return {
+                  ...tx,
+                  category_key: categoryKey,
+                  status: "confirmed" as const,
+                  updated_at: now,
+                };
+              }
+              if (
+                saveRule &&
+                tx.status === "needs_review" &&
+                tx.kind === target.kind &&
+                targetNorm &&
+                normalizeMerchantName(tx.merchant) === targetNorm
+              ) {
+                return {
+                  ...tx,
+                  category_key: categoryKey,
+                  status: "confirmed" as const,
+                  updated_at: now,
+                };
+              }
+              return tx;
+            });
+
+            let nextRules = merchantRules;
+            if (saveRule && patternRaw && patternNorm) {
+              const existingIdx = nextRules.findIndex(
+                (r) => r.normalized_pattern === patternNorm,
+              );
+              const newRule: BudgetMerchantRule = {
+                id:
+                  existingIdx >= 0
+                    ? nextRules[existingIdx].id
+                    : crypto.randomUUID(),
+                couple_id: activeCoupleId,
+                merchant_pattern: patternRaw,
+                normalized_pattern: patternNorm,
+                category_key: categoryKey,
+                kind: target.kind,
+                created_by: userId,
+                created_at:
+                  existingIdx >= 0
+                    ? nextRules[existingIdx].created_at
+                    : now,
+                updated_at: now,
+              };
+              nextRules =
+                existingIdx >= 0
+                  ? nextRules.map((r, i) => (i === existingIdx ? newRule : r))
+                  : [newRule, ...nextRules];
+            }
+            return { transactions: nextTxs, merchantRules: nextRules };
+          };
+
+          if (supabase) {
+            writeLocalBudgetState(activeCoupleId, userId, (prev) => {
+              const next = applyOnCollections(
+                prev.transactions,
+                prev.merchantRules,
+              );
+              return {
+                ...prev,
+                pendingSync: true,
+                transactions: next.transactions,
+                merchantRules: next.merchantRules,
+              };
+            });
+          }
+          setData((d) => {
+            const next = applyOnCollections(
+              d.budgetTransactions,
+              d.budgetMerchantRules,
+            );
+            return {
+              ...d,
+              budgetTransactions: next.transactions,
+              budgetMerchantRules: next.merchantRules,
+            };
+          });
+        };
+
+        if (supabase && !budgetLocalModeRef.current) {
+          try {
+            await checked(
+              supabase.rpc("categorize_budget_transaction", {
+                p_tx_id: txId,
+                p_category_key: categoryKey,
+                p_save_rule: saveRule,
+                p_rule_pattern: rulePattern?.trim() || null,
+              }),
+            );
+          } catch (err) {
+            if (!isMissingBudgetTableError(err)) throw err;
+            budgetLocalModeRef.current = true;
+            applyLocalCategorize();
+          }
+        } else {
+          applyLocalCategorize();
+        }
+      },
+      saveRule ? "Категорію збережено і запам’ятовано" : "Категорію збережено",
+    );
+  };
+
+  const addBudgetCategory = (input: NewBudgetCategory) => {
+    const name = input.name.trim().slice(0, 50);
+    const emoji = input.emoji.trim().slice(0, 16) || "📦";
+    if (!name) {
+      notify("Введіть назву категорії");
+      return Promise.resolve(false);
+    }
+    if (
+      data.budgetCategories.some(
+        (c) =>
+          c.kind === input.kind &&
+          c.name.trim().toLowerCase() === name.toLowerCase(),
+      )
+    ) {
+      notify("Така категорія вже існує");
+      return Promise.resolve(false);
+    }
+    const activeCoupleId = coupleId ?? coupleIdRef.current ?? DEMO_COUPLE;
+    return run(
+      "add-budget-cat",
+      async () => {
+        const now = new Date().toISOString();
+        const row: BudgetCategory = {
+          id: crypto.randomUUID(),
+          couple_id: activeCoupleId,
+          kind: input.kind,
+          name,
+          emoji,
+          sort_order: 100 + data.budgetCategories.length,
+          created_by: userId,
+          created_at: now,
+          updated_at: now,
+        };
+        const applyLocalAddCat = () => {
+          if (supabase) {
+            writeLocalBudgetState(activeCoupleId, userId, (prev) => ({
+              ...prev,
+              pendingSync: true,
+              categories: [...prev.categories, row],
+            }));
+          }
+          setData((d) => ({
+            ...d,
+            budgetCategories: [...d.budgetCategories, row],
+          }));
+        };
+        if (supabase && !budgetLocalModeRef.current) {
+          try {
+            await checked(
+              supabase
+                .from("budget_categories")
+                .insert({
+                  couple_id: row.couple_id,
+                  kind: row.kind,
+                  name: row.name,
+                  emoji: row.emoji,
+                  sort_order: row.sort_order,
+                  created_by: row.created_by,
+                })
+                .select("id")
+                .single(),
+            );
+          } catch (err) {
+            if (!isMissingBudgetTableError(err)) throw err;
+            budgetLocalModeRef.current = true;
+            applyLocalAddCat();
+          }
+        } else {
+          applyLocalAddCat();
+        }
+      },
+      "Категорію додано",
+    );
+  };
+
+  const removeBudgetCategory = (id: string) => {
+    const activeCoupleId = coupleId ?? coupleIdRef.current ?? DEMO_COUPLE;
+    return run(
+      `del-budget-cat-${id}`,
+      async () => {
+        const applyLocalRemoveCat = () => {
+          const customKey = `custom:${id}`;
+          const applyOnCollections = (
+            categories: BudgetCategory[],
+            transactions: BudgetTransaction[],
+            merchantRules: BudgetMerchantRule[],
+          ) => {
+            const cat = categories.find((c) => c.id === id);
+            const fallback = cat?.kind === "income" ? "refund" : "other";
+            return {
+              categories: categories.filter((c) => c.id !== id),
+              transactions: transactions.map((tx) =>
+                tx.category_key === customKey
+                  ? { ...tx, category_key: fallback }
+                  : tx,
+              ),
+              merchantRules: merchantRules.map((rule) =>
+                rule.category_key === customKey
+                  ? { ...rule, category_key: fallback }
+                  : rule,
+              ),
+            };
+          };
+          if (supabase) {
+            writeLocalBudgetState(activeCoupleId, userId, (prev) => {
+              const next = applyOnCollections(
+                prev.categories,
+                prev.transactions,
+                prev.merchantRules,
+              );
+              return {
+                ...prev,
+                pendingSync: true,
+                categories: next.categories,
+                transactions: next.transactions,
+                merchantRules: next.merchantRules,
+              };
+            });
+          }
+          setData((d) => {
+            const next = applyOnCollections(
+              d.budgetCategories,
+              d.budgetTransactions,
+              d.budgetMerchantRules,
+            );
+            return {
+              ...d,
+              budgetCategories: next.categories,
+              budgetTransactions: next.transactions,
+              budgetMerchantRules: next.merchantRules,
+            };
+          });
+        };
+        if (supabase && !budgetLocalModeRef.current) {
+          try {
+            await checked(
+              supabase.rpc("delete_budget_category", { p_category_id: id }),
+            );
+          } catch (err) {
+            if (!isMissingBudgetTableError(err)) throw err;
+            budgetLocalModeRef.current = true;
+            applyLocalRemoveCat();
+          }
+        } else {
+          applyLocalRemoveCat();
+        }
+      },
+      "Категорію видалено",
+    );
+  };
+
+  const saveBudgetMerchantRule = (
+    pattern: string,
+    categoryKey: string,
+    kind: BudgetKind = "expense",
+  ) => {
+    const clean = pattern.trim().slice(0, 120);
+    const norm = normalizeMerchantName(clean);
+    if (!clean || !norm) {
+      notify("Введіть назву продавця для правила");
+      return Promise.resolve(false);
+    }
+    const activeCoupleId = coupleId ?? coupleIdRef.current ?? DEMO_COUPLE;
+    return run(
+      "save-budget-rule",
+      async () => {
+        const applyLocalRule = () => {
+          const applyOnRules = (rules: BudgetMerchantRule[]) => {
+            const idx = rules.findIndex((r) => r.normalized_pattern === norm);
+            const now = new Date().toISOString();
+            const nextRule: BudgetMerchantRule = {
+              id: idx >= 0 ? rules[idx].id : crypto.randomUUID(),
+              couple_id: activeCoupleId,
+              merchant_pattern: clean,
+              normalized_pattern: norm,
+              category_key: categoryKey,
+              kind,
+              created_by: userId,
+              created_at: idx >= 0 ? rules[idx].created_at : now,
+              updated_at: now,
+            };
+            return idx >= 0
+              ? rules.map((r, i) => (i === idx ? nextRule : r))
+              : [nextRule, ...rules];
+          };
+          if (supabase) {
+            writeLocalBudgetState(activeCoupleId, userId, (prev) => ({
+              ...prev,
+              pendingSync: true,
+              merchantRules: applyOnRules(prev.merchantRules),
+            }));
+          }
+          setData((d) => ({
+            ...d,
+            budgetMerchantRules: applyOnRules(d.budgetMerchantRules),
+          }));
+        };
+        if (supabase && !budgetLocalModeRef.current) {
+          try {
+            await checked(
+              supabase.from("budget_merchant_rules").upsert(
+                {
+                  couple_id: activeCoupleId,
+                  merchant_pattern: clean,
+                  category_key: categoryKey,
+                  kind,
+                  created_by: userId,
+                },
+                { onConflict: "couple_id,normalized_pattern" },
+              ),
+            );
+          } catch (err) {
+            if (!isMissingBudgetTableError(err)) throw err;
+            budgetLocalModeRef.current = true;
+            applyLocalRule();
+          }
+        } else {
+          applyLocalRule();
+        }
+      },
+      "Правило збережено",
+    );
+  };
+
+  const removeBudgetMerchantRule = (id: string) => {
+    const activeCoupleId = coupleId ?? coupleIdRef.current ?? DEMO_COUPLE;
+    return run(
+      `del-rule-${id}`,
+      async () => {
+        const applyLocalRemoveRule = () => {
+          if (supabase) {
+            writeLocalBudgetState(activeCoupleId, userId, (prev) => ({
+              ...prev,
+              pendingSync: true,
+              merchantRules: prev.merchantRules.filter((r) => r.id !== id),
+            }));
+          }
+          setData((d) => ({
+            ...d,
+            budgetMerchantRules: d.budgetMerchantRules.filter(
+              (r) => r.id !== id,
+            ),
+          }));
+        };
+        if (supabase && !budgetLocalModeRef.current) {
+          try {
+            await checked(
+              supabase
+                .from("budget_merchant_rules")
+                .delete()
+                .eq("id", id)
+                .select("id")
+                .single(),
+            );
+          } catch (err) {
+            if (!isMissingBudgetTableError(err)) throw err;
+            budgetLocalModeRef.current = true;
+            applyLocalRemoveRule();
+          }
+        } else {
+          applyLocalRemoveRule();
+        }
+      },
+      "Правило видалено",
+    );
+  };
+
+  const setBudgetIncomeSharing = (share: boolean) => {
+    const activeCoupleId = coupleId ?? coupleIdRef.current ?? DEMO_COUPLE;
+    return run(
+      "budget-income-sharing",
+      async () => {
+        const applyLocalSharing = () => {
+          const now = new Date().toISOString();
+          const applyOnCollections = (
+            settings: BudgetSettings[],
+            transactions: BudgetTransaction[],
+          ) => {
+            const exists = settings.some((s) => s.user_id === userId);
+            const nextSettings = exists
+              ? settings.map((s) =>
+                  s.user_id === userId
+                    ? { ...s, share_income_with_partner: share, updated_at: now }
+                    : s,
+                )
+              : [
+                  ...settings,
+                  {
+                    user_id: userId,
+                    couple_id: activeCoupleId,
+                    share_income_with_partner: share,
+                    updated_at: now,
+                  },
+                ];
+            return {
+              settings: nextSettings,
+              transactions: transactions.map((tx) =>
+                tx.user_id === userId && tx.kind === "income"
+                  ? { ...tx, is_private: !share }
+                  : tx,
+              ),
+            };
+          };
+          if (supabase) {
+            writeLocalBudgetState(activeCoupleId, userId, (prev) => {
+              const next = applyOnCollections(prev.settings, prev.transactions);
+              return {
+                ...prev,
+                pendingSync: true,
+                settings: next.settings,
+                transactions: next.transactions,
+              };
+            });
+          }
+          setData((d) => {
+            const next = applyOnCollections(
+              d.budgetSettings,
+              d.budgetTransactions,
+            );
+            return {
+              ...d,
+              budgetSettings: next.settings,
+              budgetTransactions: next.transactions,
+            };
+          });
+        };
+        if (supabase && !budgetLocalModeRef.current) {
+          try {
+            await checked(
+              supabase.rpc("set_budget_income_sharing", { p_share: share }),
+            );
+          } catch (err) {
+            if (!isMissingBudgetTableError(err)) throw err;
+            budgetLocalModeRef.current = true;
+            applyLocalSharing();
+          }
+        } else {
+          applyLocalSharing();
+        }
+      },
+      share ? "Доходи тепер видимі партнеру" : "Доходи приховано від партнера",
+    );
+  };
+
+  const DEMO_TOKEN_KEY = "ours-demo-budget-token-v1";
+  const fetchBudgetIngestTokenStatus = async (): Promise<BudgetTokenStatus> => {
+    if (demo || !supabase || budgetLocalModeRef.current) {
+      try {
+        const raw = localStorage.getItem(DEMO_TOKEN_KEY);
+        if (raw) return JSON.parse(raw) as BudgetTokenStatus;
+      } catch {
+        /* ignore */
+      }
+      return { has_token: false, token_hint: "", last_used_at: null, created_at: null };
+    }
+    try {
+      const rows = (await checked(
+        supabase.rpc("budget_ingest_token_status"),
+      )) as BudgetTokenStatus[];
+      return (
+        rows[0] ?? {
+          has_token: false,
+          token_hint: "",
+          last_used_at: null,
+          created_at: null,
+        }
+      );
+    } catch (err) {
+      if (isMissingBudgetTableError(err)) {
+        budgetLocalModeRef.current = true;
+        return { has_token: false, token_hint: "", last_used_at: null, created_at: null };
+      }
+      throw err;
+    }
+  };
+
+  const rotateBudgetIngestToken = async (): Promise<{
+    token: string;
+    status: BudgetTokenStatus;
+  } | null> => {
+    const token = generateBudgetIngestToken();
+    const status: BudgetTokenStatus = {
+      has_token: true,
+      token_hint: token.slice(-4),
+      last_used_at: null,
+      created_at: new Date().toISOString(),
+    };
+    const ok = await run(
+      "rotate-budget-token",
+      async () => {
+        if (supabase) {
+          try {
+            await checked(
+              supabase.rpc("rotate_budget_ingest_token", { p_token: token }),
+            );
+          } catch (err) {
+            if (isMissingBudgetTableError(err)) {
+              throw new Error(
+                "Щоб увімкнути Apple Pay, спершу застосуйте SQL-міграцію бюджету в Supabase.",
+                { cause: err },
+              );
+            }
+            throw err;
+          }
+        } else {
+          localStorage.setItem(DEMO_TOKEN_KEY, JSON.stringify(status));
+        }
+      },
+      "Токен Apple Pay створено",
+    );
+    return ok ? { token, status } : null;
+  };
+
+  const revokeBudgetIngestToken = () =>
+    run(
+      "revoke-budget-token",
+      async () => {
+        if (supabase) {
+          try {
+            await checked(supabase.rpc("revoke_budget_ingest_token"));
+          } catch (err) {
+            if (isMissingBudgetTableError(err)) {
+              throw new Error(
+                "Щоб керувати Apple Pay токеном, спершу застосуйте SQL-міграцію бюджету в Supabase.",
+                { cause: err },
+              );
+            }
+            throw err;
+          }
+        } else {
+          localStorage.removeItem(DEMO_TOKEN_KEY);
+        }
+      },
+      "Токен Apple Pay відкликано",
+    );
+
   return {
     demo,
     session,
@@ -2003,6 +3141,18 @@ function useStore() {
     repeat,
     saveProfile,
     reserve,
+    addBudgetTransaction,
+    updateBudgetTransaction,
+    removeBudgetTransaction,
+    categorizeBudgetTransaction,
+    addBudgetCategory,
+    removeBudgetCategory,
+    saveBudgetMerchantRule,
+    removeBudgetMerchantRule,
+    setBudgetIncomeSharing,
+    fetchBudgetIngestTokenStatus,
+    rotateBudgetIngestToken,
+    revokeBudgetIngestToken,
   };
 }
 const Context = createContext<ReturnType<typeof useStore> | null>(null);

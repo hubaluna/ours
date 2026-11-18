@@ -1,7 +1,11 @@
 import type { Data } from "./types";
 import { kyivDate } from "./utils";
+import { buildSkarboSeedTransactions } from "./budget";
+
 export const DEMO_USER = "demo-anna",
   DEMO_COUPLE = "demo-couple";
+
+const SKARBO_DEMO_SEED_FLAG = "ours-skarbo-seed-v1";
 export function createDemo(): Data {
   const now = new Date().toISOString(),
     today = kyivDate();
@@ -210,6 +214,38 @@ export function createDemo(): Data {
     recipeFavorites: [],
     recipeCooks: [],
     history: [],
+    budgetCategories: [],
+    budgetTransactions: buildSkarboSeedTransactions(DEMO_COUPLE, DEMO_USER, now),
+    budgetMerchantRules: [
+      {
+        id: "rule-1",
+        couple_id: DEMO_COUPLE,
+        merchant_pattern: "Сільпо",
+        normalized_pattern: "сільпо",
+        category_key: "groceries",
+        kind: "expense",
+        created_by: DEMO_USER,
+        created_at: now,
+      },
+      {
+        id: "rule-2",
+        couple_id: DEMO_COUPLE,
+        merchant_pattern: "Diletant",
+        normalized_pattern: "diletant",
+        category_key: "restaurants",
+        kind: "expense",
+        created_by: "demo-mark",
+        created_at: now,
+      },
+    ],
+    budgetSettings: [
+      {
+        user_id: DEMO_USER,
+        couple_id: DEMO_COUPLE,
+        share_income_with_partner: false,
+        updated_at: now,
+      },
+    ],
   };
 }
 export function readDemo(): Data {
@@ -228,7 +264,39 @@ export function readDemo(): Data {
           "events",
           "history",
         ].every((key) => Array.isArray(data[key as keyof Data]))
-      )
+      ) {
+        const seedRows = buildSkarboSeedTransactions(DEMO_COUPLE, DEMO_USER);
+        const seedIds = new Set(seedRows.map((r) => r.id));
+        let budgetTransactions = Array.isArray(data.budgetTransactions)
+          ? data.budgetTransactions
+          : seedRows;
+        let seededBefore = false;
+        try {
+          seededBefore = localStorage.getItem(SKARBO_DEMO_SEED_FLAG) === "1";
+        } catch {
+          /* ignore */
+        }
+        if (!seededBefore) {
+          const alreadyHasSeed = budgetTransactions.some((t) => seedIds.has(t.id));
+          if (!alreadyHasSeed) {
+            const legacyDemoIds = new Set([
+              "tx-pending-1",
+              "tx-pending-2",
+              "tx-1",
+              "tx-2",
+              "tx-3",
+              "tx-4",
+              "tx-5",
+            ]);
+            const userAdded = budgetTransactions.filter((t) => !legacyDemoIds.has(t.id));
+            budgetTransactions = [...userAdded, ...seedRows];
+          }
+          try {
+            localStorage.setItem(SKARBO_DEMO_SEED_FLAG, "1");
+          } catch {
+            /* ignore */
+          }
+        }
         return {
           ...data,
           mealPlan: Array.isArray(data.mealPlan) ? data.mealPlan : [],
@@ -250,6 +318,16 @@ export function readDemo(): Data {
             ? data.activities
             : createDemo().activities,
           reads: Array.isArray(data.reads) ? data.reads : [],
+          budgetCategories: Array.isArray(data.budgetCategories)
+            ? data.budgetCategories
+            : [],
+          budgetTransactions,
+          budgetMerchantRules: Array.isArray(data.budgetMerchantRules)
+            ? data.budgetMerchantRules
+            : createDemo().budgetMerchantRules,
+          budgetSettings: Array.isArray(data.budgetSettings)
+            ? data.budgetSettings
+            : createDemo().budgetSettings,
           wishes: data.wishes.map((w) => ({
             ...w,
             image_url: w.image_url ?? "",
@@ -257,6 +335,7 @@ export function readDemo(): Data {
             size: w.size ?? "",
           })),
         };
+      }
     }
   } catch {
     /* reset invalid demo */

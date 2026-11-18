@@ -702,6 +702,41 @@ describe("Compact seven-tab app", () => {
       "Вершкове масло",
     ]);
   });
+
+  it("displays seeded Skarbo summary in Budget and allows quick manual entry", async () => {
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", { name: "Відкрити бюджет" }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Бюджет" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/51 655,23 ₴/)).toBeInTheDocument();
+    expect(screen.getByText(/Норма заощаджень 14%/)).toBeInTheDocument();
+
+    const initialCount = saved().budgetTransactions.length;
+    await user.click(
+      screen.getByRole("button", { name: "Додати операцію" }),
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Нова операція" });
+    const amountInput = within(dialog).getByPlaceholderText("0,00");
+    await user.type(amountInput, "425,50");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Додати операцію" }),
+    );
+    await closed();
+
+    await waitFor(() =>
+      expect(saved().budgetTransactions).toHaveLength(initialCount + 1),
+    );
+    expect(saved().budgetTransactions[0]).toMatchObject({
+      kind: "expense",
+      amount: 425.5,
+      category_key: "groceries",
+      merchant: "Продукти",
+      status: "confirmed",
+    });
+  });
 });
 
 

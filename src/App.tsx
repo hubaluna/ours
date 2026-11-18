@@ -16,6 +16,7 @@ import {
   RefreshCw,
   ShoppingBag,
   Sprout,
+  Wallet,
   WifiOff,
   X,
 } from "lucide-react";
@@ -49,6 +50,7 @@ const screens = {
   wishes: () => import("./features/Wishes"),
   plans: () => import("./features/Plans"),
   plants: () => import("./features/Plants"),
+  budget: () => import("./features/Budget"),
 };
 const Home = lazy(screens.home),
   Shopping = lazy(screens.shopping),
@@ -57,6 +59,7 @@ const Home = lazy(screens.home),
   Wishes = lazy(screens.wishes),
   Plans = lazy(screens.plans),
   Plants = lazy(screens.plants),
+  Budget = lazy(screens.budget),
   Settings = lazy(() => import("./features/Settings"));
 const tabs = [
   { id: "home", label: "Головна", icon: House },
@@ -262,6 +265,11 @@ export default function App() {
   const mascot = useOccasionalCat();
   const [tab, setTab] = useState<Tab>("home"),
     [settings, setSettings] = useState(false);
+  const pendingBudgetCount = data.budgetTransactions.filter(
+    (tx) =>
+      tx.status === "needs_review" &&
+      (!tx.is_private || tx.user_id === userId),
+  ).length;
   const [sharedUrl, setSharedUrl] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     const extracted = extractShareTargetUrl(window.location.search);
@@ -374,6 +382,22 @@ export default function App() {
                   {demo ? "Демо" : "Для двох"}
                 </span>
                 <button
+                  className={`header-wallet-btn${tab === "budget" ? " active" : ""}`}
+                  onClick={() => setTab(tab === "budget" ? "home" : "budget")}
+                  onPointerEnter={() => {
+                    void screens.budget().catch(() => {});
+                  }}
+                  aria-label="Відкрити бюджет"
+                  aria-current={tab === "budget" ? "page" : undefined}
+                >
+                  <Wallet size={18} strokeWidth={tab === "budget" ? 2.1 : 1.75} />
+                  {pendingBudgetCount > 0 && (
+                    <span className="header-wallet-badge">
+                      {pendingBudgetCount > 9 ? "9+" : pendingBudgetCount}
+                    </span>
+                  )}
+                </button>
+                <button
                   className="avatar-button"
                   onClick={() => setSettings(true)}
                   aria-label="Відкрити налаштування"
@@ -417,6 +441,8 @@ export default function App() {
                     <motion.div className="tab-view" key={tab} {...enter}>
                       {tab === "home" ? (
                         <Home navigate={setTab} />
+                      ) : tab === "budget" ? (
+                        <Budget />
                       ) : tab === "shopping" ? (
                         <Shopping />
                       ) : tab === "menu" ? (

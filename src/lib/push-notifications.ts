@@ -56,8 +56,35 @@ export async function savePushSubscription(
 
 export async function savePushPreferences(
   userId: string,
-  preferences: { enabled: boolean; shopping: boolean; wishes: boolean; movies: boolean; events: boolean; recipes: boolean },
+  preferences: {
+    enabled: boolean;
+    shopping: boolean;
+    wishes: boolean;
+    movies: boolean;
+    events: boolean;
+    recipes: boolean;
+    budget?: boolean;
+  },
 ): Promise<void> {
   if (!supabase) throw new Error("Підключіть акаунт Ours.");
-  await checked(supabase.from("push_preferences").upsert({ user_id: userId, ...preferences }, { onConflict: "user_id" }));
+  try {
+    await checked(
+      supabase
+        .from("push_preferences")
+        .upsert({ user_id: userId, ...preferences }, { onConflict: "user_id" }),
+    );
+  } catch (err) {
+    // Fallback if migration 020 has not yet added the budget column.
+    if ("budget" in preferences) {
+      const { budget: _drop, ...withoutBudget } = preferences;
+      void _drop;
+      await checked(
+        supabase
+          .from("push_preferences")
+          .upsert({ user_id: userId, ...withoutBudget }, { onConflict: "user_id" }),
+      );
+      return;
+    }
+    throw err;
+  }
 }

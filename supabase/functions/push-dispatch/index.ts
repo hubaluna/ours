@@ -39,6 +39,7 @@ type Preferences = {
   movies: boolean;
   events: boolean;
   recipes: boolean;
+  budget?: boolean;
 };
 type PushConfig = { vapid_private_jwk: string; vapid_public_key: string; vapid_subject: string; app_url: string };
 
@@ -103,7 +104,7 @@ async function sendOne(subscription: Subscription, payload: string, publicKey: s
 async function dispatchToCoupleRecipients(
   coupleId: string,
   actorId: string | null,
-  kind: Activity["kind"] | "plants",
+  kind: Activity["kind"] | "plants" | "budget",
   title: string,
   body: string,
   tag: string,
@@ -117,7 +118,13 @@ async function dispatchToCoupleRecipients(
   if (!recipients.length) return;
   const ids = `(${recipients.join(",")})`;
   const [preferences, subscriptions] = await Promise.all([
-    rest<Preferences[]>(`push_preferences?user_id=in.${ids}&select=user_id,enabled,shopping,wishes,movies,events,recipes`),
+    rest<Preferences[]>(
+      `push_preferences?user_id=in.${ids}&select=user_id,enabled,shopping,wishes,movies,events,recipes,budget`,
+    ).catch(() =>
+      rest<Preferences[]>(
+        `push_preferences?user_id=in.${ids}&select=user_id,enabled,shopping,wishes,movies,events,recipes`,
+      ),
+    ),
     rest<Subscription[]>(`push_subscriptions?user_id=in.${ids}&select=id,user_id,endpoint,p256dh,auth_secret`),
   ]);
   const preference = new Map(preferences.map((row) => [row.user_id, row]));
@@ -126,6 +133,7 @@ async function dispatchToCoupleRecipients(
       const pref = preference.get(userId);
       if (!pref?.enabled) return false;
       if (kind === "plants") return pref.events;
+      if (kind === "budget") return pref.budget ?? true;
       return pref[kind];
     }),
   );
@@ -330,7 +338,7 @@ export async function handleRequest(request: Request): Promise<Response> {
   if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
   const hookSecret = request.headers.get("x-ours-push-secret");
   if (!hookSecret || hookSecret.length > 128) return new Response("Not found", { status: 404 });
-  let bodyData: { activity_id?: unknown; mode?: unknown };
+  let bodyData: { activity_id?: unknown; mode?: unknown; transaction_id?: unknown };
   try {
     bodyData = await request.json();
   } catch {
@@ -347,6 +355,73 @@ export async function handleRequest(request: Request): Promise<Response> {
 
     if (bodyData?.mode === "flush") {
       await flushPendingAndDaily(config);
+      return new Response(null, { status: 204 });
+    }
+
+    if (bodyData?.mode === "budget_review") {
+      const txId = typeof bodyData?.transaction_id === "string" ? bodyData.transaction_id : "";
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(txId)) {
+        return new Response("Bad request", { status: 400 });
+      }
+      const txs = await rest<
+        {
+          id: string;
+          couple_id: string;
+          user_id: string;
+          amount: number;
+          merchant: string;
+          status: string;
+          is_private: boolean;
+        }[]
+      >(
+        `budget_transactions?id=eq.${txId}&select=id,couple_id,user_id,amount,merchant,status,is_private&limit=1`,
+      );
+      const tx = txs[0];
+      if (!tx || tx.status !== "needs_review") {
+        return new Response(null, { status: 204 });
+      }
+      const formattedAmount = new Intl.NumberFormat("uk-UA", {
+        maximumFractionDigits: 2,
+      }).format(Number(tx.amount));
+      const merchantLabel = tx.merchant?.trim() || "Apple Pay";
+      const bodyText = `${formattedAmount} ₴ у ${merchantLabel} — оберіть категорію`;
+      if (tx.is_private) {
+        const [prefs, subs] = await Promise.all([
+          rest<Preferences[]>(
+            `push_preferences?user_id=eq.${tx.user_id}&select=user_id,enabled,budget`,
+          ).catch(() =>
+            rest<Preferences[]>(`push_preferences?user_id=eq.${tx.user_id}&select=user_id,enabled`),
+          ),
+          rest<Subscription[]>(
+            `push_subscriptions?user_id=eq.${tx.user_id}&select=id,user_id,endpoint,p256dh,auth_secret`,
+          ),
+        ]);
+        const pref = prefs[0];
+        if (pref?.enabled && (pref.budget ?? true) && subs.length) {
+          const payload = JSON.stringify({
+            title: "ours. · Оплата Apple Pay",
+            body: bodyText,
+            tag: "ours-budget-review",
+            url: config.app_url,
+          });
+          const privateJwk = encodeJwk(config.vapid_private_jwk);
+          await Promise.allSettled(
+            subs.map((sub) =>
+              sendOne(sub, payload, config.vapid_public_key, privateJwk, config.vapid_subject),
+            ),
+          );
+        }
+      } else {
+        await dispatchToCoupleRecipients(
+          tx.couple_id,
+          null,
+          "budget",
+          "ours. · Оплата Apple Pay",
+          bodyText,
+          "ours-budget-review",
+          config,
+        );
+      }
       return new Response(null, { status: 204 });
     }
 

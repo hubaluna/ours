@@ -7,14 +7,17 @@ import {
   Droplet,
   Film,
   Gift,
+  HelpCircle,
   ShoppingBag,
   Sprout,
   Utensils,
   X,
 } from "lucide-react";
 import { useApp } from "../hooks/AppContext";
-import type { Activity, Tab } from "../lib/types";
+import type { Activity, BudgetTransaction, Tab } from "../lib/types";
 import { greeting, kyivDate } from "../lib/utils";
+import { formatUAH, resolveBudgetCategories } from "../lib/budget";
+import { BudgetReviewSheet } from "./Budget";
 import { getEventReminders, getPlantReminders } from "../lib/home-reminders";
 import { eventOccursOn, nextOccurrence } from "../lib/recurrence";
 import { differenceDays, plantSchedule } from "../lib/plant-care";
@@ -51,10 +54,30 @@ const actions = {
   purchased: "купує",
 };
 export default function Home({ navigate }: { navigate: (tab: Tab) => void }) {
-  const { data, userId, markRead, pending } = useApp();
+  const {
+    data,
+    userId,
+    markRead,
+    pending,
+    categorizeBudgetTransaction,
+    removeBudgetTransaction,
+  } = useApp();
   const [detail, setDetail] = useState<Activity | null>(null);
+  const [reviewTx, setReviewTx] = useState<BudgetTransaction | null>(null);
   const [dismissed, setDismissed] = useState<string[]>(readDismissed);
   const today = kyivDate();
+  const needsReviewTxs = data.budgetTransactions
+    .filter(
+      (tx) =>
+        tx.status === "needs_review" &&
+        (!tx.is_private || tx.user_id === userId),
+    )
+    .sort(
+      (a, b) =>
+        b.occurred_on.localeCompare(a.occurred_on) ||
+        b.occurred_at.localeCompare(a.occurred_at),
+    );
+  const firstPendingTx = needsReviewTxs[0] ?? null;
   const plantReminders = getPlantReminders(data.plants, today);
   const eventReminders = getEventReminders(data.events, today).filter(
     (reminder) => !dismissed.includes(reminder.dismissKey),
@@ -261,6 +284,26 @@ export default function Home({ navigate }: { navigate: (tab: Tab) => void }) {
           </Button>
         )}
       </ScreenHeader>
+      {firstPendingTx && (
+        <button
+          type="button"
+          className="home-budget-alert"
+          onClick={() => setReviewTx(firstPendingTx)}
+        >
+          <span className="home-budget-alert-icon" aria-hidden="true">
+            <HelpCircle size={17} />
+          </span>
+          <span className="home-budget-alert-body">
+            <span className="row-kicker">Apple Pay · потрібна категорія</span>
+            <strong>
+              {needsReviewTxs.length === 1
+                ? `1 оплата без категорії · ${formatUAH(firstPendingTx.amount)} у ${firstPendingTx.merchant || "Apple Pay"}`
+                : `${needsReviewTxs.length} оплати без категорії · ${formatUAH(firstPendingTx.amount)} у ${firstPendingTx.merchant || "Apple Pay"}`}
+            </strong>
+          </span>
+          <ChevronRight size={16} />
+        </button>
+      )}
       {(plantReminders.length > 0 || eventReminders.length > 0) && (
         <div className="home-reminders" aria-label="Нагадування">
           {plantReminders.map((reminder) => (
@@ -391,6 +434,40 @@ export default function Home({ navigate }: { navigate: (tab: Tab) => void }) {
               </Button>
             </div>
           </BottomSheet>
+        )}
+        {reviewTx && (
+          <BudgetReviewSheet
+            tx={reviewTx}
+            categories={resolveBudgetCategories(
+              data.budgetCategories,
+              reviewTx.kind,
+            )}
+            busy={pending.includes(`categorize-${reviewTx.id}`)}
+            onClose={() => setReviewTx(null)}
+            onCategorize={async (categoryKey, saveRule, rulePattern) => {
+              const ok = await categorizeBudgetTransaction(
+                reviewTx.id,
+                categoryKey,
+                saveRule,
+                rulePattern,
+              );
+              if (ok) {
+                const next = needsReviewTxs.filter(
+                  (item) => item.id !== reviewTx.id,
+                );
+                setReviewTx(next[0] ?? null);
+              }
+            }}
+            onEditFull={() => {
+              setReviewTx(null);
+              navigate("budget");
+            }}
+            onDelete={async () => {
+              if (await removeBudgetTransaction(reviewTx.id)) {
+                setReviewTx(null);
+              }
+            }}
+          />
         )}
       </AnimatePresence>
     </section>
