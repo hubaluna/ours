@@ -7050,6 +7050,14 @@ p {
   font-size: 12px;
   line-height: 1.5;
 }
+.budget-shortcut-guide > summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.budget-shortcut-guide > summary::-webkit-details-marker { display: none; }
+.budget-shortcut-guide > summary strong { font-size: 12.5px; }
+.budget-shortcut-guide[open] > summary { margin-bottom: 6px; }
 .budget-shortcut-guide ol {
   margin: 0;
   padding-left: 18px;

@@ -1725,8 +1725,8 @@ function BudgetSettingsSheet({
             </div>
           )}
 
-          <div className="budget-shortcut-guide">
-            <strong>Як налаштувати на iPhone («Команди»):</strong>
+          <details className="budget-shortcut-guide">
+            <summary><strong>Як налаштувати на iPhone («Команди»)</strong></summary>
             <ol>
               <li>
                 Відкрийте <b>Команди</b> → <b>Автоматизація</b> → <b>+</b> →{" "}
@@ -1754,7 +1754,7 @@ function BudgetSettingsSheet({
                 <code>merchant</code> → Продавець, <code>card</code> → Картка.
               </li>
             </ol>
-          </div>
+          </details>
         </section>
 
         <section className="settings-section">

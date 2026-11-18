@@ -280,11 +280,29 @@ export default function App() {
   });
 
   useEffect(() => {
+    // Initial read (covers hard reload with share params)
     const extracted = extractShareTargetUrl(window.location.search);
     if (extracted) {
       window.history.replaceState({}, "", window.location.pathname);
       setSharedUrl(extracted);
     }
+
+    // When iOS brings a PWA to foreground via Share Sheet, the page doesn't
+    // reload — it fires pageshow / visibilitychange instead. We re-check the
+    // URL at that moment to catch share params that arrive after first render.
+    const handleFocus = () => {
+      const url = extractShareTargetUrl(window.location.search);
+      if (url) {
+        window.history.replaceState({}, "", window.location.pathname);
+        setSharedUrl(url);
+      }
+    };
+    window.addEventListener("pageshow", handleFocus);
+    document.addEventListener("visibilitychange", handleFocus);
+    return () => {
+      window.removeEventListener("pageshow", handleFocus);
+      document.removeEventListener("visibilitychange", handleFocus);
+    };
   }, []);
   const {
     needRefresh: [needRefresh, setNeedRefresh],
