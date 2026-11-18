@@ -19,6 +19,7 @@ import {
   type LinkMetadata,
 } from "../../supabase/functions/_shared/metadata";
 import type { NewShopping } from "../lib/types";
+import { groceryCatalogCategory } from "../lib/grocery-catalog";
 import { movieSynopsis } from "../../supabase/functions/_shared/movie-synopsis";
 import { normalizeImportUrl } from "../../supabase/functions/_shared/urls";
 import { isGenericTikTokTitle } from "../../supabase/functions/_shared/movie-search";
@@ -587,36 +588,106 @@ export function LinkImport({
                   {selected.length ? "Зняти всі" : "Вибрати всі"}
                 </button>
               </div>
-              <div className="ingredients-list">
-                {ingredients.map((item, index) => (
-                  <div
-                    key={index}
-                    className={`ingredient-row ${item.selected ? "selected" : ""}`}
-                  >
-                    <label className="ingredient-check">
+              {ingredients.length === 0 ? (
+                <p className="form-error">
+                  На сторінці не знайдено списку інгредієнтів. Вставте його
+                  текст.
+                </p>
+              ) : (
+                <div className="ingredient-list">
+                  {ingredients.map((item, index) => (
+                    <div className="ingredient" key={index}>
                       <input
+                        aria-label={`Додати ${item.name}`}
                         type="checkbox"
                         checked={item.selected}
                         onChange={(e) =>
-                          setIngredients(
-                            ingredients.map((ing, i) =>
+                          setIngredients((values) =>
+                            values.map((v, i) =>
                               i === index
-                                ? { ...ing, selected: e.target.checked }
-                                : ing,
+                                ? { ...v, selected: e.target.checked }
+                                : v,
                             ),
                           )
                         }
                       />
-                      <span className="ingredient-name">{item.name}</span>
-                    </label>
-                    <span className="ingredient-qty">
-                      {item.quantity === null
-                        ? item.unit
-                        : `${item.quantity} ${item.unit}`}
-                    </span>
-                  </div>
-                ))}
-              </div>
+                      <input
+                        aria-label={`Інгредієнт ${index + 1}`}
+                        value={item.name}
+                        maxLength={160}
+                        onChange={(e) =>
+                          setIngredients((values) =>
+                            values.map((v, i) =>
+                              i === index
+                                ? {
+                                    ...v,
+                                    name: e.target.value,
+                                    category: groceryCatalogCategory(
+                                      e.target.value,
+                                    ),
+                                  }
+                                : v,
+                            ),
+                          )
+                        }
+                      />
+                      {item.note && (
+                        <small className="ingredient-note">
+                          З джерела: {item.note}
+                        </small>
+                      )}
+                      <details className="ingredient-extra">
+                        <summary>Додатково</summary>
+                        <div className="form-grid">
+                          <input
+                            aria-label={`Кількість ${index + 1}`}
+                            type="number"
+                            min="0.01"
+                            step="any"
+                            value={item.quantity ?? ""}
+                            onChange={(e) =>
+                              setIngredients((values) =>
+                                values.map((v, i) =>
+                                  i === index
+                                    ? { ...v, quantity: Number(e.target.value) }
+                                    : v,
+                                ),
+                              )
+                            }
+                          />
+                          <select
+                            aria-label={`Одиниця ${index + 1}`}
+                            value={item.unit}
+                            onChange={(e) =>
+                              setIngredients((values) =>
+                                values.map((v, i) =>
+                                  i === index
+                                    ? { ...v, unit: e.target.value }
+                                    : v,
+                                ),
+                              )
+                            }
+                          >
+                            {[
+                              "шт.",
+                              "кг",
+                              "г",
+                              "л",
+                              "мл",
+                              "уп.",
+                              "за рецептом",
+                              "за смаком",
+                            ].map((unit) => (
+                              <option key={unit}>{unit}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <small>{item.category}</small>
+                      </details>
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           ) : (
             <>
