@@ -344,7 +344,7 @@ function PlantDetails({
           )}
           {days <= 0 && (
             <Button
-              className="ghost"
+              className="ghost plant-detail-wet-btn"
               onClick={() =>
                 void recordPlantCare(plant.id, "wet").then(
                   (ok) => ok && onClose(),
@@ -357,10 +357,12 @@ function PlantDetails({
           )}
           {days <= 0 && (
             <Button
+              className="plant-detail-water-btn"
               onClick={() => void water()}
               busy={pending.includes(`plant-${plant.id}`)}
             >
-              Полила сьогодні
+              <Droplet size={17} strokeWidth={2.2} />
+              <span>Полила сьогодні</span>
             </Button>
           )}
           <IconButton
