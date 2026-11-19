@@ -1588,6 +1588,10 @@ function BudgetSettingsSheet({
   } | null>;
   revokeToken: () => Promise<boolean>;
 }) {
+  const [activeTab, setActiveTab] = useState<"general" | "apple_pay" | "rules">(
+    "general",
+  );
+  const [guideOpen, setGuideOpen] = useState(false);
   const [tokenStatus, setTokenStatus] =
     useState<BudgetTokenStatus | null>(null);
   const [revealedToken, setRevealedToken] = useState<string | null>(null);
@@ -1649,239 +1653,349 @@ function BudgetSettingsSheet({
   return (
     <BottomSheet title="Налаштування бюджету" onClose={onClose}>
       <div className="budget-settings-sheet">
-        <section className="settings-section">
-          <h3>
-            <Lock size={16} /> Приватність доходів
-          </h3>
-          <label className="push-reminder-toggle">
-            <input
-              type="checkbox"
-              checked={myShareIncome}
-              disabled={pending.includes("budget-income-sharing")}
-              onChange={(e) => onToggleShareIncome(e.target.checked)}
-            />
-            <span>
-              <strong>Показувати мої доходи партнеру</strong>
-              <small>
-                За замовчуванням доходи бачите лише ви. Витрати завжди спільні.
-              </small>
-            </span>
-          </label>
-        </section>
+        <div
+          className="segmented budget-view-switch"
+          role="tablist"
+          aria-label="Розділи налаштувань"
+        >
+          {(
+            [
+              ["general", "Основні"],
+              ["apple_pay", "Apple Pay"],
+              [
+                "rules",
+                rules.length > 0 ? `Правила · ${rules.length}` : "Правила",
+              ],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === id}
+              className={activeTab === id ? "active" : ""}
+              onClick={() => setActiveTab(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
-        <section className="settings-section">
-          <h3>
-            <Smartphone size={16} /> Apple Pay · Команди iPhone
-          </h3>
-          <p className="settings-help">
-            Після кожної оплати Apple Pay iPhone може автоматично надсилати суму
-            й продавця в Ours. Невідомих продавців ми запитаємо в 1 клік.
-          </p>
+        {activeTab === "general" && (
+          <div className="budget-settings-panel" role="tabpanel">
+            <section className="budget-settings-card">
+              <h3>
+                <Lock size={15} /> Приватність доходів
+              </h3>
+              <label className="push-reminder-toggle">
+                <input
+                  type="checkbox"
+                  checked={myShareIncome}
+                  disabled={pending.includes("budget-income-sharing")}
+                  onChange={(e) => onToggleShareIncome(e.target.checked)}
+                />
+                <span>
+                  <strong>Показувати мої доходи партнеру</strong>
+                  <small>
+                    За замовчуванням доходи бачите лише ви. Витрати завжди
+                    спільні.
+                  </small>
+                </span>
+              </label>
+            </section>
 
-          <div className="budget-token-box">
-            <div className="budget-token-status">
-              <span>Статус токена:</span>
-              <strong>
-                {tokenStatus?.has_token
-                  ? `Активний (••••${tokenStatus.token_hint})`
-                  : "Не створено"}
-              </strong>
-            </div>
-            {tokenStatus?.has_token && (
-              <div className="budget-token-last-used">
-                <span>Останній запит:</span>
-                <strong>
-                  {tokenStatus.last_used_at
-                    ? new Intl.DateTimeFormat("uk-UA", {
-                        day: "numeric",
-                        month: "short",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        timeZone: "Europe/Kyiv",
-                      }).format(new Date(tokenStatus.last_used_at))
-                    : "ще не надходило"}
-                </strong>
-              </div>
-            )}
-            <div className="budget-token-actions">
-              <Button
-                type="button"
-                busy={pending.includes("rotate-budget-token")}
-                onClick={() => void handleGenerateToken()}
-              >
-                {tokenStatus?.has_token ? "Оновити токен" : "Створити токен"}
-              </Button>
-              {tokenStatus?.has_token && (
-                <Button
+            <section className="budget-settings-card">
+              <div className="budget-cat-picker-head">
+                <h3>Власні категорії</h3>
+                <button
                   type="button"
-                  className="danger ghost"
-                  busy={pending.includes("revoke-budget-token")}
-                  onClick={() => void handleRevokeToken()}
+                  className="budget-inline-link"
+                  onClick={onAddCategory}
                 >
-                  Відкликати
-                </Button>
+                  + Додати
+                </button>
+              </div>
+              {customCategories.length === 0 ? (
+                <p className="settings-help">
+                  Поки використовуються стандартні категорії. Ви можете додати
+                  власні у будь-який момент.
+                </p>
+              ) : (
+                <div className="budget-rules-list">
+                  {customCategories.map((cat) => {
+                    const meta = allCategories.find(
+                      (c) => c.customId === cat.id,
+                    );
+                    return (
+                      <div className="budget-rule-row" key={cat.id}>
+                        <div className="budget-rule-copy">
+                          <strong>
+                            {meta?.emoji ?? cat.emoji} {cat.name}
+                          </strong>
+                          <small>
+                            {cat.kind === "income" ? "Дохід" : "Витрата"}
+                          </small>
+                        </div>
+                        <IconButton
+                          label={`Видалити категорію ${cat.name}`}
+                          onClick={() => onDeleteCategory(cat.id)}
+                        >
+                          <Trash2 size={15} />
+                        </IconButton>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
-            </div>
+            </section>
           </div>
+        )}
 
-          {revealedToken && (
-            <div className="budget-secret-reveal">
-              <small>
-                Збережіть токен зараз — з міркувань безпеки він показується один
-                раз:
-              </small>
-              <div className="budget-copy-row">
-                <code>{revealedToken}</code>
-                <Button
-                  type="button"
-                  className="secondary"
-                  onClick={() => void copyText(revealedToken, "Токен")}
-                >
-                  <Copy size={14} />
-                  Копіювати
-                </Button>
-              </div>
-            </div>
-          )}
+        {activeTab === "apple_pay" && (
+          <div className="budget-settings-panel" role="tabpanel">
+            <section className="budget-settings-card">
+              <h3>
+                <Smartphone size={15} /> Apple Pay · Команди iPhone
+              </h3>
+              <p className="settings-help">
+                Після оплати Apple Pay iPhone може сам надсилати суму й
+                продавця в Ours.
+              </p>
 
-          <details className="budget-shortcut-guide">
-            <summary><strong>Як налаштувати на iPhone («Команди»)</strong></summary>
-            <ol>
-              <li>
-                Відкрийте <b>Команди</b> → <b>Автоматизація</b> → <b>+</b> →{" "}
-                <b>Транзакція</b> (Wallet / Apple Pay) → <b>Запускати негайно</b>.
-              </li>
-              <li>
-                Додайте дію <b>Отримати вміст URL</b> (Get Contents of URL):
-                <div className="budget-copy-row">
-                  <code>{ingestUrl}</code>
+              <div className="budget-token-box">
+                <div className="budget-token-status">
+                  <span>Статус токена:</span>
+                  <strong>
+                    {tokenStatus?.has_token
+                      ? `Активний (••••${tokenStatus.token_hint})`
+                      : "Не створено"}
+                  </strong>
+                </div>
+                {tokenStatus?.has_token && (
+                  <div className="budget-token-status">
+                    <span>Останній запит:</span>
+                    <strong>
+                      {tokenStatus.last_used_at
+                        ? new Intl.DateTimeFormat("uk-UA", {
+                            day: "numeric",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            timeZone: "Europe/Kyiv",
+                          }).format(new Date(tokenStatus.last_used_at))
+                        : "Ще не надходило"}
+                    </strong>
+                  </div>
+                )}
+                <div className="budget-token-actions">
                   <Button
                     type="button"
-                    className="ghost"
-                    onClick={() => void copyText(ingestUrl, "URL")}
+                    busy={pending.includes("rotate-budget-token")}
+                    onClick={() => void handleGenerateToken()}
                   >
-                    <Copy size={14} />
+                    {tokenStatus?.has_token
+                      ? "Оновити токен"
+                      : "Створити токен"}
                   </Button>
+                  {tokenStatus?.has_token && (
+                    <Button
+                      type="button"
+                      className="danger ghost"
+                      busy={pending.includes("revoke-budget-token")}
+                      onClick={() => void handleRevokeToken()}
+                    >
+                      Відкликати
+                    </Button>
+                  )}
                 </div>
-              </li>
-              <li>
-                Метод: <b>POST</b> · Заголовок:{" "}
-                <code>Authorization: Bearer ВАШ_ТОКЕН</code>
-              </li>
-              <li>
-                Тіло (<b>JSON</b>): <code>amount</code> → Сума,{" "}
-                <code>merchant</code> → Продавець, <code>card</code> → Картка.
-              </li>
-            </ol>
-          </details>
-        </section>
+              </div>
 
-        <section className="settings-section">
-          <h3>
-            <Plus size={16} /> Правила «Продавець → Категорія»
-          </h3>
-          <form className="budget-rule-add" onSubmit={handleAddRule}>
-            <input
-              value={rulePattern}
-              onChange={(e) => setRulePattern(e.target.value)}
-              placeholder="Продавець (напр. FOP IVANOV)"
-              maxLength={120}
-            />
-            <select
-              value={ruleCatKey}
-              onChange={(e) => setRuleCatKey(e.target.value)}
-            >
-              {expenseCategories.map((cat) => (
-                <option key={cat.key} value={cat.key}>
-                  {cat.emoji} {cat.name}
-                </option>
-              ))}
-            </select>
-            <Button
-              type="submit"
-              className="secondary"
-              busy={pending.includes("save-budget-rule")}
-            >
-              Додати
-            </Button>
-          </form>
-
-          {rules.length === 0 ? (
-            <p className="settings-help">
-              Правил ще немає — вони створюються самі, коли ви обираєте категорію
-              для оплати Apple Pay.
-            </p>
-          ) : (
-            <div className="budget-rules-list">
-              {rules.map((rule) => {
-                const meta = findCategoryMeta(
-                  rule.category_key,
-                  customCategories,
-                  rule.kind,
-                );
-                return (
-                  <div className="budget-rule-row" key={rule.id}>
-                    <div className="budget-rule-copy">
-                      <strong>{rule.merchant_pattern}</strong>
-                      <small>
-                        {meta.emoji} {meta.name}
-                      </small>
-                    </div>
-                    <IconButton
-                      label={`Видалити правило ${rule.merchant_pattern}`}
-                      onClick={() => onDeleteRule(rule.id)}
+              {revealedToken && (
+                <div className="budget-secret-reveal">
+                  <small>
+                    Збережіть токен зараз — він показується один раз:
+                  </small>
+                  <div className="budget-copy-row">
+                    <code>{revealedToken}</code>
+                    <Button
+                      type="button"
+                      className="secondary"
+                      onClick={() => void copyText(revealedToken, "Токен")}
                     >
-                      <X size={15} />
-                    </IconButton>
+                      <Copy size={14} />
+                      Копіювати
+                    </Button>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
+                </div>
+              )}
 
-        <section className="settings-section">
-          <div className="budget-cat-picker-head">
-            <h3>Власні категорії</h3>
-            <button
-              type="button"
-              className="budget-inline-link"
-              onClick={onAddCategory}
-            >
-              + Додати
-            </button>
+              <button
+                type="button"
+                className="budget-guide-toggle"
+                aria-expanded={guideOpen}
+                onClick={() => setGuideOpen((v) => !v)}
+              >
+                <span>Покрокова інструкція для iPhone («Команди»)</span>
+                {guideOpen ? (
+                  <ChevronUp size={16} />
+                ) : (
+                  <ChevronDown size={16} />
+                )}
+              </button>
+
+              {guideOpen && (
+                <div className="budget-shortcut-guide">
+                  <ol>
+                    <li>
+                      <b>Згенеруйте токен угорі</b> (кнопка «Створити» / «Оновити токен») і не закривайте це вікно, щоб зручно скопіювати дані.
+                    </li>
+                    <li>
+                      <b>Створіть автоматизацію:</b> на iPhone відкрийте додаток{" "}
+                      <b>Команди</b> (Shortcuts) → вкладка <b>Автоматизація</b>{" "}
+                      → <b>+</b> → <b>Транзакція</b> (Transaction). Оберіть потрібні картки, увімкніть{" "}
+                      <b>Запускати негайно</b> (Run Immediately) → <b>Далі</b> →{" "}
+                      <b>Нова порожня автоматизація</b>.
+                    </li>
+                    <li>
+                      <b>Додайте дію «Отримати вміст URL»</b> (Get Contents of URL) і вставте посилання:
+                      <div className="budget-copy-row">
+                        <code>{ingestUrl}</code>
+                        <Button
+                          type="button"
+                          className="ghost"
+                          onClick={() => void copyText(ingestUrl, "URL")}
+                        >
+                          <Copy size={14} />
+                        </Button>
+                      </div>
+                    </li>
+                    <li>
+                      <b>Метод і заголовок:</b> розгорніть стрілку <b>▸</b> біля URL → оберіть{" "}
+                      <b>Метод: POST</b> → у блоці <b>Заголовки</b> (Headers) додайте рядок:
+                      <div className="budget-guide-kv">
+                        <span>Ключ: <code>Authorization</code></span>
+                        <span>
+                          Текст:{" "}
+                          <code>
+                            {revealedToken
+                              ? `Bearer ${revealedToken}`
+                              : "Bearer ВАШ_ТОКЕН"}
+                          </code>
+                        </span>
+                      </div>
+                      {revealedToken && (
+                        <div className="budget-copy-row">
+                          <code>{`Bearer ${revealedToken}`}</code>
+                          <Button
+                            type="button"
+                            className="ghost"
+                            onClick={() =>
+                              void copyText(
+                                `Bearer ${revealedToken}`,
+                                "Заголовок Authorization",
+                              )
+                            }
+                          >
+                            <Copy size={14} />
+                          </Button>
+                        </div>
+                      )}
+                    </li>
+                    <li>
+                      <b>Тіло запиту (JSON):</b> оберіть <b>Тіло запиту</b> →{" "}
+                      <b>JSON</b> і додайте поля типу <b>Текст</b>, обравши в значеннях змінні з{" "}
+                      <b>Вводу команди</b> (Shortcut Input):
+                      <ul className="budget-guide-fields">
+                        <li>
+                          <code>amount</code> → <b>Сума</b> <i>(Amount)</i>
+                        </li>
+                        <li>
+                          <code>merchant</code> → <b>Продавець</b> <i>(Merchant)</i>
+                        </li>
+                        <li>
+                          <code>card</code> → <b>Картка</b> <i>(Card or Pass, за бажанням)</i>
+                        </li>
+                      </ul>
+                    </li>
+                  </ol>
+                  <p className="budget-guide-note">
+                    Якщо оплата не підтягнулась: перевірте, що в заголовку є слово{" "}
+                    <code>Bearer </code> перед токеном, а після <b>Транзакція</b> увімкнено{" "}
+                    <b>Запускати негайно</b> (для оплат з Apple Watch тригер на iPhone інколи не спрацьовує).
+                  </p>
+                </div>
+              )}
+            </section>
           </div>
-          {customCategories.length === 0 ? (
-            <p className="settings-help">
-              Поки використовуються стандартні категорії. Ви можете додати власні
-              у будь-який момент.
-            </p>
-          ) : (
-            <div className="budget-rules-list">
-              {customCategories.map((cat) => {
-                const meta = allCategories.find((c) => c.customId === cat.id);
-                return (
-                  <div className="budget-rule-row" key={cat.id}>
-                    <div className="budget-rule-copy">
-                      <strong>
-                        {meta?.emoji ?? cat.emoji} {cat.name}
-                      </strong>
-                      <small>
-                        {cat.kind === "income" ? "Дохід" : "Витрата"}
-                      </small>
-                    </div>
-                    <IconButton
-                      label={`Видалити категорію ${cat.name}`}
-                      onClick={() => onDeleteCategory(cat.id)}
-                    >
-                      <Trash2 size={15} />
-                    </IconButton>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
+        )}
+
+        {activeTab === "rules" && (
+          <div className="budget-settings-panel" role="tabpanel">
+            <section className="budget-settings-card">
+              <h3>
+                <Plus size={15} /> Правила «Продавець → Категорія»
+              </h3>
+              <form className="budget-rule-add" onSubmit={handleAddRule}>
+                <input
+                  value={rulePattern}
+                  onChange={(e) => setRulePattern(e.target.value)}
+                  placeholder="Продавець (напр. FOP IVANOV)"
+                  maxLength={120}
+                />
+                <select
+                  value={ruleCatKey}
+                  onChange={(e) => setRuleCatKey(e.target.value)}
+                >
+                  {expenseCategories.map((cat) => (
+                    <option key={cat.key} value={cat.key}>
+                      {cat.emoji} {cat.name}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  type="submit"
+                  className="secondary"
+                  busy={pending.includes("save-budget-rule")}
+                >
+                  Додати
+                </Button>
+              </form>
+
+              {rules.length === 0 ? (
+                <p className="settings-help">
+                  Правил ще немає — вони створюються самі, коли ви обираєте
+                  категорію для оплати Apple Pay.
+                </p>
+              ) : (
+                <div className="budget-rules-list">
+                  {rules.map((rule) => {
+                    const meta = findCategoryMeta(
+                      rule.category_key,
+                      customCategories,
+                      rule.kind,
+                    );
+                    return (
+                      <div className="budget-rule-row" key={rule.id}>
+                        <div className="budget-rule-copy">
+                          <strong>{rule.merchant_pattern}</strong>
+                          <small>
+                            {meta.emoji} {meta.name}
+                          </small>
+                        </div>
+                        <IconButton
+                          label={`Видалити правило ${rule.merchant_pattern}`}
+                          onClick={() => onDeleteRule(rule.id)}
+                        >
+                          <X size={15} />
+                        </IconButton>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
       </div>
     </BottomSheet>
   );
