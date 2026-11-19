@@ -14,7 +14,10 @@ import {
   resolveBudgetCategories,
   suggestRulePattern,
 } from "../src/lib/budget";
-import { buildPdfFromJpegPages } from "../src/lib/budget-pdf";
+import {
+  buildPdfFromJpegPages,
+  preparePdfAnalyticsData,
+} from "../src/lib/budget-pdf";
 import {
   isMissingBudgetTableError,
   markLocalBudgetSynced,
@@ -48,9 +51,14 @@ describe("budget module", () => {
 
   it("parses Apple Pay and manual amounts in Ukrainian and international formats", () => {
     expect(parseApplePayAmount(450)).toBe(450);
+    expect(parseApplePayAmount(-450)).toBe(450);
     expect(parseApplePayAmount("-450,00 ₴")).toBe(450);
+    expect(parseApplePayAmount("1\u202f250.50 UAH")).toBe(1250.5);
     expect(parseApplePayAmount("1 250.50 UAH")).toBe(1250.5);
     expect(parseApplePayAmount("1,250.50 грн")).toBe(1250.5);
+    expect(parseApplePayAmount("45.99 $")).toBe(45.99);
+    expect(parseApplePayAmount("30,50 €")).toBe(30.5);
+    expect(parseApplePayAmount("120 zł")).toBe(120);
     expect(parseApplePayAmount("0")).toBeNull();
     expect(parseApplePayAmount("")).toBeNull();
   });
@@ -240,6 +248,73 @@ describe("budget module", () => {
     const tail = new TextDecoder().decode(pdf.slice(-8));
     expect(header).toBe("%PDF-1.4");
     expect(tail).toContain("%%EOF");
+
+    const demo = createDemo();
+    const range = getPeriodRange("all_time", "", "", "2026-11-17");
+    const stats = computeBudgetStats({
+      transactions: demo.budgetTransactions,
+      customCategories: demo.budgetCategories,
+      budgetSettings: demo.budgetSettings,
+      scope: "all",
+      userId: DEMO_USER,
+      from: range.from,
+      to: range.to,
+    });
+    const chartData = preparePdfAnalyticsData({
+      periodLabel: range.label,
+      periodFrom: range.from,
+      periodTo: range.to,
+      scopeLabel: "Разом",
+      generatedAtLabel: "17 лист. 2026",
+      expenseTotal: stats.expenseTotal,
+      incomeTotal: stats.incomeTotal,
+      balance: stats.balance,
+      savingsRate: stats.savingsRate,
+      expenseRows: stats.expenseRows,
+      incomeRows: stats.incomeRows,
+      transactions: stats.filteredTransactions,
+    });
+    expect(chartData.donutSlices).toHaveLength(6);
+    expect(chartData.donutSlices[5].key).toBe("_rest");
+    expect(chartData.donutSlices[0].startAngle).toBeCloseTo(-Math.PI / 2, 5);
+    expect(chartData.donutSlices[5].endAngle).toBeCloseTo(Math.PI * 1.5, 5);
+    expect(chartData.topCategory?.key).toBe("groceries");
+    expect(chartData.dailyAverage).toBeGreaterThan(0);
+
+    const multiMonth = preparePdfAnalyticsData({
+      periodLabel: range.label,
+      periodFrom: "2026-08-01",
+      periodTo: "2026-11-17",
+      scopeLabel: "Разом",
+      generatedAtLabel: "17 лист. 2026",
+      expenseTotal: 1500,
+      incomeTotal: 5000,
+      balance: 3500,
+      expenseRows: stats.expenseRows.slice(0, 3),
+      incomeRows: stats.incomeRows,
+      transactions: [
+        ...demo.budgetTransactions.slice(0, 2),
+        {
+          id: "extra-nov",
+          couple_id: DEMO_COUPLE,
+          user_id: DEMO_USER,
+          kind: "expense",
+          amount: 450,
+          merchant: "Сільпо",
+          note: "",
+          category_key: "groceries",
+          status: "confirmed",
+          source: "apple_pay",
+          is_private: false,
+          occurred_on: "2026-11-15",
+          occurred_at: "2026-11-15T12:00:00Z",
+          created_at: "2026-11-15T12:00:00Z",
+        },
+      ],
+    });
+    expect(multiMonth.timelineMode).toBe("monthly");
+    expect(multiMonth.timelineBars).toHaveLength(2);
+    expect(multiMonth.notableTransactions[0].id).toBe("extra-nov");
   });
 
   it("handles missing Supabase budget tables with idempotent local fallback and pendingSync", () => {

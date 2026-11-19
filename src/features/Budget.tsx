@@ -212,6 +212,8 @@ export default function Budget() {
       }).format(new Date());
       const result = await exportBudgetPdfReport({
         periodLabel: period.label,
+        periodFrom: period.from,
+        periodTo: period.to,
         scopeLabel,
         generatedAtLabel,
         expenseTotal: stats.expenseTotal,
@@ -220,6 +222,7 @@ export default function Budget() {
         savingsRate: stats.savingsRate,
         expenseRows: stats.expenseRows,
         incomeRows: stats.incomeRows,
+        transactions: stats.filteredTransactions,
       });
       notify(
         result === "shared"
@@ -1684,6 +1687,22 @@ function BudgetSettingsSheet({
                   : "Не створено"}
               </strong>
             </div>
+            {tokenStatus?.has_token && (
+              <div className="budget-token-last-used">
+                <span>Останній запит:</span>
+                <strong>
+                  {tokenStatus.last_used_at
+                    ? new Intl.DateTimeFormat("uk-UA", {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        timeZone: "Europe/Kyiv",
+                      }).format(new Date(tokenStatus.last_used_at))
+                    : "ще не надходило"}
+                </strong>
+              </div>
+            )}
             <div className="budget-token-actions">
               <Button
                 type="button"

@@ -6981,12 +6981,21 @@ p {
   background: var(--glass-subtle);
   border: 1px solid var(--glass-edge);
 }
-.budget-token-status {
+.budget-token-status,
+.budget-token-last-used {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   font-size: 13px;
+}
+.budget-token-last-used {
+  color: var(--muted);
+  font-size: 12px;
+}
+.budget-token-last-used strong {
+  color: var(--text);
+  font-weight: 500;
 }
 .budget-token-actions {
   display: flex;

@@ -41,7 +41,8 @@ async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
     },
   });
   if (!response.ok) {
-    throw new Error(`Supabase REST error ${response.status}`);
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Supabase REST error ${response.status}: ${errorText}`);
   }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
@@ -49,10 +50,23 @@ async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 function extractToken(request: Request, body: Record<string, unknown>): string {
   const auth = request.headers.get("authorization") ?? "";
-  const bearer = /^Bearer\s+(.+)$/i.exec(auth.trim())?.[1]?.trim();
-  const headerToken = request.headers.get("x-ours-budget-token")?.trim();
-  const bodyToken = typeof body.token === "string" ? body.token.trim() : "";
-  return bearer || headerToken || bodyToken || "";
+  let token = "";
+  if (auth) {
+    const trimmed = auth.trim();
+    const bearerMatch = /^Bearer\s+(.+)$/i.exec(trimmed);
+    if (bearerMatch) {
+      token = bearerMatch[1].trim();
+    } else {
+      token = trimmed;
+    }
+  }
+  if (!token) {
+    token = request.headers.get("x-ours-budget-token")?.trim() ?? "";
+  }
+  if (!token && typeof body.token === "string") {
+    token = body.token.trim();
+  }
+  return token.replace(/^["']|["']$/g, "").trim();
 }
 
 function parseOccurredDate(raw: unknown): {
@@ -83,6 +97,57 @@ function parseOccurredDate(raw: unknown): {
   };
 }
 
+async function parseRequestBody(request: Request): Promise<Record<string, unknown>> {
+  const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
+  try {
+    if (
+      contentType.includes("application/x-www-form-urlencoded") ||
+      contentType.includes("multipart/form-data")
+    ) {
+      const formData = await request.formData();
+      const result: Record<string, unknown> = {};
+      for (const [key, value] of formData.entries()) {
+        result[key] = typeof value === "string" ? value : (value as File).name;
+      }
+      return result;
+    }
+  } catch {
+    // fallback to text/json
+  }
+
+  const text = await request.text();
+  if (!text.trim()) return {};
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // If not JSON, try parsing as URL search params (e.g. key=value&key2=value2)
+    try {
+      const params = new URLSearchParams(text);
+      const result: Record<string, unknown> = {};
+      let count = 0;
+      for (const [k, v] of params.entries()) {
+        result[k] = v;
+        count++;
+      }
+      if (count > 0) return result;
+    } catch {
+      // ignore
+    }
+  }
+  return {};
+}
+
+function normalizeBody(body: Record<string, unknown>): Record<string, unknown> {
+  const normalized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(body)) {
+    normalized[key.toLowerCase().trim()] = value;
+  }
+  return normalized;
+}
+
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
@@ -102,19 +167,16 @@ export async function handleRequest(request: Request): Promise<Response> {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
-  let body: Record<string, unknown>;
-  try {
-    const raw = await request.json();
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
-    }
-    body = raw as Record<string, unknown>;
-  } catch {
-    return jsonResponse({ error: "Invalid JSON body" }, 400);
-  }
+  const rawBody = await parseRequestBody(request);
+  const body = normalizeBody(rawBody);
 
   const token = extractToken(request, body);
   if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
+    console.error("[expense-ingest] 401 Unauthorized: token malformed or missing", {
+      hasAuth: Boolean(request.headers.get("authorization")),
+      tokenLength: token.length,
+      tokenHint: token ? token.slice(-4) : "empty",
+    });
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
@@ -128,12 +190,25 @@ export async function handleRequest(request: Request): Promise<Response> {
     );
     const identity = resolved[0];
     if (!identity) {
+      console.error("[expense-ingest] 401 Unauthorized: token not found in database", {
+        tokenHint: token.slice(-4),
+      });
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
-    const rawAmount = body.amount ?? body.сума;
+    const rawAmount =
+      body.amount ??
+      body.сума ??
+      body.sum ??
+      body.price ??
+      body.ціна ??
+      body.value;
     const amount = parseApplePayAmount(rawAmount);
     if (amount === null) {
+      console.error("[expense-ingest] 400 Invalid amount:", {
+        rawAmount,
+        availableKeys: Object.keys(body),
+      });
       return jsonResponse({ error: "Invalid amount" }, 400);
     }
 
@@ -142,18 +217,25 @@ export async function handleRequest(request: Request): Promise<Response> {
       body.name ??
       body.продавець ??
       body.назва ??
+      body.store ??
+      body.магазин ??
+      body.payee ??
       "Apple Pay";
     const merchant = String(rawMerchant).trim().slice(0, 160) || "Apple Pay";
-    const cardLabel = String(body.card ?? body.картка ?? "")
+    const cardLabel = String(
+      body.card ?? body.картка ?? body.card_label ?? body.account ?? "",
+    )
       .trim()
       .slice(0, 60);
-    const note = String(body.note ?? body.нотатка ?? "")
+    const note = String(
+      body.note ?? body.нотатка ?? body.коментар ?? body.comment ?? "",
+    )
       .trim()
       .slice(0, 500);
     const kind: BudgetKind =
       body.kind === "income" || body.тип === "income" ? "income" : "expense";
     const { occurredOn, occurredAt } = parseOccurredDate(
-      body.date ?? body.дата,
+      body.date ?? body.дата ?? body.time ?? body.час,
     );
 
     // Prevent accidental double-triggers from iOS Shortcuts within 45 seconds.
@@ -174,6 +256,11 @@ export async function handleRequest(request: Request): Promise<Response> {
       (row) => normalizeMerchantName(row.merchant) === normMerchant,
     );
     if (duplicate) {
+      console.log("[expense-ingest] 200 Duplicate ignored:", {
+        duplicateId: duplicate.id,
+        merchant,
+        amount,
+      });
       return jsonResponse({
         ok: true,
         duplicate: true,
@@ -224,6 +311,14 @@ export async function handleRequest(request: Request): Promise<Response> {
     });
 
     const created = inserted[0];
+    console.log("[expense-ingest] 201 Created:", {
+      id: created?.id,
+      merchant,
+      amount,
+      status: created?.status ?? status,
+      matched_by: match.matched_by,
+    });
+
     return jsonResponse(
       {
         ok: true,
@@ -235,7 +330,8 @@ export async function handleRequest(request: Request): Promise<Response> {
       },
       201,
     );
-  } catch {
+  } catch (err) {
+    console.error("[expense-ingest] 503 Internal Error:", err);
     return jsonResponse({ error: "Budget ingest unavailable" }, 503);
   }
 }

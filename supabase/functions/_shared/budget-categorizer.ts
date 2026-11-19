@@ -501,19 +501,20 @@ export function suggestRulePattern(raw: string): string {
 
 export function parseApplePayAmount(raw: unknown): number | null {
   if (typeof raw === "number") {
-    if (!Number.isFinite(raw) || raw <= 0 || raw >= 100_000_000) return null;
-    return Math.round(raw * 100) / 100;
+    const abs = Math.abs(raw);
+    if (!Number.isFinite(abs) || abs <= 0 || abs >= 100_000_000) return null;
+    return Math.round(abs * 100) / 100;
   }
   if (typeof raw !== "string") return null;
   let text = raw
     .normalize("NFKC")
-    .replace(/\u00a0/g, " ")
-    .replace(/(?:uah|грн|₴)/gi, "")
+    .replace(/[\u00a0\u202f\u2007\u200b]/g, " ")
+    .replace(/(?:uah|грн|usd|eur|pln|zł|gbp|₴|\$|€|£)/gi, "")
     .replace(/[^\d.,+\-\s]/g, "")
     .trim();
   if (!text) return null;
   text = text.replace(/\s+/g, "");
-  if (text.startsWith("-") || text.startsWith("+")) {
+  while (text.startsWith("-") || text.startsWith("+")) {
     text = text.slice(1);
   }
   if (!text) return null;
@@ -535,7 +536,7 @@ export function parseApplePayAmount(raw: unknown): number | null {
       normalized = text.replace(/,/g, "");
     }
   }
-  const value = Number(normalized);
+  const value = Math.abs(Number(normalized));
   if (!Number.isFinite(value) || value <= 0 || value >= 100_000_000) {
     return null;
   }
