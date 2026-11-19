@@ -75,7 +75,9 @@ export default function Home({ navigate }: { navigate: (tab: Tab) => void }) {
     .sort(
       (a, b) =>
         b.occurred_on.localeCompare(a.occurred_on) ||
-        b.occurred_at.localeCompare(a.occurred_at),
+        (Date.parse(b.occurred_at || b.created_at) || 0) -
+          (Date.parse(a.occurred_at || a.created_at) || 0) ||
+        (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0),
     );
   const firstPendingTx = needsReviewTxs[0] ?? null;
   const plantReminders = getPlantReminders(data.plants, today);

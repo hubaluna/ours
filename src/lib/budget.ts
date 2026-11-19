@@ -387,12 +387,16 @@ export function computeBudgetStats(params: {
       : null;
 
   return {
-    filteredTransactions: visibleInPeriod.sort(
-      (a, b) =>
-        b.occurred_on.localeCompare(a.occurred_on) ||
-        b.occurred_at.localeCompare(a.occurred_at) ||
-        b.created_at.localeCompare(a.created_at),
-    ),
+    filteredTransactions: visibleInPeriod.sort((a, b) => {
+      const dateDiff = b.occurred_on.localeCompare(a.occurred_on);
+      if (dateDiff !== 0) return dateDiff;
+      const timeA = Date.parse(a.occurred_at || a.created_at) || 0;
+      const timeB = Date.parse(b.occurred_at || b.created_at) || 0;
+      if (timeB !== timeA) return timeB - timeA;
+      const createA = Date.parse(a.created_at) || 0;
+      const createB = Date.parse(b.created_at) || 0;
+      return createB - createA;
+    }),
     expenseTotal: expense.total,
     incomeTotal,
     balance,

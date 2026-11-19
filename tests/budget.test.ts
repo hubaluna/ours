@@ -347,6 +347,12 @@ describe("budget module", () => {
       expect(isMissingBudgetTableError(new Error("network timeout"))).toBe(
         false,
       );
+      expect(
+        isMissingBudgetTableError({
+          code: "42703",
+          message: 'column budget_settings.id does not exist',
+        }),
+      ).toBe(false);
 
       const firstLoad = readLocalBudgetState("couple-x", "user-1");
       const secondLoad = readLocalBudgetState("couple-x", "user-1");

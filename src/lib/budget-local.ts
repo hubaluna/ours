@@ -31,7 +31,11 @@ export function isMissingBudgetTableError(error: unknown): boolean {
   if (code === "PGRST205" || code === "42P01" || status === 404) {
     return true;
   }
-  return /budget_(?:transactions|categories|merchant_rules|settings|ingest_tokens)|schema cache|does not exist/i.test(
+  // Missing column (42703) must never be treated as a missing table!
+  if (code === "42703" || /column .* does not exist/i.test(message)) {
+    return false;
+  }
+  return /relation "public\.budget_[^"]*" does not exist|table 'public\.budget_[^']*' in the schema cache|table "budget_[^"]*" does not exist/i.test(
     message,
   );
 }

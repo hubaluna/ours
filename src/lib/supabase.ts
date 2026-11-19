@@ -78,13 +78,17 @@ export async function readAll<T>(
 ): Promise<T[]> {
   if (!supabase) return [];
   const result: T[] = [];
+  const hasIdColumn =
+    table !== "budget_settings" && table !== "budget_ingest_tokens";
   for (let offset = 0; ; offset += 500) {
     let query = supabase
       .from(table)
       .select("*")
-      .order(order, { ascending })
-      .order("id")
-      .range(offset, offset + 499);
+      .order(order, { ascending });
+    if (hasIdColumn && order !== "id") {
+      query = query.order("id");
+    }
+    query = query.range(offset, offset + 499);
     for (const [key, value] of Object.entries(filters))
       query = query.eq(key, value);
     const page = (await checked(query)) as unknown as T[];
