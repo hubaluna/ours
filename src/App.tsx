@@ -524,6 +524,7 @@ export default function App() {
                     onClose={() => setSettings(false)}
                     theme={theme}
                     setTheme={setTheme}
+                    updateServiceWorker={updateServiceWorker}
                   />
                 </Suspense>
               )}

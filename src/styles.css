@@ -2581,6 +2581,7 @@ p {
 .settings-section > .button {
   margin-top: 15px;
 }
+.settings-section .settings-help,
 .push-settings .settings-help {
   margin: 0 0 10px;
   color: var(--muted);

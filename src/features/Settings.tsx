@@ -9,6 +9,7 @@ import {
   LogOut,
   Monitor,
   Moon,
+  RefreshCw,
   RotateCcw,
   Smartphone,
   Sun,
@@ -19,6 +20,7 @@ import {
 import { useApp } from "../hooks/AppContext";
 import { checked, supabase, uploadImage } from "../lib/supabase";
 import { downloadJson } from "../lib/utils";
+import { forceAppUpdate, hardReloadApp } from "../lib/pwa-update";
 import type { Theme } from "../lib/types";
 import {
   Avatar,
@@ -45,10 +47,12 @@ export default function Settings({
   onClose,
   theme,
   setTheme,
+  updateServiceWorker,
 }: {
   onClose: () => void;
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  updateServiceWorker?: (reloadPage?: boolean) => Promise<void>;
 }) {
   const {
     data,
@@ -71,7 +75,37 @@ export default function Settings({
     [uploading, setUploading] = useState(false),
     [invite, setInvite] = useState(""),
     [showTrash, setShowTrash] = useState(false),
-    [catSoundEnabled, setCatSoundEnabled] = useState(() => !isCatMuted());
+    [catSoundEnabled, setCatSoundEnabled] = useState(() => !isCatMuted()),
+    [checkingUpdate, setCheckingUpdate] = useState(false);
+
+  const handleCheckUpdate = async () => {
+    if (checkingUpdate) return;
+    setCheckingUpdate(true);
+    try {
+      notify("Перевіряємо наявність оновлень на сервері...");
+      const res = await forceAppUpdate({ updateServiceWorker });
+      if (res === "reloading") {
+        notify("Оновлення знайдено! Перезавантажуємо...");
+      } else if (res === "offline") {
+        notify("Немає підключення до мережі.");
+      } else if (res === "unsupported") {
+        notify("Оновлення не підтримується цим браузером.");
+      } else {
+        notify(
+          "Встановлено останню версію. Якщо збірка на GitHub ще триває — спробуйте через 1–2 хв.",
+        );
+      }
+    } catch {
+      notify("Не вдалося перевірити оновлення.");
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
+  const handleHardReload = async () => {
+    notify("Очищаємо кеш і перезавантажуємо...");
+    await hardReloadApp({ updateServiceWorker });
+  };
   const file = useRef<HTMLInputElement>(null);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -310,6 +344,32 @@ export default function Settings({
             )}
           </>
         )}
+      </section>
+      <section className="settings-section">
+        <h3>
+          <RefreshCw size={16} /> Оновлення застосунку
+        </h3>
+        <p className="settings-help">
+          Якщо на GitHub щойно запушили зміни, перевірте наявність свіжої версії
+          або скиньте кеш застосунку.
+        </p>
+        <Button
+          type="button"
+          className="settings-row ghost"
+          busy={checkingUpdate}
+          onClick={() => void handleCheckUpdate()}
+        >
+          <RefreshCw size={18} />
+          <span>Перевірити й оновити зараз</span>
+        </Button>
+        <Button
+          type="button"
+          className="settings-row ghost"
+          onClick={() => void handleHardReload()}
+        >
+          <RotateCcw size={18} />
+          <span>Очистити кеш і перезавантажити</span>
+        </Button>
       </section>
       <section className="settings-section">
         <h3>Ваші дані</h3>
