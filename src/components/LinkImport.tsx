@@ -11,7 +11,7 @@ import {
   Film,
 } from "lucide-react";
 import { BottomSheet, Button, Field } from "./ui";
-import { supabase } from "../lib/supabase";
+import { supabase, supabasePublishableKey } from "../lib/supabase";
 import {
   parseIngredient,
   parsePasted,
@@ -111,63 +111,102 @@ export function LinkImport({
       if (normalizedUrl && normalizedUrl !== targetUrl) setUrl(normalizedUrl);
       try {
         if (supabase) {
+          const requestBody = {
+            url:
+              normalizedUrl ||
+              (currentKind === "movie" ? "https://uk.wikipedia.org/" : ""),
+            kind: currentKind,
+            ...(currentKind === "movie" && movieQuery.trim()
+              ? { query: movieQuery.trim() }
+              : {}),
+          };
+
+          const handlePreviewPayload = async (
+            rawPayload: LinkMetadata,
+          ): Promise<void> => {
+            let payload = rawPayload;
+            if (
+              currentKind === "movie" &&
+              isGenericTikTokTitle(payload.title)
+            ) {
+              payload = {
+                ...payload,
+                title: "",
+                description: /^TikTok/i.test(payload.description.trim())
+                  ? ""
+                  : payload.description,
+                provider: "TikTok",
+              };
+            }
+            if (
+              currentKind === "movie" &&
+              !movieQuery.trim() &&
+              needsClientMovieRefresh(payload, normalizedUrl)
+            ) {
+              const refreshed = await resolveMovieClientSide(normalizedUrl);
+              if (refreshed) payload = refreshed;
+            }
+            if (
+              currentKind === "movie" &&
+              !payload.image_url &&
+              result?.image_url
+            ) {
+              payload = { ...payload, image_url: result.image_url };
+            }
+            receive(payload, currentKind);
+            if (currentKind === "movie" && !movieQuery)
+              setMovieQuery(payload.movie_query || "");
+          };
+
+          const client = supabase;
           try {
-            const client = supabase;
             const { data, error } = await retryLinkPreview422<{
               data: LinkMetadata;
               movie_query?: string;
             }>(() =>
               client.functions.invoke("link-preview", {
-                body: {
-                  url:
-                    normalizedUrl ||
-                    (currentKind === "movie"
-                      ? "https://uk.wikipedia.org/"
-                      : ""),
-                  kind: currentKind,
-                  ...(currentKind === "movie" && movieQuery.trim()
-                    ? { query: movieQuery.trim() }
-                    : {}),
-                },
+                body: requestBody,
               }),
             );
             if (!error && data?.data) {
-              let payload = data.data;
-              if (
-                currentKind === "movie" &&
-                isGenericTikTokTitle(payload.title)
-              ) {
-                payload = {
-                  ...payload,
-                  title: "",
-                  description: /^TikTok/i.test(payload.description.trim())
-                    ? ""
-                    : payload.description,
-                  provider: "TikTok",
-                };
-              }
-              if (
-                currentKind === "movie" &&
-                !movieQuery.trim() &&
-                needsClientMovieRefresh(payload, normalizedUrl)
-              ) {
-                const refreshed = await resolveMovieClientSide(normalizedUrl);
-                if (refreshed) payload = refreshed;
-              }
-              if (
-                currentKind === "movie" &&
-                !payload.image_url &&
-                result?.image_url
-              ) {
-                payload = { ...payload, image_url: result.image_url };
-              }
-              receive(payload, currentKind);
-              if (currentKind === "movie" && !movieQuery)
-                setMovieQuery(payload.movie_query || "");
+              await handlePreviewPayload(data.data);
               return;
             }
           } catch {
-            /* Fall through to browser CORS fallback for movies or show paste box. */
+            /* Fall through to dev proxy or browser CORS fallback. */
+          }
+
+          if (import.meta.env.DEV && import.meta.env.MODE !== "test") {
+            try {
+              const {
+                data: { session },
+              } = await client.auth.getSession();
+              const headers: Record<string, string> = {
+                "Content-Type": "application/json",
+              };
+              if (supabasePublishableKey) {
+                headers.apikey = supabasePublishableKey;
+              }
+              if (session?.access_token) {
+                headers.Authorization = `Bearer ${session.access_token}`;
+              }
+              const res = await fetch("/__ours_link_preview", {
+                method: "POST",
+                headers,
+                body: JSON.stringify(requestBody),
+              });
+              if (res.ok) {
+                const json = (await res.json()) as {
+                  data?: LinkMetadata;
+                };
+                if (json?.data) {
+                  await handlePreviewPayload(json.data);
+                  return;
+                }
+              }
+            } catch {
+              /* Fall through to browser CORS fallback for movies or show paste box. */
+            }
           }
         }
 

@@ -515,9 +515,11 @@ export function generateBudgetIngestToken(): string {
 }
 
 export function budgetIngestUrl(): string {
+  const envBase = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
   const base = (
-    (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() ||
-    publicConfig.supabaseUrl
+    envBase && !envBase.includes("YOUR_PROJECT")
+      ? envBase
+      : publicConfig.supabaseUrl
   )?.trim();
   if (!base || base.includes("YOUR_PROJECT")) {
     return "https://<your-project>.supabase.co/functions/v1/expense-ingest";

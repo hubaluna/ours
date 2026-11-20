@@ -10,6 +10,9 @@ export type Tab =
   | "plants"
   | "budget";
 export type Theme = "light" | "dark" | "system";
+export type LightPalette = "sage" | "beige" | "rose" | "lavender" | "sky";
+export type DarkPalette = "forest" | "obsidian" | "midnight" | "plum" | "espresso";
+export type ThemePalette = LightPalette | DarkPalette;
 export const categories = groceryCategories;
 export const eventCategories = [
   "Побачення",

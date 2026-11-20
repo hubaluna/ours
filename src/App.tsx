@@ -12,7 +12,6 @@ import {
   Utensils,
   Film,
   Gift,
-  House,
   RefreshCw,
   ShoppingBag,
   Sprout,
@@ -22,6 +21,7 @@ import {
 } from "lucide-react";
 import { useApp } from "./hooks/AppContext";
 import { useTheme } from "./hooks/useTheme";
+import { supabase } from "./lib/supabase";
 import { Auth, PairSetup } from "./features/Auth";
 import { Avatar, Button, Skeleton, Toast } from "./components/ui";
 import { spring, enter } from "./lib/motion";
@@ -68,7 +68,6 @@ const Home = lazy(screens.home),
   Budget = lazy(screens.budget),
   Settings = lazy(() => import("./features/Settings"));
 const tabs = [
-  { id: "home", label: "Головна", icon: House },
   { id: "shopping", label: "Покупки", icon: ShoppingBag },
   { id: "menu", label: "Меню", icon: Utensils },
   { id: "movies", label: "Кіно", icon: Film },
@@ -79,20 +78,23 @@ const tabs = [
 const catScenes: Array<{
   placement: "logo" | "title" | "nav" | "panel";
   image: string;
+  desktopOnly?: boolean;
 }> = [
   { placement: "nav", image: "cat-nav-peek.webp" },
-  { placement: "title", image: "cat-sitting.webp" },
-  { placement: "panel", image: "cat-bed-loaf.webp" },
-  { placement: "nav", image: "cat-bed-look.webp" },
-  { placement: "logo", image: "cat-sitting.webp" },
-  { placement: "panel", image: "cat-sleeping.webp" },
-  { placement: "title", image: "cat-bed-loaf.webp" },
+  { placement: "title", image: "cat-sleeping.webp" },
   { placement: "nav", image: "cat-sitting.webp" },
-  { placement: "panel", image: "cat-sofa-loaf.webp" },
-  { placement: "panel", image: "cat-carpet-sitting.webp" },
-  { placement: "title", image: "cat-bed-paw.webp" },
-  { placement: "nav", image: "cat-bed-paw.webp" },
+  { placement: "logo", image: "cat-sitting.webp" },
+  { placement: "title", image: "cat-bed-loaf.webp" },
+  { placement: "nav", image: "cat-bed-look.webp" },
+  { placement: "panel", image: "cat-carpet-sitting.webp", desktopOnly: true },
+  { placement: "nav", image: "cat-sleeping.webp" },
+  { placement: "title", image: "cat-sitting.webp" },
+  { placement: "logo", image: "cat-sleeping.webp" },
+  { placement: "nav", image: "cat-bed-loaf.webp" },
+  { placement: "panel", image: "cat-bed-paw.webp", desktopOnly: true },
+  { placement: "nav", image: "cat-sofa-loaf.webp" },
 ];
+const SAFE_NAV_SLOTS = [1, 2, 3, 4] as const;
 
 function useOccasionalCat(): MascotContextValue {
   const [level, setLevel] = useState<MascotLevel>(() => getMascotLevel());
@@ -156,14 +158,14 @@ function useOccasionalCat(): MascotContextValue {
     tapCountRef.current++;
     const taps = tapCountRef.current;
 
-    // Reset hide timer on tap
+    // Keep Luna comfortably in place longer after being petted
     if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
     hideTimerRef.current = window.setTimeout(() => {
       setPose(null);
       setBubble(null);
       momentsRef.current++;
       scheduleRef.current();
-    }, currentLevel === 1 ? 6000 : 10000);
+    }, currentLevel === 1 ? 18000 : currentLevel === 2 ? 22000 : 26000);
 
     // Trigger squish animation on every tap
     setIsSquishing(true);
@@ -228,18 +230,20 @@ function useOccasionalCat(): MascotContextValue {
     const schedule = () => {
       if (levelRef.current === 0) return;
 
+      // Calm, natural rhythm: Luna stays in one cozy spot longer and rests
+      // unhurriedly before moving elsewhere so she never feels distracting.
       const delay =
         momentsRef.current === 0
           ? levelRef.current === 1
-            ? 8000
+            ? 20000
             : levelRef.current === 2
-              ? 3000
-              : 1200
+              ? 12000
+              : 5000
           : levelRef.current === 1
-            ? 35000
+            ? 95000
             : levelRef.current === 2
-              ? 14000
-              : 4500;
+              ? 55000
+              : 36000;
 
       showTimer = window.setTimeout(
         () => {
@@ -249,8 +253,15 @@ function useOccasionalCat(): MascotContextValue {
             schedule();
             return;
           }
-          const scene = catScenes[sceneIndex];
-          const navSlot = (sceneIndex * 2 + 1) % tabs.length;
+          const isWideDesktop = window.innerWidth >= 820;
+          let scene = catScenes[sceneIndex];
+          let steps = 0;
+          while (scene.desktopOnly && !isWideDesktop && steps < catScenes.length) {
+            sceneIndex = (sceneIndex + 1) % catScenes.length;
+            scene = catScenes[sceneIndex];
+            steps++;
+          }
+          const navSlot = SAFE_NAV_SLOTS[sceneIndex % SAFE_NAV_SLOTS.length];
           const newPose: MascotPose = {
             placement: scene.placement,
             image: scene.image,
@@ -260,15 +271,15 @@ function useOccasionalCat(): MascotContextValue {
           setIsSquishing(false);
           setPose(newPose);
 
-          // Level 3 only: every ~3rd appearance give subtle greeting thought bubble for 2.2s
-          if (levelRef.current === 3 && momentsRef.current % 3 === 1) {
+          // Level 3 only: occasional subtle greeting bubble (every 4th visit)
+          if (levelRef.current === 3 && momentsRef.current % 4 === 1) {
             const hour = new Date().getHours();
             const intro = getCatReaction(scene.image, undefined, { hour });
             setBubble({ text: intro, key: Date.now() });
             if (bubbleTimerRef.current) window.clearTimeout(bubbleTimerRef.current);
             bubbleTimerRef.current = window.setTimeout(() => {
               setBubble(null);
-            }, 2200);
+            }, 2400);
           } else {
             setBubble(null);
           }
@@ -277,7 +288,7 @@ function useOccasionalCat(): MascotContextValue {
 
           if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
           const visibleDuration =
-            levelRef.current === 1 ? 6000 : levelRef.current === 2 ? 8000 : 10000;
+            levelRef.current === 1 ? 24000 : levelRef.current === 2 ? 30000 : 34000;
           hideTimerRef.current = window.setTimeout(() => {
             setPose(null);
             setBubble(null);
@@ -341,7 +352,15 @@ export default function App() {
     sync,
     refresh,
   } = useApp();
-  const { theme, setTheme } = useTheme();
+  const {
+    theme,
+    setTheme,
+    resolvedTheme,
+    lightPalette,
+    setLightPalette,
+    darkPalette,
+    setDarkPalette,
+  } = useTheme();
   const mascot = useOccasionalCat();
   const [tab, setTab] = useState<Tab>("home"),
     [settings, setSettings] = useState(false);
@@ -451,6 +470,14 @@ export default function App() {
               простору.
             </p>
             <Button onClick={() => void refresh()}>Спробувати ще раз</Button>
+            {supabase && (
+              <Button
+                className="ghost"
+                onClick={() => void supabase?.auth.signOut()}
+              >
+                Вийти з акаунта
+              </Button>
+            )}
           </main>
         ) : (
           <PairSetup />
@@ -460,9 +487,10 @@ export default function App() {
           <div className="app-shell">
             <header className="app-header">
               <button
-                className="brand"
+                className={`brand${tab === "home" ? " is-home" : ""}`}
                 onClick={() => setTab("home")}
                 aria-label="ours. — головна"
+                aria-current={tab === "home" ? "page" : undefined}
               >
                 ours<span>.</span>
                 <AnimatePresence>
@@ -564,21 +592,22 @@ export default function App() {
                   </AnimatePresence>
                 </Suspense>
               )}
-              <AnimatePresence>
-                {mascot?.placement === "panel" && !loading && (
-                  <CatMascot placement="panel" />
-                )}
-              </AnimatePresence>
             </main>
+            <AnimatePresence>
+              {mascot?.placement === "panel" && !loading && (
+                <CatMascot placement="panel" />
+              )}
+            </AnimatePresence>
             <nav className="bottom-nav glass" aria-label="Основна навігація">
               <AnimatePresence>
                 {mascot?.placement === "nav" && <CatMascot placement="nav" />}
               </AnimatePresence>
               {tabs.map(({ id, label, icon: Icon }) => (
                 <motion.button
-                  whileTap={{ scale: 0.97 }}
+                  whileTap={{ scale: 0.96 }}
                   key={id}
                   aria-label={label}
+                  title={label}
                   aria-current={tab === id ? "page" : undefined}
                   onClick={() => setTab(id)}
                   onPointerEnter={() => {
@@ -597,7 +626,11 @@ export default function App() {
                     />
                   )}
                   <span className="nav-content">
-                    <Icon size={20} strokeWidth={tab === id ? 2 : 1.7} />
+                    <Icon
+                      size={20}
+                      strokeWidth={tab === id ? 2.15 : 1.75}
+                      aria-hidden="true"
+                    />
                     <span>{label}</span>
                   </span>
                 </motion.button>
@@ -610,6 +643,11 @@ export default function App() {
                     onClose={() => setSettings(false)}
                     theme={theme}
                     setTheme={setTheme}
+                    resolvedTheme={resolvedTheme}
+                    lightPalette={lightPalette}
+                    setLightPalette={setLightPalette}
+                    darkPalette={darkPalette}
+                    setDarkPalette={setDarkPalette}
                     updateServiceWorker={updateServiceWorker}
                   />
                 </Suspense>

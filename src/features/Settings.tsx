@@ -4,6 +4,7 @@ import {
   Camera,
   Bell,
   Check,
+  ChevronRight,
   Copy,
   Download,
   LogOut,
@@ -23,7 +24,8 @@ import { useApp } from "../hooks/AppContext";
 import { checked, supabase, uploadImage } from "../lib/supabase";
 import { downloadJson } from "../lib/utils";
 import { forceAppUpdate, hardReloadApp } from "../lib/pwa-update";
-import type { Theme } from "../lib/types";
+import { DARK_PALETTES, LIGHT_PALETTES } from "../hooks/useTheme";
+import type { DarkPalette, LightPalette, Theme } from "../lib/types";
 import {
   Avatar,
   BottomSheet,
@@ -56,15 +58,26 @@ export default function Settings({
   onClose,
   theme,
   setTheme,
+  resolvedTheme,
+  lightPalette,
+  setLightPalette,
+  darkPalette,
+  setDarkPalette,
   updateServiceWorker,
 }: {
   onClose: () => void;
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  resolvedTheme: "light" | "dark";
+  lightPalette: LightPalette;
+  setLightPalette: (palette: LightPalette) => void;
+  darkPalette: DarkPalette;
+  setDarkPalette: (palette: DarkPalette) => void;
   updateServiceWorker?: (reloadPage?: boolean) => Promise<void>;
 }) {
   const {
     data,
+    session,
     userId,
     coupleId,
     demo,
@@ -83,6 +96,7 @@ export default function Settings({
   const [name, setName] = useState(me?.name ?? ""),
     [avatar, setAvatar] = useState(me?.avatar_path ?? null),
     [uploading, setUploading] = useState(false),
+    [signingOut, setSigningOut] = useState(false),
     [invite, setInvite] = useState(""),
     [showTrash, setShowTrash] = useState(false),
     [catSoundEnabled, setCatSoundEnabled] = useState(() => !isCatMuted()),
@@ -126,13 +140,36 @@ export default function Settings({
     await hardReloadApp({ updateServiceWorker });
   };
   const file = useRef<HTMLInputElement>(null);
+  const profileDirty =
+    name.trim() !== (me?.name ?? "").trim() ||
+    avatar !== (me?.avatar_path ?? null);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (await saveProfile(name.trim(), avatar)) onClose();
   };
+  const handleSignOut = async () => {
+    if (signingOut || !supabase) return;
+    setSigningOut(true);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        await supabase.auth.signOut({ scope: "local" });
+      }
+      onClose();
+    } catch {
+      try {
+        await supabase.auth.signOut({ scope: "local" });
+      } catch {
+        /* ignore */
+      }
+      onClose();
+    } finally {
+      setSigningOut(false);
+    }
+  };
   if (showTrash) {
     return (
-      <BottomSheet title="Кошик" onClose={onClose}>
+      <BottomSheet title="Кошик" onClose={onClose} guardChanges={false}>
         <div className="trash-panel">
           <div className="trash-toolbar">
             <Button
@@ -199,167 +236,253 @@ export default function Settings({
     );
   }
   return (
-    <BottomSheet title="Ваш простір" onClose={onClose}>
-      <form className="form" onSubmit={submit}>
-        <div className="sheet-actions form-save">
-          <Button type="submit" busy={uploading || pending.includes("profile")}>
+    <BottomSheet
+      title="Ваш простір"
+      onClose={onClose}
+      guardChanges={profileDirty}
+    >
+      <div className="settings-sheet">
+        <form className="form settings-profile-form" onSubmit={submit}>
+          <div className="profile-edit profile-edit-row">
+            <button
+              type="button"
+              className={`profile-avatar-trigger${uploading ? " is-busy" : ""}`}
+              onClick={() => file.current?.click()}
+              disabled={uploading}
+              aria-label="Змінити фото профілю"
+              title="Змінити фото"
+            >
+              <Avatar name={name || "Я"} path={avatar} size="large" />
+              <span className="profile-avatar-badge" aria-hidden="true">
+                <Camera size={12} />
+              </span>
+            </button>
+            <input
+              hidden
+              ref={file}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={async (e) => {
+                const image = e.target.files?.[0];
+                if (!image) return;
+                setUploading(true);
+                try {
+                  setAvatar(await uploadImage(image, userId, coupleId!));
+                } catch (e) {
+                  notify(
+                    e instanceof Error
+                      ? e.message
+                      : "Не вдалося завантажити фото.",
+                  );
+                } finally {
+                  setUploading(false);
+                }
+              }}
+            />
+            <Field label="Ваше ім’я">
+              <input
+                data-autofocus
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                pattern=".*\S.*"
+                maxLength={60}
+              />
+            </Field>
+          </div>
+          <Button
+            type="submit"
+            className="settings-save-btn"
+            busy={uploading || pending.includes("profile")}
+          >
             Зберегти профіль
           </Button>
-        </div>
-        <div className="profile-edit">
-          <Avatar name={name || "Я"} path={avatar} size="large" />
-          <Button
-            type="button"
-            className="ghost"
-            busy={uploading}
-            onClick={() => file.current?.click()}
-          >
-            <Camera size={17} />
-            Змінити фото
-          </Button>
-          <input
-            hidden
-            ref={file}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={async (e) => {
-              const image = e.target.files?.[0];
-              if (!image) return;
-              setUploading(true);
-              try {
-                setAvatar(await uploadImage(image, userId, coupleId!));
-              } catch (e) {
-                notify(
-                  e instanceof Error
-                    ? e.message
-                    : "Не вдалося завантажити фото.",
-                );
-              } finally {
-                setUploading(false);
-              }
-            }}
-          />
-        </div>
-        <Field label="Ваше ім’я">
-          <input
-            data-autofocus
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            pattern=".*\S.*"
-            maxLength={60}
-          />
-        </Field>
-      </form>
-      <section className="settings-section">
-        <h3>Трохи настрою</h3>
-        <div className="theme-options">
-          {(
-            [
-              { id: "light", label: "Світла", Icon: Sun },
-              { id: "dark", label: "Темна", Icon: Moon },
-              { id: "system", label: "Як у системі", Icon: Monitor },
-            ] as const
-          ).map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              className={theme === id ? "active" : ""}
-              onClick={() => setTheme(id)}
-              aria-pressed={theme === id}
+        </form>
+        {!demo && (
+          <div className="settings-account-bar">
+            <div className="settings-account-meta">
+              <span className="settings-account-label">Акаунт</span>
+              {session?.user.email && (
+                <strong className="settings-account-email">
+                  {session.user.email}
+                </strong>
+              )}
+            </div>
+            <Button
+              type="button"
+              className="danger ghost settings-signout-btn"
+              busy={signingOut}
+              onClick={() => void handleSignOut()}
             >
-              <Icon size={21} />
-              <span>{label}</span>
-              {theme === id && <Check size={13} />}
-            </button>
-          ))}
-        </div>
-      </section>
-      <section className="settings-section">
-        <div className="mascot-slider-card">
-          <div className="mascot-slider-header">
-            <h3>
-              <Sparkles size={16} /> Маскот Луна
-            </h3>
-            <span className="mascot-slider-badge">
-              {MASCOT_LEVEL_DESCRIPTIONS[mascotLevel].label}
-            </span>
+              <LogOut size={15} />
+              <span>Вийти з акаунта</span>
+            </Button>
           </div>
-          <p className="mascot-slider-title">
-            <strong>{MASCOT_LEVEL_DESCRIPTIONS[mascotLevel].title}</strong>
-          </p>
-          <p className="mascot-slider-hint">
-            {MASCOT_LEVEL_DESCRIPTIONS[mascotLevel].hint}
-          </p>
-          <div className="mascot-slider-wrap">
-            <input
-              type="range"
-              min="0"
-              max="3"
-              step="1"
-              value={mascotLevel}
-              onChange={(e) => {
-                const next = Number(e.target.value) as MascotLevel;
-                setMascotLevelState(next);
-                setMascotLevel(next);
-              }}
-              aria-label="Рівень активності маскота Луни"
-              className="mascot-range-input"
-            />
-            <div className="mascot-slider-ticks">
-              {([0, 1, 2, 3] as const).map((lvl) => (
-                <span
-                  key={lvl}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => {
-                    setMascotLevelState(lvl);
-                    setMascotLevel(lvl);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      setMascotLevelState(lvl);
-                      setMascotLevel(lvl);
-                    }
-                  }}
-                  className={mascotLevel === lvl ? "active" : ""}
-                >
-                  {lvl === 0
-                    ? "Вимкн."
-                    : lvl === 1
-                      ? "Рідко"
-                      : lvl === 2
-                        ? "Базовий"
-                        : "Максимум"}
-                </span>
-              ))}
+        )}
+        <section className="settings-section">
+          <h3>Трохи настрою</h3>
+          <div className="theme-options">
+            {(
+              [
+                { id: "light", label: "Світла", Icon: Sun },
+                { id: "dark", label: "Темна", Icon: Moon },
+                { id: "system", label: "Система", Icon: Monitor },
+              ] as const
+            ).map(({ id, label, Icon }) => (
+              <button
+                type="button"
+                key={id}
+                className={theme === id ? "active" : ""}
+                onClick={() => setTheme(id)}
+                aria-pressed={theme === id}
+              >
+                <Icon size={19} />
+                <span>{label}</span>
+                {theme === id && <Check size={12} />}
+              </button>
+            ))}
+          </div>
+          <div className="palette-block">
+            <span className="palette-caption">
+              {resolvedTheme === "dark"
+                ? "Відтінок темної теми"
+                : "Відтінок світлої теми"}
+            </span>
+            <div
+              className="palette-options"
+              role="group"
+              aria-label={
+                resolvedTheme === "dark"
+                  ? "Відтінок темної теми"
+                  : "Відтінок світлої теми"
+              }
+            >
+              {resolvedTheme === "dark"
+                ? DARK_PALETTES.map((p) => {
+                    const active = darkPalette === p.id;
+                    return (
+                      <button
+                        type="button"
+                        key={p.id}
+                        className={`palette-swatch-btn${active ? " active" : ""}`}
+                        onClick={() => setDarkPalette(p.id)}
+                        aria-pressed={active}
+                      >
+                        <span
+                          className="palette-swatch-dot"
+                          style={{ background: p.swatch }}
+                          aria-hidden="true"
+                        >
+                          {active && <Check size={12} strokeWidth={2.5} />}
+                        </span>
+                        <span className="palette-swatch-label">{p.label}</span>
+                      </button>
+                    );
+                  })
+                : LIGHT_PALETTES.map((p) => {
+                    const active = lightPalette === p.id;
+                    return (
+                      <button
+                        type="button"
+                        key={p.id}
+                        className={`palette-swatch-btn${active ? " active" : ""}`}
+                        onClick={() => setLightPalette(p.id)}
+                        aria-pressed={active}
+                      >
+                        <span
+                          className="palette-swatch-dot"
+                          style={{ background: p.swatch }}
+                          aria-hidden="true"
+                        >
+                          {active && <Check size={12} strokeWidth={2.5} />}
+                        </span>
+                        <span className="palette-swatch-label">{p.label}</span>
+                      </button>
+                    );
+                  })}
             </div>
           </div>
-          {mascotLevel >= 2 && (
-            <label className="push-reminder-toggle cat-sound-toggle">
-              <input
-                type="checkbox"
-                checked={catSoundEnabled}
-                onChange={(e) => {
-                  const next = e.target.checked;
-                  setCatMuted(!next);
-                  setCatSoundEnabled(next);
-                }}
-              />
-              <span>
-                <strong>Звуки кішки</strong>
-                <small>Муркотіння та мявкання при погладжуванні</small>
+        </section>
+        <section className="settings-section">
+          <div className="mascot-slider-card">
+            <div className="mascot-slider-header">
+              <h3>
+                <Sparkles size={15} /> Маскот Луна
+              </h3>
+              <span className="mascot-slider-badge">
+                {MASCOT_LEVEL_DESCRIPTIONS[mascotLevel].label}
               </span>
-            </label>
-          )}
-        </div>
-      </section>
-      <PushSettings
-        userId={userId}
-        coupleId={coupleId}
-        demo={demo}
-        notify={notify}
-      />
+            </div>
+            <div className="mascot-slider-copy">
+              <p className="mascot-slider-title">
+                <strong>{MASCOT_LEVEL_DESCRIPTIONS[mascotLevel].title}</strong>
+              </p>
+              <p className="mascot-slider-hint">
+                {MASCOT_LEVEL_DESCRIPTIONS[mascotLevel].hint}
+              </p>
+            </div>
+            <div className="mascot-slider-wrap">
+              <input
+                type="range"
+                min="0"
+                max="3"
+                step="1"
+                value={mascotLevel}
+                onChange={(e) => {
+                  const next = Number(e.target.value) as MascotLevel;
+                  setMascotLevelState(next);
+                  setMascotLevel(next);
+                }}
+                aria-label="Рівень активності маскота Луни"
+                className="mascot-range-input"
+              />
+              <div className="mascot-slider-ticks">
+                {([0, 1, 2, 3] as const).map((lvl) => (
+                  <button
+                    type="button"
+                    key={lvl}
+                    onClick={() => {
+                      setMascotLevelState(lvl);
+                      setMascotLevel(lvl);
+                    }}
+                    className={mascotLevel === lvl ? "active" : ""}
+                  >
+                    {lvl === 0
+                      ? "Вимкн."
+                      : lvl === 1
+                        ? "Рідко"
+                        : lvl === 2
+                          ? "Базовий"
+                          : "Жвавий"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {mascotLevel >= 2 && (
+              <label className="push-reminder-toggle cat-sound-toggle">
+                <input
+                  type="checkbox"
+                  checked={catSoundEnabled}
+                  onChange={(e) => {
+                    const next = e.target.checked;
+                    setCatMuted(!next);
+                    setCatSoundEnabled(next);
+                  }}
+                />
+                <span>
+                  <strong>Звуки кішки</strong>
+                  <small>Муркотіння та мявкання при погладжуванні</small>
+                </span>
+              </label>
+            )}
+          </div>
+        </section>
+        <PushSettings
+          userId={userId}
+          coupleId={coupleId}
+          demo={demo}
+          notify={notify}
+        />
       <section className="settings-section">
         <h3>
           <UsersRound size={16} /> Наш маленький світ
@@ -429,180 +552,185 @@ export default function Settings({
           </>
         )}
       </section>
-      <section className="settings-section">
-        <h3>
-          <RefreshCw size={16} /> Оновлення застосунку
-        </h3>
-        <p className="settings-help">
-          Якщо на GitHub щойно запушили зміни, перевірте наявність свіжої версії
-          або скиньте кеш застосунку.
-        </p>
-        <Button
-          type="button"
-          className="settings-row ghost"
-          busy={checkingUpdate}
-          onClick={() => void handleCheckUpdate()}
-        >
-          <RefreshCw size={18} />
-          <span>Перевірити й оновити зараз</span>
-        </Button>
-        <Button
-          type="button"
-          className="settings-row ghost"
-          onClick={() => void handleHardReload()}
-        >
-          <RotateCcw size={18} />
-          <span>Очистити кеш і перезавантажити</span>
-        </Button>
-      </section>
-      <section className="settings-section">
-        <h3>Ваші дані</h3>
-        <Button
-          type="button"
-          className="settings-row ghost"
-          onClick={() => setShowTrash(true)}
-        >
-          <Trash2 size={18} />
-          <span>Кошик · Нещодавно видалене</span>
-          {trash.length > 0 && <span className="count">{trash.length}</span>}
-        </Button>
-        <Button
-          className="settings-row ghost"
-          onClick={() => {
-            downloadJson({
-              exported_at: new Date().toISOString(),
-              shopping: data.shopping,
-              shopping_sessions: data.sessions,
-              wishes: data.wishes,
-              events: data.events,
-              movies: data.movies,
-              recipes: data.recipes,
-              meal_plan: data.mealPlan,
-              pantry: data.pantry,
-              plants: data.plants,
-              plant_care: data.plantCare,
-              budget_transactions: data.budgetTransactions,
-              budget_categories: data.budgetCategories,
-              budget_merchant_rules: data.budgetMerchantRules,
-              budget_recurring: data.budgetRecurring,
-            });
-            notify("Експорт підготовлено");
-          }}
-        >
-          <Download size={18} />
-          <span>Експортувати у JSON</span>
-        </Button>
-        <Button
-          type="button"
-          className="settings-row ghost"
-          onClick={() => backupInput.current?.click()}
-        >
-          <Upload size={18} />
-          <span>Відновити з JSON</span>
-        </Button>
-        <input
-          hidden
-          ref={backupInput}
-          type="file"
-          accept="application/json,.json"
-          onChange={async (e) => {
-            const selectedFile = e.target.files?.[0];
-            e.target.value = "";
-            if (!selectedFile) return;
-            try {
-              const text = await selectedFile.text();
-              const parsed = JSON.parse(text) as Record<string, unknown>;
-              if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-                notify("Некоректний формат резервної копії");
-                return;
-              }
-              const countArr = (...keys: string[]) => {
-                for (const k of keys) {
-                  if (Array.isArray(parsed[k])) return (parsed[k] as unknown[]).length;
-                }
-                return 0;
-              };
-              const parts: string[] = [];
-              const addPart = (label: string, n: number) => {
-                if (n > 0) parts.push(`${label}: ${n}`);
-              };
-              addPart("Покупки", countArr("shopping"));
-              addPart("Бажання", countArr("wishes"));
-              addPart("Події", countArr("events"));
-              addPart("Кіно", countArr("movies"));
-              addPart("Рослини", countArr("plants"));
-              addPart("єВдома", countArr("pantry"));
-              addPart(
-                "Бюджет",
-                countArr("budget_transactions", "budgetTransactions"),
-              );
-              addPart(
-                "Регулярні",
-                countArr("budget_recurring", "budgetRecurring"),
-              );
-              if (!parts.length) {
-                notify("У файлі немає записів для відновлення");
-                return;
-              }
-              setBackupPreview({
-                fileName: selectedFile.name,
-                payload: parsed,
-                summary: parts.join(" · "),
-              });
-            } catch {
-              notify("Не вдалося прочитати JSON-файл");
-            }
-          }}
-        />
-        {backupPreview && (
-          <div className="backup-restore-preview" role="region" aria-label="Попередній перегляд відновлення">
-            <strong>{backupPreview.fileName}</strong>
-            <p>{backupPreview.summary}</p>
-            <small>
-              Нові записи будуть додані без видалення наявних даних.
-            </small>
-            <div className="backup-restore-actions">
-              <Button
-                type="button"
-                busy={pending.includes("import-backup")}
-                onClick={async () => {
-                  const res = await importBackupJson(backupPreview.payload);
-                  if (res) setBackupPreview(null);
-                }}
-              >
-                Відновити дані
-              </Button>
-              <Button
-                type="button"
-                className="ghost"
-                onClick={() => setBackupPreview(null)}
-              >
-                Скасувати
-              </Button>
-            </div>
-          </div>
-        )}
-        <div className="install-note">
-          <Smartphone size={19} />
-          <p>На iPhone: Safari → «Поширити» → «На початковий екран».</p>
-        </div>
-        {demo ? (
-          <p className="subtle-note">
-            Деморежим. Дані зберігаються тільки в цьому браузері.
+        <section className="settings-section">
+          <h3>
+            <RefreshCw size={15} /> Оновлення застосунку
+          </h3>
+          <p className="settings-help">
+            Перевірте свіжу версію або скиньте кеш, якщо щойно оновили проєкт.
           </p>
-        ) : (
-          <Button
-            className="danger ghost settings-row"
-            onClick={() => void supabase?.auth.signOut()}
-          >
-            <LogOut size={18} />
-            Вийти з акаунта
-          </Button>
-        )}
-      </section>
-      <p className="settings-signature">
-        ours. <span>маленькі речі, велике разом</span>
-      </p>
+          <div className="settings-group">
+            <Button
+              type="button"
+              className="settings-row ghost"
+              busy={checkingUpdate}
+              onClick={() => void handleCheckUpdate()}
+            >
+              <RefreshCw size={16} />
+              <span>Перевірити й оновити</span>
+              <ChevronRight size={15} className="settings-row-chevron" />
+            </Button>
+            <Button
+              type="button"
+              className="settings-row ghost"
+              onClick={() => void handleHardReload()}
+            >
+              <RotateCcw size={16} />
+              <span>Очистити кеш і перезавантажити</span>
+              <ChevronRight size={15} className="settings-row-chevron" />
+            </Button>
+          </div>
+        </section>
+        <section className="settings-section">
+          <h3>Ваші дані</h3>
+          <div className="settings-group">
+            <Button
+              type="button"
+              className="settings-row ghost"
+              onClick={() => setShowTrash(true)}
+            >
+              <Trash2 size={16} />
+              <span>Кошик · Нещодавно видалене</span>
+              {trash.length > 0 ? (
+                <span className="count">{trash.length}</span>
+              ) : (
+                <ChevronRight size={15} className="settings-row-chevron" />
+              )}
+            </Button>
+            <Button
+              type="button"
+              className="settings-row ghost"
+              onClick={() => {
+                downloadJson({
+                  exported_at: new Date().toISOString(),
+                  shopping: data.shopping,
+                  shopping_sessions: data.sessions,
+                  wishes: data.wishes,
+                  events: data.events,
+                  movies: data.movies,
+                  recipes: data.recipes,
+                  meal_plan: data.mealPlan,
+                  pantry: data.pantry,
+                  plants: data.plants,
+                  plant_care: data.plantCare,
+                  budget_transactions: data.budgetTransactions,
+                  budget_categories: data.budgetCategories,
+                  budget_merchant_rules: data.budgetMerchantRules,
+                  budget_recurring: data.budgetRecurring,
+                });
+                notify("Експорт підготовлено");
+              }}
+            >
+              <Download size={16} />
+              <span>Експортувати у JSON</span>
+              <ChevronRight size={15} className="settings-row-chevron" />
+            </Button>
+            <Button
+              type="button"
+              className="settings-row ghost"
+              onClick={() => backupInput.current?.click()}
+            >
+              <Upload size={16} />
+              <span>Відновити з JSON</span>
+              <ChevronRight size={15} className="settings-row-chevron" />
+            </Button>
+          </div>
+          <input
+            hidden
+            ref={backupInput}
+            type="file"
+            accept="application/json,.json"
+            onChange={async (e) => {
+              const selectedFile = e.target.files?.[0];
+              e.target.value = "";
+              if (!selectedFile) return;
+              try {
+                const text = await selectedFile.text();
+                const parsed = JSON.parse(text) as Record<string, unknown>;
+                if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+                  notify("Некоректний формат резервної копії");
+                  return;
+                }
+                const countArr = (...keys: string[]) => {
+                  for (const k of keys) {
+                    if (Array.isArray(parsed[k])) return (parsed[k] as unknown[]).length;
+                  }
+                  return 0;
+                };
+                const parts: string[] = [];
+                const addPart = (label: string, n: number) => {
+                  if (n > 0) parts.push(`${label}: ${n}`);
+                };
+                addPart("Покупки", countArr("shopping"));
+                addPart("Бажання", countArr("wishes"));
+                addPart("Події", countArr("events"));
+                addPart("Кіно", countArr("movies"));
+                addPart("Рослини", countArr("plants"));
+                addPart("єВдома", countArr("pantry"));
+                addPart(
+                  "Бюджет",
+                  countArr("budget_transactions", "budgetTransactions"),
+                );
+                addPart(
+                  "Регулярні",
+                  countArr("budget_recurring", "budgetRecurring"),
+                );
+                if (!parts.length) {
+                  notify("У файлі немає записів для відновлення");
+                  return;
+                }
+                setBackupPreview({
+                  fileName: selectedFile.name,
+                  payload: parsed,
+                  summary: parts.join(" · "),
+                });
+              } catch {
+                notify("Не вдалося прочитати JSON-файл");
+              }
+            }}
+          />
+          {backupPreview && (
+            <div className="backup-restore-preview" role="region" aria-label="Попередній перегляд відновлення">
+              <strong>{backupPreview.fileName}</strong>
+              <p>{backupPreview.summary}</p>
+              <small>
+                Нові записи будуть додані без видалення наявних даних.
+              </small>
+              <div className="backup-restore-actions">
+                <Button
+                  type="button"
+                  busy={pending.includes("import-backup")}
+                  onClick={async () => {
+                    const res = await importBackupJson(backupPreview.payload);
+                    if (res) setBackupPreview(null);
+                  }}
+                >
+                  Відновити дані
+                </Button>
+                <Button
+                  type="button"
+                  className="ghost"
+                  onClick={() => setBackupPreview(null)}
+                >
+                  Скасувати
+                </Button>
+              </div>
+            </div>
+          )}
+          <div className="install-note">
+            <Smartphone size={17} />
+            <p>На iPhone: Safari → «Поширити» → «На початковий екран».</p>
+          </div>
+          {demo && (
+            <p className="subtle-note">
+              Деморежим. Дані зберігаються тільки в цьому браузері.
+            </p>
+          )}
+        </section>
+        <p className="settings-signature">
+          ours. <span>маленькі речі, велике разом</span>
+        </p>
+      </div>
     </BottomSheet>
   );
 }
@@ -816,7 +944,7 @@ function PushSettings({
               ["movies", "Кіно"],
               ["events", "Календар"],
               ["recipes", "Меню"],
-              ["budget", "Бюджет (Apple Pay)"],
+              ["budget", "Бюджет"],
             ] as const
           ).map(([key, label]) => (
             <label key={key}>

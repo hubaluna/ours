@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { AnimatePresence } from "motion/react";
 import {
   Activity,
@@ -54,11 +61,14 @@ import type {
 } from "../lib/types";
 import { kyivDate } from "../lib/utils";
 import { Avatar, BottomSheet, Button, Field, IconButton } from "../components/ui";
+import { MascotContext } from "../components/MascotContext";
+import { CatMascot } from "../components/CatMascot";
 
 type HeroMetricTab = "expense" | "income" | "balance";
 type ViewMode = "overview" | "analytics";
 
 export default function Budget() {
+  const mascot = useContext(MascotContext);
   const {
     data,
     userId,
@@ -344,7 +354,12 @@ export default function Budget() {
       <div className="budget-scroll">
         <div className="budget-top-bar">
           <div className="budget-top-title">
-            <h1>Бюджет</h1>
+            <div className="screen-title-row">
+              <h1>Бюджет</h1>
+              <AnimatePresence mode="wait">
+                {mascot?.placement === "title" && <CatMascot placement="title" />}
+              </AnimatePresence>
+            </div>
             <span>{period.label}</span>
           </div>
           <div className="budget-top-actions">
@@ -2283,7 +2298,11 @@ function BudgetSettingsSheet({
     recKind === "income" ? incomeCategories : expenseCategories;
 
   return (
-    <BottomSheet title="Налаштування бюджету" onClose={onClose}>
+    <BottomSheet
+      title="Налаштування бюджету"
+      onClose={onClose}
+      guardChanges={false}
+    >
       <div className="budget-settings-sheet">
         <div
           className="budget-settings-tabs"
@@ -2599,7 +2618,7 @@ function BudgetSettingsSheet({
                 aria-expanded={guideOpen}
                 onClick={() => setGuideOpen((v) => !v)}
               >
-                <span>Покрокова інструкція для iPhone («Команди»)</span>
+                <span>Як підв’язати витрати через «Команди» iPhone</span>
                 {guideOpen ? (
                   <ChevronUp size={16} />
                 ) : (
@@ -2611,17 +2630,15 @@ function BudgetSettingsSheet({
                 <div className="budget-shortcut-guide">
                   <ol>
                     <li>
-                      <b>Згенеруйте токен угорі</b> (кнопка «Створити» / «Оновити токен») і не закривайте це вікно, щоб зручно скопіювати дані.
+                      <b>Створіть токен угорі</b> та відкрийте в додатку{" "}
+                      <b>Команди</b> автоматизацію{" "}
+                      <b>Коли мені надходить сповіщення від програми → Гаманець</b>{" "}
+                      <i>(або додаток банку — тоді ловляться ще й онлайн-оплати та Apple Watch)</i>.
                     </li>
                     <li>
-                      <b>Створіть автоматизацію:</b> на iPhone відкрийте додаток{" "}
-                      <b>Команди</b> (Shortcuts) → вкладка <b>Автоматизація</b>{" "}
-                      → <b>+</b> → <b>Транзакція</b> (Transaction). Оберіть потрібні картки, увімкніть{" "}
-                      <b>Запускати негайно</b> (Run Immediately) → <b>Далі</b> →{" "}
-                      <b>Нова порожня автоматизація</b>.
-                    </li>
-                    <li>
-                      <b>Додайте дію «Отримати вміст URL»</b> (Get Contents of URL) і вставте посилання:
+                      <b>Додайте дію «Отримати вміст URL»</b>{" "}
+                      <i>(прямо під блоком «Додати транзакцію», якщо вже є Skarbo)</i>{" "}
+                      і вставте адресу:
                       <div className="budget-copy-row">
                         <code>{ingestUrl}</code>
                         <Button
@@ -2634,10 +2651,12 @@ function BudgetSettingsSheet({
                       </div>
                     </li>
                     <li>
-                      <b>Метод і заголовок:</b> розгорніть стрілку <b>▸</b> біля URL → оберіть{" "}
-                      <b>Метод: POST</b> → у блоці <b>Заголовки</b> (Headers) додайте рядок:
+                      <b>Метод і заголовок:</b> розгорніть <b>▸</b> →{" "}
+                      <b>Метод: POST</b> → у <b>Заголовки</b> додайте:
                       <div className="budget-guide-kv">
-                        <span>Ключ: <code>Authorization</code></span>
+                        <span>
+                          Ключ: <code>Authorization</code>
+                        </span>
                         <span>
                           Текст:{" "}
                           <code>
@@ -2666,26 +2685,30 @@ function BudgetSettingsSheet({
                       )}
                     </li>
                     <li>
-                      <b>Тіло запиту (JSON):</b> оберіть <b>Тіло запиту</b> →{" "}
-                      <b>JSON</b> і додайте поля типу <b>Текст</b>, обравши в значеннях змінні з{" "}
-                      <b>Вводу команди</b> (Shortcut Input):
+                      <b>Тіло запиту → JSON</b> (поля типу <b>Текст</b>). У
+                      значеннях оберіть <b>Вхідні дані команди → Тип: Сповіщення</b>:
                       <ul className="budget-guide-fields">
                         <li>
-                          <code>amount</code> → <b>Сума</b> <i>(Amount)</i>
+                          <code>amount</code> → <b>Сповіщення → Основний текст</b>
                         </li>
                         <li>
-                          <code>merchant</code> → <b>Продавець</b> <i>(Merchant)</i>
+                          <code>merchant</code> → <b>Сповіщення → Підзаголовок</b>
                         </li>
                         <li>
-                          <code>card</code> → <b>Картка</b> <i>(Card or Pass, за бажанням)</i>
+                          <code>card</code> → <b>Сповіщення → Заголовок</b>
                         </li>
                       </ul>
                     </li>
+                    <li>
+                      <b>Збережіть автоматизацію</b> — після наступної оплати
+                      через Apple Pay дані автоматично полетять в Ours.
+                    </li>
                   </ol>
                   <p className="budget-guide-note">
-                    Якщо оплата не підтягнулась: перевірте, що в заголовку є слово{" "}
-                    <code>Bearer </code> перед токеном, а після <b>Транзакція</b> увімкнено{" "}
-                    <b>Запускати негайно</b> (для оплат з Apple Watch тригер на iPhone інколи не спрацьовує).
+                    Для банківських сповіщень можна також передавати весь текст
+                    через <b>Сповіщення → Вміст</b>. Якщо дані не приходять —
+                    перевірте слово <code>Bearer </code> перед токеном і
+                    вимкніть «Питати перед запуском».
                   </p>
                 </div>
               )}

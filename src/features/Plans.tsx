@@ -68,7 +68,11 @@ export default function Plans() {
       const token = btoa(String.fromCharCode(...random))
         .replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
       await checked(supabase.rpc("rotate_calendar_feed_token", { p_token: token }));
-      const projectUrl = import.meta.env.VITE_SUPABASE_URL || publicConfig.supabaseUrl;
+      const envUrl = import.meta.env.VITE_SUPABASE_URL;
+      const projectUrl =
+        envUrl && !envUrl.includes("YOUR_PROJECT")
+          ? envUrl
+          : publicConfig.supabaseUrl;
       const feed = `${projectUrl}/functions/v1/calendar-feed?token=${token}`;
       setCalendarFeed(feed);
     } catch {

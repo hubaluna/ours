@@ -3,17 +3,17 @@ import { AnimatePresence, motion } from "motion/react";
 import { MascotContext, type MascotPlacement } from "./MascotContext";
 
 const initialY: Record<MascotPlacement, number> = {
-  logo: 8,
-  title: 8,
-  panel: 12,
-  nav: 14,
-};
-
-const exitY: Record<MascotPlacement, number> = {
   logo: 6,
   title: 6,
   panel: 10,
-  nav: 12,
+  nav: 10,
+};
+
+const exitY: Record<MascotPlacement, number> = {
+  logo: 5,
+  title: 5,
+  panel: 8,
+  nav: 8,
 };
 
 const mascotClass: Record<MascotPlacement, string> = {
@@ -22,6 +22,13 @@ const mascotClass: Record<MascotPlacement, string> = {
   panel: "panel-mascot",
   nav: "nav-mascot",
 };
+
+const PEEK_IMAGES = new Set(["cat-nav-peek.webp", "cat-bed-look.webp"]);
+const LOW_IMAGES = new Set([
+  "cat-sleeping.webp",
+  "cat-bed-loaf.webp",
+  "cat-sofa-loaf.webp",
+]);
 
 export function CatMascot({
   placement,
@@ -34,25 +41,40 @@ export function CatMascot({
 
   if (!mascot || mascot.placement !== placement) return null;
 
-  const isPeek =
-    placement === "nav" &&
-    (mascot.image === "cat-nav-peek.webp" ||
-      mascot.image === "cat-bed-look.webp");
+  const isPeek = placement === "nav" && PEEK_IMAGES.has(mascot.image);
+  const isLow = LOW_IMAGES.has(mascot.image);
 
   const imageClassName = `${mascotClass[placement]} ${
     isPeek ? "nav-mascot-peek" : ""
-  } ${mascot.isSquishing ? "is-squishing" : ""}`.trim();
+  } ${isLow ? "mascot-pose-low" : ""} ${
+    mascot.isSquishing ? "is-squishing" : ""
+  }`.trim();
+
+  const wrapClassName = [
+    "cat-mascot-wrap",
+    `cat-mascot-wrap-${placement}`,
+    isPeek ? "cat-mascot-peek" : "",
+    isLow ? "cat-mascot-low" : "",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   const wrapStyle: CSSProperties | undefined =
     placement === "nav"
       ? {
-          left: `clamp(42px, ${((mascot.navSlot ?? 2) + 0.5) * (100 / 7)}%, calc(100% - 42px))`,
+          left: `clamp(56px, ${((mascot.navSlot ?? 2) + 0.5) * (100 / 6)}%, calc(100% - 56px))`,
         }
       : undefined;
 
+  const bubblePlacementClass =
+    placement === "logo" || placement === "title"
+      ? "cat-bubble cat-bubble-below"
+      : "cat-bubble";
+
   return (
     <motion.span
-      className={`cat-mascot-wrap cat-mascot-wrap-${placement} ${className}`.trim()}
+      className={wrapClassName}
       style={wrapStyle}
       role="button"
       tabIndex={0}
@@ -68,10 +90,10 @@ export function CatMascot({
           mascot.tapCat();
         }
       }}
-      initial={{ opacity: 0, y: initialY[placement], scale: 0.9 }}
+      initial={{ opacity: 0, y: initialY[placement], scale: 0.94 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: exitY[placement], scale: 0.92 }}
-      transition={{ type: "spring", stiffness: 320, damping: 24 }}
+      exit={{ opacity: 0, y: exitY[placement], scale: 0.94 }}
+      transition={{ type: "spring", stiffness: 260, damping: 24 }}
     >
       <img
         key={mascot.image}
@@ -82,7 +104,7 @@ export function CatMascot({
       />
       <AnimatePresence>
         {mascot.bubble && (
-          <span key={mascot.bubble.key} className="cat-bubble">
+          <span key={mascot.bubble.key} className={bubblePlacementClass}>
             {mascot.bubble.text}
           </span>
         )}

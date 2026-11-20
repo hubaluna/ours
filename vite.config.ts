@@ -1,17 +1,105 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
+
+function readPublicSupabaseUrl(): string {
+  try {
+    const raw = readFileSync(
+      resolve(process.cwd(), "src/lib/public-config.json"),
+      "utf-8",
+    );
+    const parsed = JSON.parse(raw) as { supabaseUrl?: string };
+    return parsed.supabaseUrl || "";
+  } catch {
+    return "";
+  }
+}
+
+function devLinkPreviewPlugin(supabaseUrl: string) {
+  return {
+    name: "ours-dev-link-preview-proxy",
+    configureServer(server: {
+      middlewares: {
+        use: (
+          path: string,
+          handler: (
+            req: import("node:http").IncomingMessage,
+            res: import("node:http").ServerResponse,
+          ) => void,
+        ) => void;
+      };
+    }) {
+      if (!supabaseUrl) return;
+      server.middlewares.use("/__ours_link_preview", (req, res) => {
+        if (req.method !== "POST") {
+          res.statusCode = 405;
+          res.end("Method Not Allowed");
+          return;
+        }
+        const chunks: Buffer[] = [];
+        req.on("data", (chunk: Buffer) => chunks.push(chunk));
+        req.on("end", () => {
+          void (async () => {
+            try {
+              const body = Buffer.concat(chunks).toString("utf-8");
+              const headers: Record<string, string> = {
+                "Content-Type": "application/json",
+                Origin: "https://hubaluna.github.io",
+              };
+              const apikey = req.headers.apikey;
+              if (typeof apikey === "string" && apikey) {
+                headers.apikey = apikey;
+              }
+              const auth = req.headers.authorization;
+              if (typeof auth === "string" && auth) {
+                headers.Authorization = auth;
+              }
+              const upstream = await fetch(
+                `${supabaseUrl}/functions/v1/link-preview`,
+                {
+                  method: "POST",
+                  headers,
+                  body,
+                },
+              );
+              const text = await upstream.text();
+              res.statusCode = upstream.status;
+              res.setHeader(
+                "Content-Type",
+                upstream.headers.get("content-type") || "application/json",
+              );
+              res.end(text);
+            } catch {
+              res.statusCode = 502;
+              res.setHeader("Content-Type", "application/json");
+              res.end(JSON.stringify({ error: "PROXY_FAILED" }));
+            }
+          })();
+        });
+      });
+    },
+  };
+}
+
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const base =
     env.VITE_BASE_PATH ||
     (command === "build" && mode !== "test" ? "/Ours/" : "/");
+  const envSupabaseUrl = env.VITE_SUPABASE_URL;
+  const supabaseUrl =
+    envSupabaseUrl && !/YOUR_PROJECT/i.test(envSupabaseUrl)
+      ? envSupabaseUrl
+      : readPublicSupabaseUrl();
   return {
     base,
     plugins: [
       react(),
       tailwindcss(),
+      devLinkPreviewPlugin(supabaseUrl),
       VitePWA({
         registerType: "autoUpdate",
         includeAssets: [

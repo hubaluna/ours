@@ -9,23 +9,23 @@ export const MASCOT_LEVEL_DESCRIPTIONS: Record<
 > = {
   0: {
     label: "Вимкнено",
-    title: "Відсутність Луни",
-    hint: "Кішка спить у своїй кімнаті й не з'являється в застосунку.",
+    title: "Луна відпочиває",
+    hint: "Кішка спить у своїй кімнаті й не з’являється в інтерфейсі.",
   },
   1: {
     label: "Рідко",
-    title: "Тихий спостерігач",
-    hint: "З'являється зрідка без спливаючих думок чи звуків.",
+    title: "Тиха присутність",
+    hint: "З’являється зрідка й спокійно дрімає без спливаючих фраз і звуків.",
   },
   2: {
     label: "Базовий",
-    title: "Базові взаємодії",
-    hint: "З'являється періодично, реагує на дотики та муркоче.",
+    title: "Спокійний компаньйон",
+    hint: "Неспішно змінює улюблені місця, реагує на дотики та муркоче.",
   },
   3: {
-    label: "Максимум",
-    title: "Жвавий (як зараз)",
-    hint: "Повне життя: спонтанні думки, серії погладжувань, сердечка й контекстні фрази.",
+    label: "Жвавий",
+    title: "Повна взаємодія",
+    hint: "Природний ритм без миготіння: інколи вітається, муркоче й любить погладжування.",
   },
 };
 
@@ -213,128 +213,427 @@ export function getCatReaction(
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-function playPurr(ctx: AudioContext, now: number) {
-  // Carrier oscillator: warm low tone ~62 Hz (with harmonics audible on phone speakers)
-  const osc = ctx.createOscillator();
-  osc.type = "triangle";
-  osc.frequency.setValueAtTime(62, now);
+let cachedNoiseBuffer: AudioBuffer | null = null;
+let cachedNoiseCtx: AudioContext | null = null;
 
-  // Soft lowpass filter ~260 Hz
-  const filter = ctx.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.setValueAtTime(260, now);
-  filter.Q.setValueAtTime(1.2, now);
+function getBreathNoiseBuffer(ctx: AudioContext): AudioBuffer | null {
+  try {
+    if (cachedNoiseBuffer && cachedNoiseCtx === ctx) {
+      return cachedNoiseBuffer;
+    }
+    const sampleRate = ctx.sampleRate || 44100;
+    const length = Math.floor(sampleRate * 2);
+    const buffer = ctx.createBuffer(1, length, sampleRate);
+    const data = buffer.getChannelData(0);
+    // Warm pink/brown-tinted noise for organic feline breath and purr airflow
+    let b0 = 0;
+    let b1 = 0;
+    let b2 = 0;
+    for (let i = 0; i < length; i++) {
+      const white = Math.random() * 2 - 1;
+      b0 = 0.997 * b0 + white * 0.029;
+      b1 = 0.985 * b1 + white * 0.032;
+      b2 = 0.95 * b2 + white * 0.048;
+      data[i] = Math.max(-1, Math.min(1, (b0 + b1 + b2 + white * 0.018) * 2.4));
+    }
+    cachedNoiseBuffer = buffer;
+    cachedNoiseCtx = ctx;
+    return buffer;
+  } catch {
+    return null;
+  }
+}
 
-  // Tremolo LFO for rhythmic purr rumble ~24 Hz
-  const lfo = ctx.createOscillator();
-  lfo.type = "sine";
-  lfo.frequency.setValueAtTime(24, now);
+function playPurr(ctx: AudioContext, now: number, duration = 1.25) {
+  // Realistic velvety cat purr: ~26 Hz glottal rumble + breath airflow modulated
+  // at the same 26 Hz rate across a natural inhale + exhale breathing wave.
+  const purrRate = 25.5 + Math.random() * 2.2;
+  const master = ctx.createGain();
+  master.gain.setValueAtTime(0.0001, now);
+  // Inhale swell -> brief breath turn -> softer exhale -> gentle fade
+  master.gain.linearRampToValueAtTime(0.28, now + duration * 0.22);
+  master.gain.linearRampToValueAtTime(0.11, now + duration * 0.48);
+  master.gain.linearRampToValueAtTime(0.24, now + duration * 0.7);
+  master.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+  master.connect(ctx.destination);
 
-  const lfoGain = ctx.createGain();
-  lfoGain.gain.setValueAtTime(0.08, now);
+  // Layer 1: Warm resonant chest rumble (sawtooth harmonic pulse train @ ~26 Hz)
+  const rumbleOsc = ctx.createOscillator();
+  rumbleOsc.type = "sawtooth";
+  rumbleOsc.frequency.setValueAtTime(purrRate, now);
+  rumbleOsc.frequency.linearRampToValueAtTime(
+    purrRate * 0.95,
+    now + duration * 0.5,
+  );
+  rumbleOsc.frequency.linearRampToValueAtTime(purrRate * 1.02, now + duration);
 
-  // Master gain node: pleasant volume
-  const masterGain = ctx.createGain();
-  masterGain.gain.setValueAtTime(0.001, now);
-  masterGain.gain.linearRampToValueAtTime(0.24, now + 0.12);
-  masterGain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+  // Sub-chest warmth (2x fundamental for mobile speaker audibility)
+  const chestOsc = ctx.createOscillator();
+  chestOsc.type = "triangle";
+  chestOsc.frequency.setValueAtTime(purrRate * 2, now);
 
-  lfo.connect(lfoGain);
-  lfoGain.connect(masterGain.gain);
+  const chestMix = ctx.createGain();
+  chestMix.gain.setValueAtTime(0.45, now);
 
-  osc.connect(filter);
-  filter.connect(masterGain);
-  masterGain.connect(ctx.destination);
+  const rumbleLp = ctx.createBiquadFilter();
+  rumbleLp.type = "lowpass";
+  rumbleLp.frequency.setValueAtTime(220, now);
+  rumbleLp.Q.setValueAtTime(1.3, now);
 
-  osc.start(now);
-  lfo.start(now);
-  osc.stop(now + 0.65);
-  lfo.stop(now + 0.65);
+  const chestFormant = ctx.createBiquadFilter();
+  chestFormant.type = "peaking";
+  chestFormant.frequency.setValueAtTime(115, now);
+  chestFormant.Q.setValueAtTime(1.8, now);
+  chestFormant.gain.setValueAtTime(5, now);
+
+  const rumbleGain = ctx.createGain();
+  rumbleGain.gain.setValueAtTime(0.75, now);
+
+  rumbleOsc.connect(rumbleLp);
+  chestOsc.connect(chestMix);
+  chestMix.connect(rumbleLp);
+  rumbleLp.connect(chestFormant);
+  chestFormant.connect(rumbleGain);
+  rumbleGain.connect(master);
+
+  rumbleOsc.start(now);
+  chestOsc.start(now);
+  rumbleOsc.stop(now + duration + 0.04);
+  chestOsc.stop(now + duration + 0.04);
+
+  // Layer 2: Soft rhythmic breath texture modulated at the purr pulse rate
+  const noiseBuf = getBreathNoiseBuffer(ctx);
+  if (noiseBuf) {
+    const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuf;
+    noise.loop = true;
+
+    const breathBp = ctx.createBiquadFilter();
+    breathBp.type = "bandpass";
+    breathBp.frequency.setValueAtTime(360, now);
+    breathBp.Q.setValueAtTime(1.1, now);
+
+    const breathAmp = ctx.createGain();
+    breathAmp.gain.setValueAtTime(0.28, now);
+
+    const pulseLfo = ctx.createOscillator();
+    pulseLfo.type = "sine";
+    pulseLfo.frequency.setValueAtTime(purrRate, now);
+    const pulseDepth = ctx.createGain();
+    pulseDepth.gain.setValueAtTime(0.22, now);
+
+    pulseLfo.connect(pulseDepth);
+    pulseDepth.connect(breathAmp.gain);
+
+    noise.connect(breathBp);
+    breathBp.connect(breathAmp);
+    breathAmp.connect(master);
+
+    noise.start(now);
+    pulseLfo.start(now);
+    noise.stop(now + duration + 0.04);
+    pulseLfo.stop(now + duration + 0.04);
+  }
+}
+
+function playVocalFormantVoice(
+  ctx: AudioContext,
+  now: number,
+  options: {
+    duration: number;
+    pitchPoints: Array<[number, number]>;
+    f1Points: Array<[number, number]>;
+    f2Points: Array<[number, number]>;
+    f3Points: Array<[number, number]>;
+    peakGain: number;
+    trillHz?: number;
+    trillDepth?: number;
+    breathAmount?: number;
+  },
+) {
+  const {
+    duration,
+    pitchPoints,
+    f1Points,
+    f2Points,
+    f3Points,
+    peakGain,
+    trillHz,
+    trillDepth = 0,
+    breathAmount = 0.025,
+  } = options;
+
+  // Glottal pulse source (sawtooth gives natural harmonic series for formants)
+  const source = ctx.createOscillator();
+  source.type = "sawtooth";
+  source.frequency.setValueAtTime(pitchPoints[0][1], now);
+  for (let i = 1; i < pitchPoints.length; i++) {
+    const [tRatio, hz] = pitchPoints[i];
+    source.frequency.exponentialRampToValueAtTime(
+      Math.max(80, hz),
+      now + duration * tRatio,
+    );
+  }
+
+  // Subtle organic vibrato so voice feels alive rather than robotic
+  const vibrato = ctx.createOscillator();
+  vibrato.type = "sine";
+  vibrato.frequency.setValueAtTime(5.6 + Math.random() * 1.2, now);
+  const vibratoGain = ctx.createGain();
+  vibratoGain.gain.setValueAtTime(7, now);
+  vibrato.connect(vibratoGain);
+  vibratoGain.connect(source.frequency);
+
+  // Pre-filter source to soften harsh high sawtooth harmonics
+  const glottalTilt = ctx.createBiquadFilter();
+  glottalTilt.type = "lowpass";
+  glottalTilt.frequency.setValueAtTime(3400, now);
+  glottalTilt.Q.setValueAtTime(0.6, now);
+  source.connect(glottalTilt);
+
+  // Master envelope
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0.0001, now);
+  env.gain.linearRampToValueAtTime(peakGain, now + duration * 0.16);
+  env.gain.setValueAtTime(peakGain * 0.92, now + duration * 0.56);
+  env.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+  // Soft output warmth filter
+  const warmOut = ctx.createBiquadFilter();
+  warmOut.type = "lowpass";
+  warmOut.frequency.setValueAtTime(3600, now);
+  env.connect(warmOut);
+  warmOut.connect(ctx.destination);
+
+  // Optional rolled purr-trill modulation ("mrrrp")
+  if (trillHz && trillDepth > 0) {
+    const trillOsc = ctx.createOscillator();
+    trillOsc.type = "sine";
+    trillOsc.frequency.setValueAtTime(trillHz, now);
+    const trillGain = ctx.createGain();
+    trillGain.gain.setValueAtTime(peakGain * trillDepth, now);
+    trillGain.gain.linearRampToValueAtTime(0.001, now + duration * 0.8);
+    trillOsc.connect(trillGain);
+    trillGain.connect(env.gain);
+    trillOsc.start(now);
+    trillOsc.stop(now + duration + 0.03);
+  }
+
+  // Parallel vocal-tract formant resonators (F1, F2, F3 -> "m-e-a-o-u")
+  const formants: Array<{
+    points: Array<[number, number]>;
+    q: number;
+    gain: number;
+  }> = [
+    { points: f1Points, q: 4.2, gain: 1.0 },
+    { points: f2Points, q: 5.5, gain: 0.65 },
+    { points: f3Points, q: 6.5, gain: 0.22 },
+  ];
+
+  for (const f of formants) {
+    const bp = ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.Q.setValueAtTime(f.q, now);
+    bp.frequency.setValueAtTime(f.points[0][1], now);
+    for (let i = 1; i < f.points.length; i++) {
+      const [tRatio, hz] = f.points[i];
+      bp.frequency.exponentialRampToValueAtTime(hz, now + duration * tRatio);
+    }
+    const fg = ctx.createGain();
+    fg.gain.setValueAtTime(f.gain, now);
+    glottalTilt.connect(bp);
+    bp.connect(fg);
+    fg.connect(env);
+  }
+
+  // Subtle feline aspiration breath layer
+  const noiseBuf = getBreathNoiseBuffer(ctx);
+  if (noiseBuf && breathAmount > 0) {
+    const breath = ctx.createBufferSource();
+    breath.buffer = noiseBuf;
+    const breathFilter = ctx.createBiquadFilter();
+    breathFilter.type = "bandpass";
+    breathFilter.frequency.setValueAtTime(1750, now);
+    breathFilter.Q.setValueAtTime(1.4, now);
+    const breathGain = ctx.createGain();
+    breathGain.gain.setValueAtTime(breathAmount, now);
+    breath.connect(breathFilter);
+    breathFilter.connect(breathGain);
+    breathGain.connect(env);
+    breath.start(now);
+    breath.stop(now + duration + 0.03);
+  }
+
+  source.start(now);
+  vibrato.start(now);
+  source.stop(now + duration + 0.03);
+  vibrato.stop(now + duration + 0.03);
 }
 
 function playChirp(ctx: AudioContext, now: number) {
-  // Playful upward trill glide 480 Hz -> 780 Hz over 0.22s
-  const osc = ctx.createOscillator();
-  osc.type = "sine";
-  osc.frequency.setValueAtTime(480, now);
-  osc.frequency.exponentialRampToValueAtTime(780, now + 0.22);
-
-  const filter = ctx.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.setValueAtTime(1600, now);
-
-  const masterGain = ctx.createGain();
-  masterGain.gain.setValueAtTime(0.001, now);
-  masterGain.gain.linearRampToValueAtTime(0.28, now + 0.04);
-  masterGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-
-  osc.connect(filter);
-  filter.connect(masterGain);
-  masterGain.connect(ctx.destination);
-
-  osc.start(now);
-  osc.stop(now + 0.22);
+  // Friendly feline greeting trill ("мрр-п?"): rolled upward purr-chirp
+  const shift = 0.95 + Math.random() * 0.1;
+  playVocalFormantVoice(ctx, now, {
+    duration: 0.29,
+    pitchPoints: [
+      [0, 390 * shift],
+      [0.35, 510 * shift],
+      [0.82, 820 * shift],
+      [1, 740 * shift],
+    ],
+    f1Points: [
+      [0, 440],
+      [0.5, 760],
+      [1, 620],
+    ],
+    f2Points: [
+      [0, 1250],
+      [0.65, 2250],
+      [1, 1850],
+    ],
+    f3Points: [
+      [0, 2700],
+      [0.7, 3250],
+      [1, 2900],
+    ],
+    peakGain: 0.34,
+    trillHz: 29,
+    trillDepth: 0.42,
+    breathAmount: 0.035,
+  });
 }
 
 function playMeow(ctx: AudioContext, now: number) {
-  // Gentle meow frequency contour: 520 Hz -> 720 Hz -> 460 Hz over 0.32s
-  const osc = ctx.createOscillator();
-  osc.type = "sine";
-  osc.frequency.setValueAtTime(520, now);
-  osc.frequency.exponentialRampToValueAtTime(720, now + 0.14);
-  osc.frequency.exponentialRampToValueAtTime(460, now + 0.32);
+  // Expressive feline "м-е-а-о-у" with natural variant selection
+  const variant = Math.floor(Math.random() * 3);
+  const shift = 0.96 + Math.random() * 0.08;
 
-  const filter = ctx.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.setValueAtTime(1400, now);
-
-  const masterGain = ctx.createGain();
-  masterGain.gain.setValueAtTime(0.001, now);
-  masterGain.gain.linearRampToValueAtTime(0.28, now + 0.05);
-  masterGain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
-
-  osc.connect(filter);
-  filter.connect(masterGain);
-  masterGain.connect(ctx.destination);
-
-  osc.start(now);
-  osc.stop(now + 0.32);
+  if (variant === 0) {
+    // Classic tender meow ("мяяу")
+    playVocalFormantVoice(ctx, now, {
+      duration: 0.48,
+      pitchPoints: [
+        [0, 500 * shift],
+        [0.24, 780 * shift],
+        [0.62, 650 * shift],
+        [1, 430 * shift],
+      ],
+      f1Points: [
+        [0, 420],
+        [0.28, 960],
+        [0.68, 760],
+        [1, 460],
+      ],
+      f2Points: [
+        [0, 1300],
+        [0.3, 2320],
+        [0.72, 1520],
+        [1, 1020],
+      ],
+      f3Points: [
+        [0, 2800],
+        [0.35, 3300],
+        [1, 2550],
+      ],
+      peakGain: 0.36,
+      breathAmount: 0.03,
+    });
+  } else if (variant === 1) {
+    // Soft inquisitive meow ("мяу?")
+    playVocalFormantVoice(ctx, now, {
+      duration: 0.4,
+      pitchPoints: [
+        [0, 470 * shift],
+        [0.35, 740 * shift],
+        [0.8, 820 * shift],
+        [1, 680 * shift],
+      ],
+      f1Points: [
+        [0, 440],
+        [0.36, 920],
+        [1, 560],
+      ],
+      f2Points: [
+        [0, 1350],
+        [0.4, 2280],
+        [1, 1480],
+      ],
+      f3Points: [
+        [0, 2850],
+        [0.5, 3350],
+        [1, 2800],
+      ],
+      peakGain: 0.34,
+      trillHz: 27,
+      trillDepth: 0.16,
+      breathAmount: 0.03,
+    });
+  } else {
+    // Dreamy soft meow ("мряу…")
+    playVocalFormantVoice(ctx, now, {
+      duration: 0.54,
+      pitchPoints: [
+        [0, 440 * shift],
+        [0.28, 660 * shift],
+        [0.66, 540 * shift],
+        [1, 390 * shift],
+      ],
+      f1Points: [
+        [0, 400],
+        [0.3, 860],
+        [0.7, 640],
+        [1, 420],
+      ],
+      f2Points: [
+        [0, 1220],
+        [0.32, 2050],
+        [0.75, 1340],
+        [1, 960],
+      ],
+      f3Points: [
+        [0, 2700],
+        [0.35, 3100],
+        [1, 2450],
+      ],
+      peakGain: 0.32,
+      trillHz: 26,
+      trillDepth: 0.22,
+      breathAmount: 0.035,
+    });
+  }
 }
 
 function playHappyTrill(ctx: AudioContext, now: number) {
-  // Melodic joyful upward purr-trill for streak pet interactions
-  const osc = ctx.createOscillator();
-  osc.type = "sine";
-  osc.frequency.setValueAtTime(560, now);
-  osc.frequency.exponentialRampToValueAtTime(840, now + 0.12);
-  osc.frequency.exponentialRampToValueAtTime(720, now + 0.28);
-
-  const filter = ctx.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.setValueAtTime(1800, now);
-
-  const lfo = ctx.createOscillator();
-  lfo.type = "triangle";
-  lfo.frequency.setValueAtTime(30, now);
-  const lfoGain = ctx.createGain();
-  lfoGain.gain.setValueAtTime(0.06, now);
-
-  const masterGain = ctx.createGain();
-  masterGain.gain.setValueAtTime(0.001, now);
-  masterGain.gain.linearRampToValueAtTime(0.26, now + 0.05);
-  masterGain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
-
-  lfo.connect(lfoGain);
-  lfoGain.connect(masterGain.gain);
-
-  osc.connect(filter);
-  filter.connect(masterGain);
-  masterGain.connect(ctx.destination);
-
-  osc.start(now);
-  lfo.start(now);
-  osc.stop(now + 0.28);
-  lfo.stop(now + 0.28);
+  // Joyful streak petting: sweet rolled greeting trill melting into a warm purr
+  playVocalFormantVoice(ctx, now, {
+    duration: 0.34,
+    pitchPoints: [
+      [0, 430],
+      [0.38, 760],
+      [0.75, 860],
+      [1, 640],
+    ],
+    f1Points: [
+      [0, 460],
+      [0.45, 920],
+      [1, 560],
+    ],
+    f2Points: [
+      [0, 1380],
+      [0.5, 2350],
+      [1, 1520],
+    ],
+    f3Points: [
+      [0, 2850],
+      [0.5, 3400],
+      [1, 2750],
+    ],
+    peakGain: 0.34,
+    trillHz: 28,
+    trillDepth: 0.45,
+    breathAmount: 0.03,
+  });
+  playPurr(ctx, now + 0.18, 0.95);
 }
 
 export function playCatSound(image: string, streak = 1): void {

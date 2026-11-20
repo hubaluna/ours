@@ -3,14 +3,21 @@ import publicConfig from "./public-config.json";
 // Only PUBLIC client credentials belong in this file. Environment values win.
 // Test runs must never connect to a real project, even after public setup.
 const isTest = import.meta.env.MODE === "test";
+const isPlaceholder = (value: string | undefined) =>
+  !value || /YOUR_PROJECT|YOUR_PUBLISHABLE|YOUR_ANON/i.test(value);
+const envUrl = import.meta.env.VITE_SUPABASE_URL;
+const envKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const url = isTest
   ? ""
-  : import.meta.env.VITE_SUPABASE_URL || publicConfig.supabaseUrl;
+  : (!isPlaceholder(envUrl) ? envUrl : publicConfig.supabaseUrl) || "";
 const key = isTest
   ? ""
-  : import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-    publicConfig.supabasePublishableKey;
-export const configured = Boolean(url && key && !url.includes("YOUR_PROJECT"));
+  : (!isPlaceholder(envKey) ? envKey : publicConfig.supabasePublishableKey) ||
+    "";
+export const supabasePublishableKey = key;
+export const configured = Boolean(
+  url && key && !isPlaceholder(url) && !isPlaceholder(key),
+);
 export const supabase = configured
   ? createClient(url, key, {
       auth: {
