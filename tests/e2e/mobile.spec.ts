@@ -4,13 +4,15 @@ const tabs = ["Головна", "Покупки", "Меню", "Кіно", "Ба�
 const nav = (page: Page) =>
   page.getByRole("navigation", { name: "Основна навігація" });
 async function choose(page: Page, tab: string) {
-  await nav(page).getByRole("button", { name: tab, exact: true }).click();
+  const trigger =
+    tab === "Головна"
+      ? page.getByRole("button", { name: "ours. — головна", exact: true })
+      : nav(page).getByRole("button", { name: tab, exact: true });
+  await trigger.click();
   await expect(page.locator(".screen-header h1")).toHaveText(
     tab === "Головна" ? "Нове для вас" : tab,
   );
-  await expect(
-    nav(page).getByRole("button", { name: tab, exact: true }),
-  ).toHaveAttribute("aria-current", "page");
+  await expect(trigger).toHaveAttribute("aria-current", "page");
 }
 async function fit(page: Page) {
   await page.evaluate(() => document.fonts.ready);
@@ -30,7 +32,7 @@ async function fit(page: Page) {
         const buttons = Array.from(
           document.querySelectorAll<HTMLButtonElement>(".bottom-nav > button"),
         );
-        if (!shell || buttons.length !== 7) return false;
+        if (!shell || buttons.length !== 6) return false;
         const outer = shell.getBoundingClientRect();
         const boxes = buttons.map((button) => button.getBoundingClientRect());
         const labels = buttons.map((button) =>
