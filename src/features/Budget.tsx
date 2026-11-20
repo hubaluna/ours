@@ -2286,7 +2286,7 @@ function BudgetSettingsSheet({
     <BottomSheet title="Налаштування бюджету" onClose={onClose}>
       <div className="budget-settings-sheet">
         <div
-          className="segmented budget-view-switch budget-settings-tabs"
+          className="budget-settings-tabs"
           role="tablist"
           aria-label="Розділи налаштувань"
         >
@@ -2425,10 +2425,11 @@ function BudgetSettingsSheet({
                     required
                   />
                 </div>
-                <div className="budget-recurring-row3">
+                <div className="budget-recurring-row-selects">
                   <select
                     value={recKind}
                     aria-label="Тип платежу"
+                    className="budget-select-kind"
                     onChange={(e) => {
                       const nextKind = e.target.value as BudgetKind;
                       setRecKind(nextKind);
@@ -2443,6 +2444,7 @@ function BudgetSettingsSheet({
                   <select
                     value={recCatKey}
                     aria-label="Категорія платежу"
+                    className="budget-select-cat"
                     onChange={(e) => setRecCatKey(e.target.value)}
                   >
                     {recurringCategories.map((cat) => (
@@ -2451,14 +2453,14 @@ function BudgetSettingsSheet({
                       </option>
                     ))}
                   </select>
-                  <Button
-                    type="submit"
-                    className="secondary"
-                    busy={pending.includes("add-budget-recurring")}
-                  >
-                    Додати
-                  </Button>
                 </div>
+                <Button
+                  type="submit"
+                  className="secondary budget-recurring-submit"
+                  busy={pending.includes("add-budget-recurring")}
+                >
+                  + Додати платіж
+                </Button>
               </form>
 
               {recurring.length === 0 ? (
