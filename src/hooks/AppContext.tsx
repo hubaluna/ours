@@ -935,7 +935,19 @@ function useStore() {
   }, [demo, userId, refresh]);
   useEffect(() => {
     if (!supabase || !coupleId || !userId) return;
+    let refreshTimer: number | null = null;
+    let hadLiveOnce = false;
+    const scheduleRefresh = () => {
+      if (refreshTimer !== null) return;
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = null;
+        void refresh();
+      }, 180);
+    };
+
     const channel = supabase.channel(`space:${coupleId}`);
+    // Consolidate to a single wildcard listener per RLS-protected table
+    // (cuts server-side Realtime subscription setup from ~59 filters down to ~23).
     for (const table of [
       "shopping_items",
       "shopping_sessions",
@@ -943,7 +955,6 @@ function useStore() {
       "events",
       "couple_members",
       "movies",
-      "wishes",
       "recipes",
       "meal_plan_items",
       "pantry_items",
@@ -957,23 +968,24 @@ function useStore() {
       "budget_settings",
       "budget_recurring_payments",
     ]) {
-      for (const event of ["INSERT", "UPDATE"] as const)
-        channel.on(
-          "postgres_changes",
-          {
-            event,
-            schema: "public",
-            table,
-            filter: `couple_id=eq.${coupleId}`,
-          },
-          () => void refresh(),
-        );
-      if (table !== "wishes")
-        channel.on(
-          "postgres_changes",
-          { event: "DELETE", schema: "public", table },
-          () => void refresh(),
-        );
+      channel.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table },
+        scheduleRefresh,
+      );
+    }
+    // Wishes stay scoped to INSERT/UPDATE for couple_id to preserve private-wish deletion semantics.
+    for (const event of ["INSERT", "UPDATE"] as const) {
+      channel.on(
+        "postgres_changes",
+        {
+          event,
+          schema: "public",
+          table: "wishes",
+          filter: `couple_id=eq.${coupleId}`,
+        },
+        scheduleRefresh,
+      );
     }
     channel.on(
       "postgres_changes",
@@ -983,12 +995,12 @@ function useStore() {
         table: "recipe_favorites",
         filter: `user_id=eq.${userId}`,
       },
-      () => void refresh(),
+      scheduleRefresh,
     );
     channel.on(
       "postgres_changes",
       { event: "*", schema: "public", table: "profiles" },
-      () => void refresh(),
+      scheduleRefresh,
     );
     channel.on(
       "postgres_changes",
@@ -998,23 +1010,25 @@ function useStore() {
         table: "activity_reads",
         filter: `user_id=eq.${userId}`,
       },
-      () => void refresh(),
+      scheduleRefresh,
     );
     // Secret gifts are intentionally absent from Realtime publication.
     // The author refreshes after mutations and when returning to this page.
     channel.on("system", {}, (payload) => {
       if (payload.extension === "postgres_changes" && payload.status === "ok") {
         setSync("live");
-        // PostgreSQL listeners become ready after the channel join. Refresh
-        // here as well to cover changes made during that subscription gap.
-        void refresh();
+        // Only refresh after an actual reconnect gap; initial boot already loaded data.
+        if (hadLiveOnce) {
+          scheduleRefresh();
+        }
+        hadLiveOnce = true;
       }
     });
     channel.subscribe((status) => {
       if (status !== "SUBSCRIBED") setSync("connecting");
-      if (status === "SUBSCRIBED") void refresh();
     });
     return () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
       void supabase!.removeChannel(channel);
     };
   }, [coupleId, userId, refresh]);

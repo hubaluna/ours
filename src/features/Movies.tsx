@@ -29,18 +29,40 @@ import {
 import { MovieForm } from "../components/MovieForm";
 import { movieSynopsis } from "../../supabase/functions/_shared/movie-synopsis";
 import { LinkImport } from "../components/LinkImportLoader";
-export function Poster({ url, title }: { url: string; title: string }) {
+import { optimizeExternalImageUrl } from "../hooks/useImage";
+export function Poster({
+  url,
+  title,
+  variant = "thumb",
+}: {
+  url: string;
+  title: string;
+  variant?: "thumb" | "detail";
+}) {
+  const safeRaw = url && publicUrl(url) ? url : "";
+  const optimized = safeRaw ? optimizeExternalImageUrl(safeRaw, variant) : "";
+  const [fallbackToRaw, setFallbackToRaw] = useState("");
   const [failedUrl, setFailedUrl] = useState("");
+
+  const activeSrc =
+    fallbackToRaw === safeRaw || !optimized ? safeRaw : optimized;
+
   return (
     <span className="media-thumb">
-      {url && url !== failedUrl && publicUrl(url) ? (
+      {activeSrc && activeSrc !== failedUrl ? (
         <img
-          src={url}
+          src={activeSrc}
           alt={title}
-          loading="lazy"
+          loading="eager"
           decoding="async"
           referrerPolicy="no-referrer"
-          onError={() => setFailedUrl(url)}
+          onError={() => {
+            if (activeSrc !== safeRaw && safeRaw) {
+              setFallbackToRaw(safeRaw);
+              return;
+            }
+            setFailedUrl(activeSrc);
+          }}
         />
       ) : (
         <BrandArt />
@@ -205,7 +227,11 @@ export default function Movies() {
             onClose={() => setDetail(null)}
           >
             <div className="movie-detail">
-              <Poster url={detail.poster_url} title={detail.title} />
+              <Poster
+                url={detail.poster_url}
+                title={detail.title}
+                variant="detail"
+              />
               <p>
                 {detail.year ?? "Рік не вказаний"} ·{" "}
                 {detail.genres || "Жанр не вказаний"}

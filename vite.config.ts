@@ -161,16 +161,35 @@ export default defineConfig(({ command, mode }) => {
               },
             },
             {
-              urlPattern: /^https:\/\/image\.tmdb\.org\/t\/p\/.+/,
+              urlPattern:
+                /^https:\/\/(?:image\.tmdb\.org\/t\/p\/|upload\.wikimedia\.org\/|static\.tvmaze\.com\/uploads\/images\/|m\.media-amazon\.com\/images\/|i\.ytimg\.com\/).+/,
               handler: "CacheFirst",
               options: {
-                cacheName: "ours-tmdb-posters-v1",
+                cacheName: "ours-media-posters-v1",
                 cacheableResponse: {
                   statuses: [0, 200],
                 },
                 expiration: {
-                  maxEntries: 120,
+                  maxEntries: 200,
                   maxAgeSeconds: 30 * 24 * 60 * 60,
+                },
+              },
+            },
+            {
+              urlPattern: ({ request, url }) =>
+                request.destination === "image" &&
+                url.origin !== self.location.origin &&
+                !url.pathname.includes("/storage/v1/object/") &&
+                !url.search.includes("token="),
+              handler: "StaleWhileRevalidate",
+              options: {
+                cacheName: "ours-external-images-v1",
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+                expiration: {
+                  maxEntries: 150,
+                  maxAgeSeconds: 14 * 24 * 60 * 60,
                 },
               },
             },

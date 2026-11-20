@@ -3,7 +3,7 @@ import { AnimatePresence, motion, type HTMLMotionProps } from "motion/react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { AlertCircle, ArrowRight, Check, LoaderCircle, X } from "lucide-react";
 import { spring, soft } from "../lib/motion";
-import { useImage } from "../hooks/useImage";
+import { recoverImage, useImage } from "../hooks/useImage";
 import { useApp } from "../hooks/AppContext";
 export function Button({
   children,
@@ -52,10 +52,24 @@ export function Avatar({
   size?: "normal" | "small" | "large";
 }) {
   const url = useImage(path ?? null);
+  const [retriedPath, setRetriedPath] = useState<string | null>(null);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+
+  const handleError = () => {
+    if (path && retriedPath !== path) {
+      setRetriedPath(path);
+      void recoverImage(path).then((fresh) => {
+        if (!fresh) setFailedUrl(url);
+      });
+      return;
+    }
+    setFailedUrl(url);
+  };
+
   return (
     <span className={`avatar ${size}`}>
-      {url ? (
-        <img src={url} alt={name} decoding="async" />
+      {url && url !== failedUrl ? (
+        <img src={url} alt={name} decoding="async" onError={handleError} />
       ) : (
         name.slice(0, 1).toLocaleUpperCase("uk")
       )}

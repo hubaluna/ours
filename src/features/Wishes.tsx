@@ -14,7 +14,11 @@ import {
 } from "lucide-react";
 import type { Wish, NewWish } from "../lib/types";
 import { useApp } from "../hooks/AppContext";
-import { useImage } from "../hooks/useImage";
+import {
+  optimizeExternalImageUrl,
+  recoverImage,
+  useImage,
+} from "../hooks/useImage";
 import { money, safeUrl } from "../lib/utils";
 import { publicUrl } from "../../supabase/functions/_shared/urls";
 import type { LinkMetadata } from "../../supabase/functions/_shared/metadata";
@@ -36,10 +40,28 @@ import {
 } from "../components/Compact";
 import { LinkImport } from "../components/LinkImportLoader";
 
-function WishImage({ wish, eager = false }: { wish: Wish; eager?: boolean }) {
+function WishImage({
+  wish,
+  eager = true,
+  variant = "thumb",
+}: {
+  wish: Wish;
+  eager?: boolean;
+  variant?: "thumb" | "detail";
+}) {
   const image = useImage(wish.image_path),
+    [retriedPath, setRetriedPath] = useState<string | null>(null),
+    [fallbackRawExt, setFallbackRawExt] = useState(""),
     [failedUrl, setFailedUrl] = useState("");
-  const url = image || publicUrl(wish.image_url || "");
+  const rawExternal = publicUrl(wish.image_url || "");
+  const optimizedExternal = rawExternal
+    ? optimizeExternalImageUrl(rawExternal, variant)
+    : "";
+  const externalUrl =
+    fallbackRawExt === rawExternal || !optimizedExternal
+      ? rawExternal
+      : optimizedExternal;
+  const url = image || externalUrl;
   return (
     <span className="media-thumb">
       {url && url !== failedUrl ? (
@@ -49,7 +71,20 @@ function WishImage({ wish, eager = false }: { wish: Wish; eager?: boolean }) {
           referrerPolicy="no-referrer"
           loading={eager ? "eager" : "lazy"}
           decoding="async"
-          onError={() => setFailedUrl(url)}
+          onError={() => {
+            if (image && wish.image_path && retriedPath !== wish.image_path) {
+              setRetriedPath(wish.image_path);
+              void recoverImage(wish.image_path).then((fresh) => {
+                if (!fresh) setFailedUrl(url);
+              });
+              return;
+            }
+            if (!image && url !== rawExternal && rawExternal) {
+              setFallbackRawExt(rawExternal);
+              return;
+            }
+            setFailedUrl(url);
+          }}
         />
       ) : (
         <BrandArt />
@@ -514,7 +549,7 @@ export default function Wishes() {
             onClose={() => setDetail(null)}
           >
             <div className="wish-detail">
-              <WishImage wish={liveDetail} />
+              <WishImage wish={liveDetail} variant="detail" />
               <span className="badge">
                 {liveDetail.fulfilled
                   ? `${liveDetail.priority} · Виконано`

@@ -368,7 +368,7 @@ export async function movieCandidates(
           title: filmTitle(title),
           url: `https://${language}.wikipedia.org/?curid=${Number(page.pageid)}`,
           image_url: publicUrl(
-            page.original?.source || page.thumbnail?.source || "",
+            page.thumbnail?.source || page.original?.source || "",
           ),
           description: text.slice(0, 1800),
           year: extractYear(title, text),
@@ -410,7 +410,7 @@ export async function movieCandidates(
             title: filmTitle(String(page.title || query)),
             url: source,
             image_url: publicUrl(
-              page.originalimage?.source || page.thumbnail?.source || "",
+              page.thumbnail?.source || page.originalimage?.source || "",
             ),
             description: text.slice(0, 1800),
             year: extractYear(String(page.title || ""), text),
@@ -496,7 +496,7 @@ export async function movieCandidates(
                   title: filmTitle(String(summaryRes.title || ent.labels?.uk?.value || ent.labels?.en?.value || query)),
                   url: source,
                   image_url: publicUrl(
-                    summaryRes.originalimage?.source || summaryRes.thumbnail?.source || "",
+                    summaryRes.thumbnail?.source || summaryRes.originalimage?.source || "",
                   ),
                   description: String(summaryRes.extract || hit.description || "").slice(0, 1800),
                   year: entYear ?? extractYear(String(summaryRes.title || ""), String(summaryRes.extract || "")),
@@ -542,7 +542,7 @@ export async function movieCandidates(
             title,
             url: source,
             image_url: publicUrl(
-              show?.image?.original || show?.image?.medium || "",
+              show?.image?.medium || show?.image?.original || "",
             ),
             description: stripHtmlText(String(show?.summary || "")).slice(
               0,

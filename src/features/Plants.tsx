@@ -9,7 +9,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useApp } from "../hooks/AppContext";
-import { useImage } from "../hooks/useImage";
+import { recoverImage, useImage } from "../hooks/useImage";
 import { supabase, uploadImage } from "../lib/supabase";
 import { kyivDate, safeUrl } from "../lib/utils";
 import { DEMO_COUPLE } from "../lib/demo";
@@ -32,10 +32,29 @@ function PlantPhoto({
   large?: boolean;
 }) {
   const image = useImage(plant.image_path);
+  const [retriedPath, setRetriedPath] = useState<string | null>(null);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+
+  const handleError = () => {
+    if (plant.image_path && retriedPath !== plant.image_path) {
+      setRetriedPath(plant.image_path);
+      void recoverImage(plant.image_path).then((fresh) => {
+        if (!fresh) setFailedUrl(image);
+      });
+      return;
+    }
+    setFailedUrl(image);
+  };
+
   return (
     <span className={`plant-photo${large ? " plant-photo-large" : ""}`}>
-      {image ? (
-        <img src={image} alt={plant.name} decoding="async" />
+      {image && image !== failedUrl ? (
+        <img
+          src={image}
+          alt={plant.name}
+          decoding="async"
+          onError={handleError}
+        />
       ) : (
         <Sprout aria-hidden="true" />
       )}
@@ -188,7 +207,15 @@ function PlantForm({
       <form className="plant-form" onSubmit={(event) => void submit(event)}>
         <label className="plant-photo-picker">
           {shownPreview ? (
-            <img src={shownPreview} alt="Фото для картки рослини" />
+            <img
+              src={shownPreview}
+              alt="Фото для картки рослини"
+              onError={() => {
+                if (!preview && plant?.image_path) {
+                  void recoverImage(plant.image_path);
+                }
+              }}
+            />
           ) : (
             <Upload size={21} />
           )}

@@ -451,8 +451,8 @@ export default function App() {
         ...data.wishes.map((w) => w.image_path),
       ]);
       prefetchExternalUrls([
-        ...data.movies.slice(0, 12).map((m) => m.poster_url),
-        ...data.wishes.slice(0, 12).map((w) => w.image_url),
+        ...data.movies.slice(0, 24).map((m) => m.poster_url),
+        ...data.wishes.slice(0, 20).map((w) => w.image_url),
         ...data.recipes.slice(0, 8).map((r) => r.image_url),
       ]);
     }, 350);
@@ -467,6 +467,15 @@ export default function App() {
     data.movies,
     data.recipes,
   ]);
+  const [showReconnectingBanner, setShowReconnectingBanner] = useState(false);
+  useEffect(() => {
+    if (demo || !online || failure || totalQueuedCount > 0 || sync === "live") {
+      setShowReconnectingBanner(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setShowReconnectingBanner(true), 5500);
+    return () => window.clearTimeout(timer);
+  }, [demo, online, failure, totalQueuedCount, sync]);
   useEffect(() => {
     document.body.classList.toggle(
       "app-mode",
@@ -591,7 +600,7 @@ export default function App() {
             </header>
             {(!online ||
               failure ||
-              (!demo && (sync !== "live" || totalQueuedCount > 0))) && (
+              (!demo && (showReconnectingBanner || totalQueuedCount > 0))) && (
               <div className="connection-banner" role="status">
                 <WifiOff size={14} />
                 <span>
