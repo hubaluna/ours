@@ -22,6 +22,7 @@ export const SKARBO_EXPENSE_CATEGORIES = [
   { id: "pets", name: "Домашні улюбленці", emoji: "🐾", color: "#A16207" },
   { id: "kids", name: "Діти", emoji: "🧸", color: "#FBBF24" },
   { id: "entertainment", name: "Розваги", emoji: "🎬", color: "#FB7185" },
+  { id: "smoking", name: "Куріння", emoji: "🚬", color: "#64748B" },
 ] as const;
 
 export const SKARBO_INCOME_CATEGORIES = [
@@ -435,6 +436,25 @@ const EXPENSE_KEYWORDS: Record<string, string[]> = {
     "спортлайф",
     "gym",
     "фітнес",
+  ],
+  smoking: [
+    "iqos",
+    "glo",
+    "vape",
+    "вейп",
+    "elfbar",
+    "elf bar",
+    "ploom",
+    "heets",
+    "terea",
+    "tobacco",
+    "табак",
+    "тютюн",
+    "сигарет",
+    "кальян",
+    "hookah",
+    "smoke",
+    "курін",
   ],
   other: [],
 };

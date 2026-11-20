@@ -2,6 +2,7 @@ import { buildSkarboSeedTransactions } from "./budget";
 import type {
   BudgetCategory,
   BudgetMerchantRule,
+  BudgetRecurringPayment,
   BudgetSettings,
   BudgetTransaction,
 } from "./types";
@@ -15,6 +16,7 @@ export type LocalBudgetState = {
   transactions: BudgetTransaction[];
   merchantRules: BudgetMerchantRule[];
   settings: BudgetSettings[];
+  recurring: BudgetRecurringPayment[];
 };
 
 export function isMissingBudgetTableError(error: unknown): boolean {
@@ -35,7 +37,7 @@ export function isMissingBudgetTableError(error: unknown): boolean {
   if (code === "42703" || /column .* does not exist/i.test(message)) {
     return false;
   }
-  return /relation "public\.budget_[^"]*" does not exist|table 'public\.budget_[^']*' in the schema cache|table "budget_[^"]*" does not exist/i.test(
+  return /budget_(?:transactions|categories|merchant_rules|settings|ingest_tokens|recurring_payments)|schema cache|relation "public\.budget_[^"]*" does not exist|table "budget_[^"]*" does not exist/i.test(
     message,
   );
 }
@@ -63,6 +65,7 @@ export function readLocalBudgetState(
         ? parsed.merchantRules
         : [];
       const settings = Array.isArray(parsed.settings) ? parsed.settings : [];
+      const recurring = Array.isArray(parsed.recurring) ? parsed.recurring : [];
 
       if (parsed.seeded) {
         return {
@@ -72,6 +75,7 @@ export function readLocalBudgetState(
           transactions,
           merchantRules,
           settings,
+          recurring,
         };
       }
 
@@ -87,6 +91,7 @@ export function readLocalBudgetState(
         ],
         merchantRules,
         settings,
+        recurring,
       };
       localStorage.setItem(key, JSON.stringify(merged));
       return merged;
@@ -102,6 +107,7 @@ export function readLocalBudgetState(
     transactions: buildSkarboSeedTransactions(coupleId, userId),
     merchantRules: [],
     settings: [],
+    recurring: [],
   };
   try {
     localStorage.setItem(key, JSON.stringify(initial));
@@ -141,6 +147,7 @@ export function peekLocalBudgetPendingSync(coupleId: string): LocalBudgetState |
         ? parsed.merchantRules
         : [],
       settings: Array.isArray(parsed.settings) ? parsed.settings : [],
+      recurring: Array.isArray(parsed.recurring) ? parsed.recurring : [],
     };
   } catch {
     return null;

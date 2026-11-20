@@ -27,6 +27,7 @@ import { Avatar, Button, Skeleton, Toast } from "./components/ui";
 import { spring, enter } from "./lib/motion";
 import type { Tab } from "./lib/types";
 import { kyivDate } from "./lib/utils";
+import { getDueRecurringPayments } from "./lib/budget";
 import { syncLocalReminderNotifications } from "./lib/reminder-notifications";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import {
@@ -258,6 +259,7 @@ export default function App() {
     userId,
     online,
     queuedShoppingCount,
+    queuedBudgetCount,
     sync,
     refresh,
   } = useApp();
@@ -265,11 +267,17 @@ export default function App() {
   const mascot = useOccasionalCat();
   const [tab, setTab] = useState<Tab>("home"),
     [settings, setSettings] = useState(false);
-  const pendingBudgetCount = data.budgetTransactions.filter(
-    (tx) =>
-      tx.status === "needs_review" &&
-      (!tx.is_private || tx.user_id === userId),
+  const dueRecurringCount = getDueRecurringPayments(
+    data.budgetRecurring || [],
+    kyivDate(),
   ).length;
+  const pendingBudgetCount =
+    data.budgetTransactions.filter(
+      (tx) =>
+        tx.status === "needs_review" &&
+        (!tx.is_private || tx.user_id === userId),
+    ).length + dueRecurringCount;
+  const totalQueuedCount = queuedShoppingCount + queuedBudgetCount;
   const [sharedUrl, setSharedUrl] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     const extracted = extractShareTargetUrl(window.location.search);
@@ -426,16 +434,16 @@ export default function App() {
             </header>
             {(!online ||
               failure ||
-              (!demo && (sync !== "live" || queuedShoppingCount > 0))) && (
+              (!demo && (sync !== "live" || totalQueuedCount > 0))) && (
               <div className="connection-banner" role="status">
                 <WifiOff size={14} />
                 <span>
                   {!online
-                    ? queuedShoppingCount > 0
-                      ? `Без інтернету · збережено в черзі (${queuedShoppingCount})`
-                      : "Без інтернету · покупки зберігаються локально"
-                    : queuedShoppingCount > 0
-                      ? `Синхронізуємо покупки (${queuedShoppingCount})…`
+                    ? totalQueuedCount > 0
+                      ? `Без інтернету · збережено в черзі (${totalQueuedCount})`
+                      : "Без інтернету · покупки й бюджет зберігаються локально"
+                    : totalQueuedCount > 0
+                      ? `Синхронізуємо зміни (${totalQueuedCount})…`
                       : failure
                         ? "Не вдалося оновити простір"
                         : "Відновлюємо живе з’єднання"}

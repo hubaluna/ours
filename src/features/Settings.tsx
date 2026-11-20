@@ -14,6 +14,7 @@ import {
   Smartphone,
   Sun,
   Trash2,
+  Upload,
   UsersRound,
   X,
 } from "lucide-react";
@@ -67,6 +68,7 @@ export default function Settings({
     restoreFromTrash,
     deleteTrashEntry,
     emptyTrash,
+    importBackupJson,
   } = useApp();
   const me = data.profiles.find((p) => p.id === userId),
     partner = data.profiles.find((p) => p.id !== userId);
@@ -76,7 +78,13 @@ export default function Settings({
     [invite, setInvite] = useState(""),
     [showTrash, setShowTrash] = useState(false),
     [catSoundEnabled, setCatSoundEnabled] = useState(() => !isCatMuted()),
-    [checkingUpdate, setCheckingUpdate] = useState(false);
+    [checkingUpdate, setCheckingUpdate] = useState(false),
+    [backupPreview, setBackupPreview] = useState<{
+      fileName: string;
+      payload: Record<string, unknown>;
+      summary: string;
+    } | null>(null);
+  const backupInput = useRef<HTMLInputElement>(null);
 
   const handleCheckUpdate = async () => {
     if (checkingUpdate) return;
@@ -394,9 +402,13 @@ export default function Settings({
               movies: data.movies,
               recipes: data.recipes,
               meal_plan: data.mealPlan,
+              pantry: data.pantry,
+              plants: data.plants,
+              plant_care: data.plantCare,
               budget_transactions: data.budgetTransactions,
               budget_categories: data.budgetCategories,
               budget_merchant_rules: data.budgetMerchantRules,
+              budget_recurring: data.budgetRecurring,
             });
             notify("Експорт підготовлено");
           }}
@@ -404,6 +416,96 @@ export default function Settings({
           <Download size={18} />
           <span>Експортувати у JSON</span>
         </Button>
+        <Button
+          type="button"
+          className="settings-row ghost"
+          onClick={() => backupInput.current?.click()}
+        >
+          <Upload size={18} />
+          <span>Відновити з JSON</span>
+        </Button>
+        <input
+          hidden
+          ref={backupInput}
+          type="file"
+          accept="application/json,.json"
+          onChange={async (e) => {
+            const selectedFile = e.target.files?.[0];
+            e.target.value = "";
+            if (!selectedFile) return;
+            try {
+              const text = await selectedFile.text();
+              const parsed = JSON.parse(text) as Record<string, unknown>;
+              if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+                notify("Некоректний формат резервної копії");
+                return;
+              }
+              const countArr = (...keys: string[]) => {
+                for (const k of keys) {
+                  if (Array.isArray(parsed[k])) return (parsed[k] as unknown[]).length;
+                }
+                return 0;
+              };
+              const parts: string[] = [];
+              const addPart = (label: string, n: number) => {
+                if (n > 0) parts.push(`${label}: ${n}`);
+              };
+              addPart("Покупки", countArr("shopping"));
+              addPart("Бажання", countArr("wishes"));
+              addPart("Події", countArr("events"));
+              addPart("Кіно", countArr("movies"));
+              addPart("Рослини", countArr("plants"));
+              addPart("єВдома", countArr("pantry"));
+              addPart(
+                "Бюджет",
+                countArr("budget_transactions", "budgetTransactions"),
+              );
+              addPart(
+                "Регулярні",
+                countArr("budget_recurring", "budgetRecurring"),
+              );
+              if (!parts.length) {
+                notify("У файлі немає записів для відновлення");
+                return;
+              }
+              setBackupPreview({
+                fileName: selectedFile.name,
+                payload: parsed,
+                summary: parts.join(" · "),
+              });
+            } catch {
+              notify("Не вдалося прочитати JSON-файл");
+            }
+          }}
+        />
+        {backupPreview && (
+          <div className="backup-restore-preview" role="region" aria-label="Попередній перегляд відновлення">
+            <strong>{backupPreview.fileName}</strong>
+            <p>{backupPreview.summary}</p>
+            <small>
+              Нові записи будуть додані без видалення наявних даних.
+            </small>
+            <div className="backup-restore-actions">
+              <Button
+                type="button"
+                busy={pending.includes("import-backup")}
+                onClick={async () => {
+                  const res = await importBackupJson(backupPreview.payload);
+                  if (res) setBackupPreview(null);
+                }}
+              >
+                Відновити дані
+              </Button>
+              <Button
+                type="button"
+                className="ghost"
+                onClick={() => setBackupPreview(null)}
+              >
+                Скасувати
+              </Button>
+            </div>
+          </div>
+        )}
         <div className="install-note">
           <Smartphone size={19} />
           <p>На iPhone: Safari → «Поширити» → «На початковий екран».</p>

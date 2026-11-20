@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence } from "motion/react";
 import {
   Check,
+  CheckCircle2,
   ChevronRight,
   Download,
   ExternalLink,
@@ -9,6 +10,7 @@ import {
   Link2,
   LockKeyhole,
   Pencil,
+  RotateCcw,
 } from "lucide-react";
 import type { Wish, NewWish } from "../lib/types";
 import { useApp } from "../hooks/AppContext";
@@ -16,6 +18,8 @@ import { useImage } from "../hooks/useImage";
 import { money, safeUrl } from "../lib/utils";
 import { publicUrl } from "../../supabase/functions/_shared/urls";
 import type { LinkMetadata } from "../../supabase/functions/_shared/metadata";
+import { supabase } from "../lib/supabase";
+import { exportWishesPdf } from "../lib/wishes-pdf";
 import {
   BottomSheet,
   Button,
@@ -31,6 +35,7 @@ import {
   ScreenHeader,
 } from "../components/Compact";
 import { LinkImport } from "../components/LinkImportLoader";
+
 function WishImage({ wish, eager = false }: { wish: Wish; eager?: boolean }) {
   const image = useImage(wish.image_path),
     [failedUrl, setFailedUrl] = useState("");
@@ -51,6 +56,7 @@ function WishImage({ wish, eager = false }: { wish: Wish; eager?: boolean }) {
     </span>
   );
 }
+
 export function GiftReservationControl({ wish }: { wish: Wish }) {
   const { data, userId, reserve, update, remove, pending } = useApp();
   if (wish.owner_id === userId) return null;
@@ -103,30 +109,50 @@ export function GiftReservationControl({ wish }: { wish: Wish }) {
     </div>
   );
 }
+
 export default function Wishes() {
-  const { data, userId } = useApp();
+  const { data, userId, toggleWishFulfilled, pending, notify } = useApp();
   const [view, setView] = useState("mine"),
     [sort, setSort] = useState<"newest" | "priority" | "price-asc" | "price-desc">("newest"),
+    [showFulfilled, setShowFulfilled] = useState(false),
+    [onlyReserved, setOnlyReserved] = useState(false),
     [detail, setDetail] = useState<Wish | null>(null),
     [form, setForm] = useState<Wish | "new" | null>(null),
     [initial, setInitial] = useState<Partial<NewWish>>(),
     [exporting, setExporting] = useState(false),
+    [pdfBusy, setPdfBusy] = useState(false),
     [exportSelection, setExportSelection] = useState<string[]>([]),
     [printItems, setPrintItems] = useState<Wish[]>([]),
     [importing, setImporting] = useState(false);
+
   const priorityOrder: Record<string, number> = {
     "Мрія": 0,
     "Дуже хочу": 1,
     "Просто хочу": 2,
   };
-  const wishes = data.wishes
-    .filter(
-      (w) =>
-        !w.is_deleted &&
-        (view === "mine"
-          ? w.owner_id === userId
-          : w.owner_id !== userId && !w.is_private),
-    )
+
+  const ownAll = data.wishes.filter(
+    (w) => !w.is_deleted && w.owner_id === userId,
+  );
+  const fulfilledCount = ownAll.filter((w) => w.fulfilled).length;
+  const reservationByWish = new Map(
+    data.reservations.map((r) => [r.wish_id, r]),
+  );
+  const partnerAll = data.wishes.filter(
+    (w) => !w.is_deleted && w.owner_id !== userId && !w.is_private,
+  );
+  const reservedCount = partnerAll.filter((w) =>
+    reservationByWish.has(w.id),
+  ).length;
+
+  const wishes = (view === "mine" ? ownAll : partnerAll)
+    .filter((w) => {
+      if (view === "mine") {
+        return showFulfilled ? Boolean(w.fulfilled) : !w.fulfilled;
+      }
+      if (onlyReserved) return reservationByWish.has(w.id);
+      return !w.fulfilled;
+    })
     .sort((a, b) => {
       if (sort === "priority") {
         return (
@@ -149,6 +175,7 @@ export default function Wishes() {
       }
       return b.created_at.localeCompare(a.created_at);
     });
+
   useEffect(() => {
     if (!printItems.length) return;
     let cancelled = false;
@@ -182,6 +209,54 @@ export default function Wishes() {
       window.removeEventListener("afterprint", finish);
     };
   }, [printItems]);
+
+  const handleExportPdf = async () => {
+    const selected = wishes.filter((wish) => exportSelection.includes(wish.id));
+    if (!selected.length) return;
+
+    // In headless/jsdom environments where Canvas 2D is unavailable, keep print fallback.
+    const testCanvas = document.createElement("canvas");
+    const hasCanvas = Boolean(testCanvas.getContext?.("2d"));
+    if (!hasCanvas) {
+      setPrintItems(selected);
+      setExporting(false);
+      return;
+    }
+
+    setPdfBusy(true);
+    try {
+      const resolvedImages: Record<string, string> = {};
+      await Promise.all(
+        selected.map(async (wish) => {
+          if (wish.image_path) {
+            if (wish.image_path.startsWith("data:")) {
+              resolvedImages[wish.id] = wish.image_path;
+            } else if (
+              !wish.image_path.startsWith("illustration:") &&
+              supabase
+            ) {
+              const { data: signed } = await supabase.storage
+                .from("photos")
+                .createSignedUrl(wish.image_path, 300);
+              if (signed?.signedUrl) resolvedImages[wish.id] = signed.signedUrl;
+            }
+          } else if (wish.image_url) {
+            resolvedImages[wish.id] = publicUrl(wish.image_url);
+          }
+        }),
+      );
+      const me = data.profiles.find((p) => p.id === userId);
+      const mode = await exportWishesPdf(selected, resolvedImages, me?.name);
+      setExporting(false);
+      notify(mode === "shared" ? "PDF-файл готовий" : "PDF-файл завантажено");
+    } catch {
+      setPrintItems(selected);
+      setExporting(false);
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   const receive = (r: LinkMetadata) => {
     setInitial({
       name: r.title,
@@ -195,6 +270,11 @@ export default function Wishes() {
     setImporting(false);
     setForm("new");
   };
+
+  const liveDetail = detail
+    ? (data.wishes.find((w) => w.id === detail.id) ?? detail)
+    : null;
+
   return (
     <section className="screen">
       <ScreenHeader title="Бажання" subtitle="Невеликі підказки для радості">
@@ -230,13 +310,17 @@ export default function Wishes() {
       <Segmented
         id="wishes-view"
         value={view}
-        onChange={setView}
+        onChange={(next) => {
+          setView(next);
+          if (next === "mine") setOnlyReserved(false);
+          else setShowFulfilled(false);
+        }}
         options={[
           { id: "mine", label: "Мої бажання" },
           { id: "partner", label: "Бажання партнера" },
         ]}
       />
-      <div className="filter-line">
+      <div className="filter-line wishes-filter-line">
         <select
           aria-label="Сортування бажань"
           value={sort}
@@ -251,47 +335,91 @@ export default function Wishes() {
           <option value="price-asc">Дешевші спочатку</option>
           <option value="price-desc">Дорожчі спочатку</option>
         </select>
+        {view === "mine" && (fulfilledCount > 0 || showFulfilled) && (
+          <button
+            type="button"
+            className={`wishes-filter-toggle${showFulfilled ? " active" : ""}`}
+            aria-pressed={showFulfilled}
+            onClick={() => setShowFulfilled((v) => !v)}
+          >
+            <CheckCircle2 size={14} />
+            {showFulfilled
+              ? `Виконані · ${fulfilledCount}`
+              : `Виконані (${fulfilledCount})`}
+          </button>
+        )}
+        {view === "partner" && (
+          <button
+            type="button"
+            className={`wishes-filter-toggle${onlyReserved ? " active" : ""}`}
+            aria-pressed={onlyReserved}
+            onClick={() => setOnlyReserved((v) => !v)}
+          >
+            <Gift size={14} />
+            Мої бронювання{reservedCount > 0 ? ` · ${reservedCount}` : ""}
+          </button>
+        )}
       </div>
       <div className="screen-panel media-panel">
         <PagedList
-          key={`${view}-${sort}`}
+          key={`${view}-${sort}-${showFulfilled}-${onlyReserved}`}
           items={wishes}
           empty={
             <EmptyState
               title={
                 view === "mine"
-                  ? "Додайте щось хороше"
-                  : "Тут скоро з’являться підказки"
+                  ? showFulfilled
+                    ? "Поки немає виконаних бажань"
+                    : "Додайте щось хороше"
+                  : onlyReserved
+                    ? "Ви ще нічого не забронювали"
+                    : "Тут скоро з’являться підказки"
               }
               description={
                 view === "mine"
-                  ? "Посилання, фотографія чи просто маленька мрія."
-                  : "Партнер ще не додав бажань."
+                  ? showFulfilled
+                    ? "Коли бажання здійсниться, позначте його в картці — воно збережеться тут."
+                    : "Посилання, фотографія чи просто маленька мрія."
+                  : onlyReserved
+                    ? "Відкрийте бажання партнера й натисніть «Хочу подарувати»."
+                    : "Партнер ще не додав бажань."
               }
             />
           }
-          render={(wish) => (
-            <button
-              className="media-row wish-row"
-              key={wish.id}
-              onClick={() => setDetail(wish)}
-            >
-              <WishImage wish={wish} />
-              <div>
-                <span className="row-kicker">{wish.priority}</span>
-                {wish.is_private && (
-                  <span className="private-wish-badge">
-                    <LockKeyhole size={11} /> Лише я
+          render={(wish) => {
+            const reservation =
+              view === "partner" ? reservationByWish.get(wish.id) : undefined;
+            return (
+              <button
+                className={`media-row wish-row${wish.fulfilled ? " wish-row-fulfilled" : ""}`}
+                key={wish.id}
+                onClick={() => setDetail(wish)}
+              >
+                <WishImage wish={wish} />
+                <div>
+                  <span className="row-kicker">
+                    {wish.priority}
+                    {wish.fulfilled ? " · Виконано" : ""}
+                    {reservation
+                      ? reservation.status === "purchased"
+                        ? " · Придбано вами"
+                        : " · Заплановано вами"
+                      : ""}
                   </span>
-                )}
-                <h2>{wish.name}</h2>
-                <p>
-                  {wish.price !== null ? money(wish.price) : "Ціна не вказана"}
-                </p>
-              </div>
-              <ChevronRight size={17} />
-            </button>
-          )}
+                  {wish.is_private && (
+                    <span className="private-wish-badge">
+                      <LockKeyhole size={11} /> Лише я
+                    </span>
+                  )}
+                  <h2>{wish.name}</h2>
+                  <p>
+                    {wish.price !== null ? money(wish.price) : "Ціна не вказана"}
+                  </p>
+                </div>
+                <ChevronRight size={17} />
+              </button>
+            );
+          }}
         />
       </div>
       {printItems.length > 0 && (
@@ -320,10 +448,19 @@ export default function Wishes() {
             onClose={() => setExporting(false)}
           >
             <div className="wish-export">
-              <p>Оберіть бажання, які додати. У вікні друку виберіть «Зберегти як PDF».</p>
+              <p>
+                Оберіть бажання, які додати — ми сформуємо готовий PDF-файл із
+                фото, розмірами, цінами та посиланнями.
+              </p>
               <div className="wish-export-actions">
-                <button onClick={() => setExportSelection(wishes.map((wish) => wish.id))}>Обрати всі</button>
-                <button onClick={() => setExportSelection([])}>Очистити вибір</button>
+                <button
+                  onClick={() => setExportSelection(wishes.map((wish) => wish.id))}
+                >
+                  Обрати всі
+                </button>
+                <button onClick={() => setExportSelection([])}>
+                  Очистити вибір
+                </button>
               </div>
               <div className="wish-export-list">
                 {wishes.map((wish) => (
@@ -339,16 +476,17 @@ export default function Wishes() {
                         )
                       }
                     />
-                    <span>{wish.name}{wish.size ? ` · ${wish.size}` : ""}</span>
+                    <span>
+                      {wish.name}
+                      {wish.size ? ` · ${wish.size}` : ""}
+                    </span>
                   </label>
                 ))}
               </div>
               <Button
                 disabled={!exportSelection.length}
-                onClick={() => {
-                  setPrintItems(wishes.filter((wish) => exportSelection.includes(wish.id)));
-                  setExporting(false);
-                }}
+                busy={pdfBusy}
+                onClick={() => void handleExportPdf()}
               >
                 Створити PDF · {exportSelection.length}
               </Button>
@@ -368,22 +506,26 @@ export default function Wishes() {
             onClose={() => setImporting(false)}
             onResult={receive}
           />
-        ) : detail ? (
+        ) : liveDetail ? (
           <BottomSheet
             key="wish-detail"
-            title={detail.name}
+            title={liveDetail.name}
             onClose={() => setDetail(null)}
           >
             <div className="wish-detail">
-              <WishImage wish={detail} />
-              <span className="badge">{detail.priority}</span>
+              <WishImage wish={liveDetail} />
+              <span className="badge">
+                {liveDetail.fulfilled
+                  ? `${liveDetail.priority} · Виконано`
+                  : liveDetail.priority}
+              </span>
               <strong className="detail-price">
-                {detail.price !== null
-                  ? money(detail.price)
+                {liveDetail.price !== null
+                  ? money(liveDetail.price)
                   : "Ціна не вказана"}
               </strong>
               <p className="full-description">
-                {detail.note || "Маленька ідея для хорошої миті."}
+                {liveDetail.note || "Маленька ідея для хорошої миті."}
               </p>
               <p className="subtle-note">
                 Додано{" "}
@@ -391,12 +533,12 @@ export default function Wishes() {
                   day: "numeric",
                   month: "long",
                   timeZone: "Europe/Kyiv",
-                }).format(new Date(detail.created_at))}
+                }).format(new Date(liveDetail.created_at))}
               </p>
-              {safeUrl(detail.url) && (
+              {safeUrl(liveDetail.url) && (
                 <a
                   className="button secondary"
-                  href={safeUrl(detail.url)!}
+                  href={safeUrl(liveDetail.url)!}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -404,22 +546,46 @@ export default function Wishes() {
                   Відкрити посилання
                 </a>
               )}
-              {detail.owner_id === userId ? (
-                <Button
-                  className="ghost"
-                  aria-label={`Редагувати ${detail.name}`}
-                  onClick={() => {
-                    setForm(detail);
-                    setDetail(null);
-                  }}
-                >
-                  <Pencil size={16} />
-                  Редагувати бажання
-                </Button>
+              {liveDetail.owner_id === userId ? (
+                <>
+                  <Button
+                    className="secondary"
+                    busy={pending.includes(`wish-fulfilled-${liveDetail.id}`)}
+                    onClick={() =>
+                      void toggleWishFulfilled(
+                        liveDetail.id,
+                        !liveDetail.fulfilled,
+                      ).then((ok) => {
+                        if (ok) setDetail(null);
+                      })
+                    }
+                  >
+                    {liveDetail.fulfilled ? (
+                      <>
+                        <RotateCcw size={16} />
+                        Повернути в активні
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 size={16} />
+                        Позначити виконаним
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    className="ghost"
+                    aria-label={`Редагувати ${liveDetail.name}`}
+                    onClick={() => {
+                      setForm(liveDetail);
+                      setDetail(null);
+                    }}
+                  >
+                    <Pencil size={16} />
+                    Редагувати бажання
+                  </Button>
+                </>
               ) : (
-                <GiftReservationControl
-                  wish={data.wishes.find((w) => w.id === detail.id) ?? detail}
-                />
+                <GiftReservationControl wish={liveDetail} />
               )}
             </div>
           </BottomSheet>

@@ -11,6 +11,7 @@ import {
   HelpCircle,
   Lock,
   Plus,
+  Repeat,
   Repeat2,
   Search,
   Settings2,
@@ -30,6 +31,7 @@ import {
   findCategoryMeta,
   formatBudgetDayHeading,
   formatUAH,
+  getDueRecurringPayments,
   getPeriodRange,
   normalizeCategoryKey,
   parseApplePayAmount,
@@ -41,8 +43,10 @@ import {
 } from "../lib/budget";
 import { exportBudgetPdfReport } from "../lib/budget-pdf";
 import type {
+  BudgetRecurringPayment,
   BudgetTokenStatus,
   BudgetTransaction,
+  NewBudgetRecurringPayment,
 } from "../lib/types";
 import { kyivDate } from "../lib/utils";
 import { Avatar, BottomSheet, Button, Field, IconButton } from "../components/ui";
@@ -68,6 +72,11 @@ export default function Budget() {
     fetchBudgetIngestTokenStatus,
     rotateBudgetIngestToken,
     revokeBudgetIngestToken,
+    addBudgetRecurring,
+    updateBudgetRecurring,
+    removeBudgetRecurring,
+    confirmBudgetRecurring,
+    skipBudgetRecurring,
   } = useApp();
 
   const today = kyivDate();
@@ -88,6 +97,8 @@ export default function Budget() {
   const [txSheetOpen, setTxSheetOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<BudgetTransaction | null>(null);
   const [reviewTx, setReviewTx] = useState<BudgetTransaction | null>(null);
+  const [confirmRecurring, setConfirmRecurring] =
+    useState<BudgetRecurringPayment | null>(null);
   const [repeatSheetOpen, setRepeatSheetOpen] = useState(false);
   const [categorySheetKind, setCategorySheetKind] =
     useState<BudgetKind | null>(null);
@@ -143,6 +154,11 @@ export default function Budget() {
             (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0),
         ),
     [data.budgetTransactions, userId],
+  );
+
+  const dueRecurring = useMemo(
+    () => getDueRecurringPayments(data.budgetRecurring, today),
+    [data.budgetRecurring, today],
   );
 
   const expenseCategories = useMemo(
@@ -424,6 +440,48 @@ export default function Budget() {
           </div>
         )}
 
+        {dueRecurring.length > 0 && (
+          <div className="budget-review-box budget-recurring-box">
+            <div className="budget-review-head">
+              <span>
+                <Repeat size={15} />
+                <strong>Регулярні платежі ({dueRecurring.length})</strong>
+              </span>
+              <small>Щомісяця</small>
+            </div>
+            <div className="budget-review-list">
+              {dueRecurring.slice(0, 4).map((item) => {
+                const meta = findCategoryMeta(
+                  item.category_key,
+                  data.budgetCategories,
+                  item.kind,
+                );
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="budget-review-item"
+                    onClick={() => setConfirmRecurring(item)}
+                  >
+                    <span className="budget-review-copy">
+                      <strong>
+                        {meta.emoji} {item.title}
+                      </strong>
+                      <small>
+                        Щомісяця {item.day_of_month}-го · {meta.name}
+                      </small>
+                    </span>
+                    <span className="budget-review-right">
+                      <strong>{formatUAH(item.amount)}</strong>
+                      <span className="budget-review-cta">Внести</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="budget-hero-card glass">
           <div className="budget-hero-tabs" role="tablist">
             {(
@@ -515,9 +573,16 @@ export default function Budget() {
         </div>
 
         {viewMode === "analytics" && (
-          <div className="budget-section-card glass">
-            <div className="budget-section-head">
-              <h2>Баланс періоду</h2>
+          <>
+            <BudgetExpenseDonut
+              rows={stats.expenseRows}
+              total={stats.expenseTotal}
+              periodLabel={period.label}
+              onSelectCategory={filterByCategoryAndScroll}
+            />
+            <div className="budget-section-card glass">
+              <div className="budget-section-head">
+                <h2>Баланс періоду</h2>
               <span className="budget-section-meta">
                 {stats.savingsRate !== null ? `Заощаджено ${stats.savingsRate}%` : "UAH"}
               </span>
@@ -577,6 +642,7 @@ export default function Budget() {
               </div>
             </div>
           </div>
+          </>
         )}
 
         {/* Card 1: За категоріями */}
@@ -956,6 +1022,38 @@ export default function Budget() {
       </AnimatePresence>
 
       <AnimatePresence>
+        {confirmRecurring && (
+          <BudgetRecurringConfirmSheet
+            item={confirmRecurring}
+            customCategories={data.budgetCategories}
+            busy={pending.includes(`recurring-${confirmRecurring.id}`)}
+            onClose={() => setConfirmRecurring(null)}
+            onConfirm={async (amount) => {
+              const ok = await confirmBudgetRecurring(
+                confirmRecurring,
+                amount,
+              );
+              if (ok) {
+                const remaining = dueRecurring.filter(
+                  (r) => r.id !== confirmRecurring.id,
+                );
+                setConfirmRecurring(remaining[0] ?? null);
+              }
+            }}
+            onSkip={async () => {
+              const ok = await skipBudgetRecurring(confirmRecurring);
+              if (ok) {
+                const remaining = dueRecurring.filter(
+                  (r) => r.id !== confirmRecurring.id,
+                );
+                setConfirmRecurring(remaining[0] ?? null);
+              }
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {txSheetOpen && (
           <BudgetTxSheet
             initial={editingTx}
@@ -1091,9 +1189,9 @@ export default function Budget() {
             kind={categorySheetKind}
             busy={pending.includes("add-budget-cat")}
             onClose={() => setCategorySheetKind(null)}
-            onCreate={async (name, emoji) => {
+            onCreate={async (name, emoji, selectedKind) => {
               const ok = await addBudgetCategory({
-                kind: categorySheetKind,
+                kind: selectedKind,
                 name,
                 emoji,
               });
@@ -1111,6 +1209,7 @@ export default function Budget() {
             expenseCategories={expenseCategories}
             incomeCategories={incomeCategories}
             rules={data.budgetMerchantRules}
+            recurring={data.budgetRecurring}
             pending={pending}
             notify={notify}
             onClose={() => setSettingsOpen(false)}
@@ -1121,6 +1220,11 @@ export default function Budget() {
               saveBudgetMerchantRule(pattern, categoryKey, kind)
             }
             onDeleteRule={(id) => void removeBudgetMerchantRule(id)}
+            onAddRecurring={(item) => addBudgetRecurring(item)}
+            onToggleRecurring={(id, active) =>
+              void updateBudgetRecurring(id, { active })
+            }
+            onDeleteRecurring={(id) => void removeBudgetRecurring(id)}
             fetchTokenStatus={fetchBudgetIngestTokenStatus}
             rotateToken={rotateBudgetIngestToken}
             revokeToken={revokeBudgetIngestToken}
@@ -1128,6 +1232,304 @@ export default function Budget() {
         )}
       </AnimatePresence>
     </section>
+  );
+}
+
+function BudgetExpenseDonut({
+  rows,
+  total,
+  periodLabel,
+  onSelectCategory,
+}: {
+  rows: ReturnType<typeof computeBudgetStats>["expenseRows"];
+  total: number;
+  periodLabel: string;
+  onSelectCategory: (key: string) => void;
+}) {
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+
+  const slices = useMemo(() => {
+    if (total <= 0 || rows.length === 0) return [];
+    const maxDirect = 7;
+    const base =
+      rows.length > maxDirect + 1
+        ? [
+            ...rows.slice(0, maxDirect),
+            {
+              key: "_rest",
+              name: "Інше",
+              emoji: "✨",
+              color: "#94A3B8",
+              amount: rows
+                .slice(maxDirect)
+                .reduce((acc, row) => acc + row.amount, 0),
+              percent: rows
+                .slice(maxDirect)
+                .reduce((acc, row) => acc + row.percent, 0),
+              count: rows
+                .slice(maxDirect)
+                .reduce((acc, row) => acc + row.count, 0),
+            },
+          ]
+        : rows;
+
+    const radius = 76;
+    const strokeWidth = 18;
+    const circumference = 2 * Math.PI * radius;
+
+    if (base.length === 1) {
+      return [
+        {
+          ...base[0],
+          dashLen: circumference,
+          dashOffset: 0,
+          circumference,
+          radius,
+          strokeWidth,
+        },
+      ];
+    }
+
+    const visualGap = 6;
+    const capPad = strokeWidth + visualGap;
+    const minSlot = capPad + 1;
+    const rawSlots = base.map((row) =>
+      Math.max(0, (row.amount / total) * circumference),
+    );
+    const clampedSlots = rawSlots.map((slot) => Math.max(minSlot, slot));
+    const slotSum = clampedSlots.reduce((acc, v) => acc + v, 0);
+    const scale = slotSum > 0 ? circumference / slotSum : 1;
+    const normSlots = clampedSlots.map((slot) => slot * scale);
+
+    let offset = 0;
+    return base.map((row, idx) => {
+      const slotLen = normSlots[idx];
+      const dashLen = Math.max(0.2, slotLen - capPad);
+      const centerOffset = offset + (slotLen - dashLen) / 2;
+      const item = {
+        ...row,
+        dashLen,
+        dashOffset: -centerOffset,
+        circumference,
+        radius,
+        strokeWidth,
+      };
+      offset += slotLen;
+      return item;
+    });
+  }, [rows, total]);
+
+  const activeSlice =
+    slices.find((slice) => slice.key === selectedKey) ?? null;
+
+  return (
+    <div className="budget-section-card glass budget-donut-card">
+      <div className="budget-section-head">
+        <h2>Структура витрат</h2>
+        <span className="budget-section-meta">{periodLabel}</span>
+      </div>
+
+      {slices.length === 0 ? (
+        <div className="budget-empty-inline">
+          <Wallet size={18} />
+          <span>За обраний період витрат немає</span>
+        </div>
+      ) : (
+        <div className="budget-donut-layout">
+          <div className="budget-donut-wrap">
+            <svg
+              className="budget-donut-svg"
+              viewBox="0 0 200 200"
+              role="img"
+              aria-label={`Діаграма витрат: ${formatUAH(total)}`}
+            >
+              <circle
+                cx="100"
+                cy="100"
+                r="76"
+                fill="none"
+                stroke="var(--glass-edge)"
+                strokeWidth="18"
+                opacity="0.45"
+              />
+              {slices.map((slice) => {
+                const isSelected = activeSlice?.key === slice.key;
+                const dimmed = Boolean(activeSlice && !isSelected);
+                return (
+                  <circle
+                    key={slice.key}
+                    cx="100"
+                    cy="100"
+                    r={slice.radius}
+                    fill="none"
+                    stroke={slice.color}
+                    strokeWidth={isSelected ? slice.strokeWidth + 4 : slice.strokeWidth}
+                    strokeLinecap="round"
+                    strokeDasharray={`${slice.dashLen} ${slice.circumference}`}
+                    strokeDashoffset={slice.dashOffset}
+                    transform="rotate(-90 100 100)"
+                    opacity={dimmed ? 0.3 : 1}
+                    className={`budget-donut-arc${isSelected ? " is-selected" : ""}`}
+                    onClick={() =>
+                      setSelectedKey((prev) =>
+                        prev === slice.key ? null : slice.key,
+                      )
+                    }
+                  >
+                    <title>
+                      {slice.name}: {formatUAH(slice.amount)} (
+                      {Math.round(slice.percent)}%)
+                    </title>
+                  </circle>
+                );
+              })}
+            </svg>
+            <div className="budget-donut-center">
+              {activeSlice ? (
+                <>
+                  <span className="budget-donut-center-kicker">
+                    {activeSlice.emoji} {activeSlice.name}
+                  </span>
+                  <strong>{formatUAH(activeSlice.amount)}</strong>
+                  <small style={{ color: activeSlice.color }}>
+                    {Math.round(activeSlice.percent)}% витрат
+                  </small>
+                </>
+              ) : (
+                <>
+                  <span className="budget-donut-center-kicker">Витрати</span>
+                  <strong>{formatUAH(total)}</strong>
+                  <small>{rows.length} категорій</small>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="budget-donut-legend" role="list">
+            {slices.map((slice) => {
+              const isSelected = activeSlice?.key === slice.key;
+              return (
+                <button
+                  key={slice.key}
+                  type="button"
+                  role="listitem"
+                  className={`budget-donut-legend-row${isSelected ? " active" : ""}`}
+                  onClick={() =>
+                    setSelectedKey((prev) =>
+                      prev === slice.key ? null : slice.key,
+                    )
+                  }
+                >
+                  <span
+                    className="budget-donut-dot"
+                    style={{ backgroundColor: slice.color }}
+                    aria-hidden="true"
+                  />
+                  <span className="budget-donut-legend-name">
+                    <span aria-hidden="true">{slice.emoji}</span>
+                    <span>{slice.name}</span>
+                  </span>
+                  <span className="budget-donut-legend-pct">
+                    {Math.round(slice.percent)}%
+                  </span>
+                  <strong className="budget-donut-legend-val">
+                    {formatUAH(slice.amount)}
+                  </strong>
+                </button>
+              );
+            })}
+          </div>
+
+          {activeSlice && activeSlice.key !== "_rest" && (
+            <button
+              type="button"
+              className="budget-donut-jump"
+              onClick={() => onSelectCategory(activeSlice.key)}
+            >
+              <span>
+                Операції «{activeSlice.name}» ({activeSlice.count})
+              </span>
+              <ChevronRight size={14} />
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function BudgetRecurringConfirmSheet({
+  item,
+  customCategories,
+  busy,
+  onClose,
+  onConfirm,
+  onSkip,
+}: {
+  item: BudgetRecurringPayment;
+  customCategories: ReturnType<typeof useApp>["data"]["budgetCategories"];
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: (amount: number) => Promise<void>;
+  onSkip: () => Promise<void>;
+}) {
+  const [amountText, setAmountText] = useState(String(item.amount));
+  const meta = findCategoryMeta(item.category_key, customCategories, item.kind);
+
+  useEffect(() => {
+    setAmountText(String(item.amount));
+  }, [item.id, item.amount]);
+
+  const parsed = parseApplePayAmount(amountText);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!parsed || parsed <= 0) return;
+    await onConfirm(parsed);
+  };
+
+  return (
+    <BottomSheet title="Регулярний платіж" onClose={onClose}>
+      <form className="budget-review-modal" onSubmit={handleSubmit}>
+        <div className="budget-review-hero">
+          <span className="budget-review-merchant">
+            {meta.emoji} {item.title}
+          </span>
+          <strong className="budget-review-amount">
+            {formatUAH(parsed ?? item.amount)}
+          </strong>
+          <small>
+            Щомісяця {item.day_of_month}-го · {meta.name} ·{" "}
+            {item.kind === "income" ? "Дохід" : "Витрата"}
+          </small>
+        </div>
+
+        <Field label="Сума цього місяця (₴)">
+          <input
+            type="text"
+            inputMode="decimal"
+            value={amountText}
+            onChange={(e) => setAmountText(e.target.value)}
+            placeholder="0"
+            required
+          />
+        </Field>
+
+        <div className="budget-recurring-confirm-footer">
+          <Button type="submit" busy={busy} disabled={!parsed || parsed <= 0}>
+            Внести операцію
+          </Button>
+          <Button
+            type="button"
+            className="secondary"
+            busy={busy}
+            onClick={() => void onSkip()}
+          >
+            Пропустити цього місяця
+          </Button>
+        </div>
+      </form>
+    </BottomSheet>
   );
 }
 
@@ -1372,7 +1774,7 @@ function BudgetTxSheet({
           <div className="budget-amount-input-wrap">
             <input
               ref={amountInputRef}
-              data-autofocus
+              data-autofocus={isEdit ? undefined : ""}
               type="text"
               inputMode="decimal"
               placeholder="0,00"
@@ -1497,36 +1899,98 @@ function BudgetCategorySheet({
   kind: BudgetKind;
   busy: boolean;
   onClose: () => void;
-  onCreate: (name: string, emoji: string) => Promise<void>;
+  onCreate: (name: string, emoji: string, selectedKind: BudgetKind) => Promise<void>;
 }) {
+  const [selectedKind, setSelectedKind] = useState<BudgetKind>(kind);
   const [name, setName] = useState("");
-  const [emoji, setEmoji] = useState(kind === "income" ? "💼" : "🥑");
+  const [emoji, setEmoji] = useState(kind === "income" ? "💼" : "🚬");
+
+  const handleStickerInput = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      setEmoji("");
+      return;
+    }
+    const Segmenter = (
+      Intl as unknown as {
+        Segmenter?: new (
+          locale?: string,
+          opts?: { granularity: "grapheme" },
+        ) => { segment: (input: string) => Iterable<{ segment: string }> };
+      }
+    ).Segmenter;
+    const graphemes = Segmenter
+      ? Array.from(new Segmenter("uk", { granularity: "grapheme" }).segment(trimmed), (s) => s.segment)
+      : Array.from(trimmed);
+    setEmoji(graphemes[graphemes.length - 1] ?? "");
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    await onCreate(name.trim(), emoji);
+    await onCreate(name.trim(), emoji.trim() || "📦", selectedKind);
   };
 
   return (
-    <BottomSheet
-      title={
-        kind === "income" ? "Нова категорія доходів" : "Нова категорія витрат"
-      }
-      onClose={onClose}
-    >
-      <form className="form" onSubmit={submit}>
-        <Field label="Назва">
-          <input
-            data-autofocus
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Напр.: Подарунки, Спорт, Посилки"
-            maxLength={50}
-            required
-          />
-        </Field>
-        <div className="budget-emoji-grid">
+    <BottomSheet title="Нова категорія" onClose={onClose}>
+      <form className="form budget-tx-form" onSubmit={submit}>
+        <div className="budget-cat-preview" aria-live="polite">
+          <span className="budget-cat-preview-sticker" aria-hidden="true">
+            {emoji || "📦"}
+          </span>
+          <div className="budget-cat-preview-copy">
+            <strong>{name.trim() || "Назва категорії"}</strong>
+            <small>{selectedKind === "income" ? "Дохід" : "Витрата"}</small>
+          </div>
+        </div>
+
+        <div className="segmented" role="tablist" aria-label="Тип категорії">
+          {(
+            [
+              ["expense", "Витрата"],
+              ["income", "Дохід"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={selectedKind === id}
+              className={selectedKind === id ? "active" : ""}
+              onClick={() => {
+                setSelectedKind(id);
+                if (id === "income" && emoji === "🚬") setEmoji("💼");
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="budget-sticker-row">
+          <Field label="Назва категорії">
+            <input
+              data-autofocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Напр.: Куріння, Спорт, Подарунки"
+              maxLength={50}
+              required
+            />
+          </Field>
+          <Field label="Стікер">
+            <input
+              className="budget-sticker-input"
+              value={emoji}
+              onChange={(e) => handleStickerInput(e.target.value)}
+              placeholder="😀"
+              aria-label="Власний стікер або емодзі"
+              maxLength={8}
+            />
+          </Field>
+        </div>
+
+        <div className="budget-emoji-grid" role="group" aria-label="Обрати стікер">
           {CUSTOM_CATEGORY_EMOJIS.map((em) => (
             <button
               key={em}
@@ -1538,8 +2002,9 @@ function BudgetCategorySheet({
             </button>
           ))}
         </div>
+
         <div className="budget-sheet-sticky-actions">
-          <Button type="submit" busy={busy}>
+          <Button type="submit" busy={busy} disabled={!name.trim()}>
             Створити категорію
           </Button>
         </div>
@@ -1554,6 +2019,7 @@ function BudgetSettingsSheet({
   expenseCategories,
   incomeCategories,
   rules,
+  recurring,
   pending,
   notify,
   onClose,
@@ -1562,6 +2028,9 @@ function BudgetSettingsSheet({
   onDeleteCategory,
   onSaveRule,
   onDeleteRule,
+  onAddRecurring,
+  onToggleRecurring,
+  onDeleteRecurring,
   fetchTokenStatus,
   rotateToken,
   revokeToken,
@@ -1571,6 +2040,7 @@ function BudgetSettingsSheet({
   expenseCategories: ReturnType<typeof resolveBudgetCategories>;
   incomeCategories: ReturnType<typeof resolveBudgetCategories>;
   rules: ReturnType<typeof useApp>["data"]["budgetMerchantRules"];
+  recurring: BudgetRecurringPayment[];
   pending: string[];
   notify: (text: string) => void;
   onClose: () => void;
@@ -1583,6 +2053,9 @@ function BudgetSettingsSheet({
     kind: BudgetKind,
   ) => Promise<boolean>;
   onDeleteRule: (id: string) => void;
+  onAddRecurring: (item: NewBudgetRecurringPayment) => Promise<boolean>;
+  onToggleRecurring: (id: string, active: boolean) => void;
+  onDeleteRecurring: (id: string) => void;
   fetchTokenStatus: () => Promise<BudgetTokenStatus>;
   rotateToken: () => Promise<{
     token: string;
@@ -1590,15 +2063,20 @@ function BudgetSettingsSheet({
   } | null>;
   revokeToken: () => Promise<boolean>;
 }) {
-  const [activeTab, setActiveTab] = useState<"general" | "apple_pay" | "rules">(
-    "general",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "general" | "recurring" | "apple_pay" | "rules"
+  >("general");
   const [guideOpen, setGuideOpen] = useState(false);
   const [tokenStatus, setTokenStatus] =
     useState<BudgetTokenStatus | null>(null);
   const [revealedToken, setRevealedToken] = useState<string | null>(null);
   const [rulePattern, setRulePattern] = useState("");
   const [ruleCatKey, setRuleCatKey] = useState("groceries");
+  const [recTitle, setRecTitle] = useState("");
+  const [recAmount, setRecAmount] = useState("");
+  const [recDay, setRecDay] = useState("1");
+  const [recKind, setRecKind] = useState<BudgetKind>("expense");
+  const [recCatKey, setRecCatKey] = useState("home");
   const ingestUrl = budgetIngestUrl();
 
   useEffect(() => {
@@ -1650,24 +2128,45 @@ function BudgetSettingsSheet({
     }
   };
 
+  const handleAddRecurring = async (e: FormEvent) => {
+    e.preventDefault();
+    const amount = parseApplePayAmount(recAmount);
+    const day = Math.min(31, Math.max(1, Math.round(Number(recDay) || 1)));
+    if (!recTitle.trim() || !amount || amount <= 0) {
+      notify("Вкажіть назву та суму регулярного платежу");
+      return;
+    }
+    const ok = await onAddRecurring({
+      title: recTitle.trim(),
+      kind: recKind,
+      amount,
+      category_key: recCatKey,
+      day_of_month: day,
+    });
+    if (ok) {
+      setRecTitle("");
+      setRecAmount("");
+    }
+  };
+
   const allCategories = [...expenseCategories, ...incomeCategories];
+  const recurringCategories =
+    recKind === "income" ? incomeCategories : expenseCategories;
 
   return (
     <BottomSheet title="Налаштування бюджету" onClose={onClose}>
       <div className="budget-settings-sheet">
         <div
-          className="segmented budget-view-switch"
+          className="segmented budget-view-switch budget-settings-tabs"
           role="tablist"
           aria-label="Розділи налаштувань"
         >
           {(
             [
               ["general", "Основні"],
+              ["recurring", "Регулярні"],
               ["apple_pay", "Apple Pay"],
-              [
-                "rules",
-                rules.length > 0 ? `Правила · ${rules.length}` : "Правила",
-              ],
+              ["rules", "Правила"],
             ] as const
           ).map(([id, label]) => (
             <button
@@ -1741,6 +2240,138 @@ function BudgetSettingsSheet({
                         <IconButton
                           label={`Видалити категорію ${cat.name}`}
                           onClick={() => onDeleteCategory(cat.id)}
+                        >
+                          <Trash2 size={15} />
+                        </IconButton>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {activeTab === "recurring" && (
+          <div className="budget-settings-panel" role="tabpanel">
+            <section className="budget-settings-card">
+              <h3>
+                <Repeat size={15} /> Регулярні платежі
+                {recurring.length > 0 ? ` · ${recurring.length}` : ""}
+              </h3>
+              <p className="settings-help">
+                У вибраний день місяця у гаманці та на головній з’явиться
+                плашка-нагадування для швидкого внесення.
+              </p>
+
+              <form
+                className="budget-recurring-form"
+                onSubmit={handleAddRecurring}
+              >
+                <input
+                  value={recTitle}
+                  onChange={(e) => setRecTitle(e.target.value)}
+                  placeholder="Назва (напр. Оренда, Інтернет)"
+                  maxLength={80}
+                  required
+                />
+                <div className="budget-recurring-row2">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={recAmount}
+                    onChange={(e) => setRecAmount(e.target.value)}
+                    placeholder="Сума, ₴"
+                    required
+                  />
+                  <input
+                    type="number"
+                    min={1}
+                    max={31}
+                    value={recDay}
+                    onChange={(e) => setRecDay(e.target.value)}
+                    placeholder="День"
+                    aria-label="День місяця (1–31)"
+                    title="День місяця (1–31)"
+                    required
+                  />
+                </div>
+                <div className="budget-recurring-row3">
+                  <select
+                    value={recKind}
+                    aria-label="Тип платежу"
+                    onChange={(e) => {
+                      const nextKind = e.target.value as BudgetKind;
+                      setRecKind(nextKind);
+                      setRecCatKey(
+                        nextKind === "income" ? "salary" : "home",
+                      );
+                    }}
+                  >
+                    <option value="expense">Витрата</option>
+                    <option value="income">Дохід</option>
+                  </select>
+                  <select
+                    value={recCatKey}
+                    aria-label="Категорія платежу"
+                    onChange={(e) => setRecCatKey(e.target.value)}
+                  >
+                    {recurringCategories.map((cat) => (
+                      <option key={cat.key} value={cat.key}>
+                        {cat.emoji} {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    type="submit"
+                    className="secondary"
+                    busy={pending.includes("add-budget-recurring")}
+                  >
+                    Додати
+                  </Button>
+                </div>
+              </form>
+
+              {recurring.length === 0 ? (
+                <p className="settings-help">
+                  Поки немає регулярних платежів — додайте оренду, комунальні,
+                  підписки або регулярний дохід.
+                </p>
+              ) : (
+                <div className="budget-rules-list">
+                  {recurring.map((item) => {
+                    const meta = findCategoryMeta(
+                      item.category_key,
+                      customCategories,
+                      item.kind,
+                    );
+                    return (
+                      <div
+                        className={`budget-rule-row${item.active ? "" : " is-paused"}`}
+                        key={item.id}
+                      >
+                        <label className="budget-recurring-toggle">
+                          <input
+                            type="checkbox"
+                            checked={item.active}
+                            aria-label={`Активувати ${item.title}`}
+                            onChange={(e) =>
+                              onToggleRecurring(item.id, e.target.checked)
+                            }
+                          />
+                          <div className="budget-rule-copy">
+                            <strong>
+                              {meta.emoji} {item.title} ·{" "}
+                              {formatUAH(item.amount)}
+                            </strong>
+                            <small>
+                              Щомісяця {item.day_of_month}-го · {meta.name}
+                            </small>
+                          </div>
+                        </label>
+                        <IconButton
+                          label={`Видалити регулярний платіж ${item.title}`}
+                          onClick={() => onDeleteRecurring(item.id)}
                         >
                           <Trash2 size={15} />
                         </IconButton>

@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AnimatePresence } from "motion/react";
-import { Droplet, ExternalLink, Sprout, Trash2, Upload } from "lucide-react";
+import {
+  Droplet,
+  ExternalLink,
+  Pencil,
+  Sprout,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { useApp } from "../hooks/AppContext";
 import { useImage } from "../hooks/useImage";
 import { supabase, uploadImage } from "../lib/supabase";
@@ -36,8 +43,15 @@ function PlantPhoto({
   );
 }
 
-function PlantForm({ onClose }: { onClose: () => void }) {
-  const { addPlant, userId, coupleId, notify, pending } = useApp();
+function PlantForm({
+  plant,
+  onClose,
+}: {
+  plant?: Plant;
+  onClose: () => void;
+}) {
+  const { addPlant, updatePlant, userId, coupleId, notify, pending } = useApp();
+  const existingImage = useImage(plant?.image_path ?? null);
   const [photos, setPhotos] = useState<File[]>([]);
   const photo = photos[0] ?? null;
   const preview = useMemo(
@@ -53,12 +67,17 @@ function PlantForm({ onClose }: { onClose: () => void }) {
   const [saving, setSaving] = useState(false);
   const [recognizing, setRecognizing] = useState(false);
   const [recognitionNote, setRecognitionNote] = useState("");
-  const [name, setName] = useState("");
-  const [species, setSpecies] = useState("");
-  const [intervalText, setIntervalText] = useState("7");
-  const [light, setLight] = useState("");
-  const [notes, setNotes] = useState("");
-  const [infoUrl, setInfoUrl] = useState("");
+  const [name, setName] = useState(plant?.name ?? "");
+  const [species, setSpecies] = useState(plant?.species ?? "");
+  const [intervalText, setIntervalText] = useState(
+    String(plant?.watering_interval_days ?? 7),
+  );
+  const [lastWatered, setLastWatered] = useState(
+    plant?.last_watered_at || kyivDate(),
+  );
+  const [light, setLight] = useState(plant?.light ?? "");
+  const [notes, setNotes] = useState(plant?.watering_notes ?? "");
+  const [infoUrl, setInfoUrl] = useState(plant?.info_url ?? "");
   const [error, setError] = useState("");
 
   async function choosePhoto(files: File[]) {
@@ -81,7 +100,7 @@ function PlantForm({ onClose }: { onClose: () => void }) {
         return;
       }
       setName((current) => current || String(data.name || ""));
-      setSpecies(String(data.species || ""));
+      setSpecies((current) => current || String(data.species || ""));
       setIntervalText((current) => {
         if (current !== "7") return current;
         const parsed = Number(data.interval || 7);
@@ -107,9 +126,7 @@ function PlantForm({ onClose }: { onClose: () => void }) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
     if (!name.trim()) return setError("Додай назву рослини.");
-    if (!photo) return setError("Додай фото рослини.");
     const parsedInterval = Number(intervalText);
     if (
       !intervalText.trim() ||
@@ -119,18 +136,15 @@ function PlantForm({ onClose }: { onClose: () => void }) {
     ) {
       return setError("Вкажи інтервал перевірки від 1 до 120 днів.");
     }
-    const rawLastWatered = String(form.get("lastWatered") ?? kyivDate());
-    const lastWatered = /^\d{4}-\d{2}-\d{2}$/.test(rawLastWatered)
-      ? rawLastWatered
+    const cleanLastWatered = /^\d{4}-\d{2}-\d{2}$/.test(lastWatered)
+      ? lastWatered
       : kyivDate();
     setSaving(true);
     setError("");
     try {
-      const image_path = await uploadImage(
-        photo,
-        userId,
-        coupleId ?? DEMO_COUPLE,
-      );
+      const image_path = photo
+        ? await uploadImage(photo, userId, coupleId ?? DEMO_COUPLE)
+        : (plant?.image_path ?? null);
       const value: NewPlant = {
         name: name.trim(),
         species: species.trim(),
@@ -139,14 +153,17 @@ function PlantForm({ onClose }: { onClose: () => void }) {
           1,
           Math.min(120, Math.round(parsedInterval)),
         ),
-        last_watered_at: lastWatered,
+        last_watered_at: cleanLastWatered,
         light: light.trim(),
         watering_notes: notes.trim(),
         info_url: safeUrl(infoUrl)?.startsWith("https://")
           ? safeUrl(infoUrl)!
           : "",
       };
-      if (await addPlant(value)) onClose();
+      const ok = plant
+        ? await updatePlant(plant.id, value)
+        : await addPlant(value);
+      if (ok) onClose();
       else setError("Не вдалося зберегти рослину. Спробуй ще раз.");
     } catch (reason) {
       const message =
@@ -160,19 +177,27 @@ function PlantForm({ onClose }: { onClose: () => void }) {
     }
   }
 
+  const shownPreview = preview || existingImage;
+  const busyKey = plant ? `plant-${plant.id}` : "add-plant";
+
   return (
-    <BottomSheet title="Додати рослину" onClose={onClose}>
+    <BottomSheet
+      title={plant ? "Редагувати рослину" : "Додати рослину"}
+      onClose={onClose}
+    >
       <form className="plant-form" onSubmit={(event) => void submit(event)}>
         <label className="plant-photo-picker">
-          {preview ? (
-            <img src={preview} alt="Фото для картки рослини" />
+          {shownPreview ? (
+            <img src={shownPreview} alt="Фото для картки рослини" />
           ) : (
             <Upload size={21} />
           )}
           <span>
             {photos.length
               ? `Фото: ${photos.length} із 5`
-              : "Додати 1–5 фото рослини"}
+              : plant?.image_path
+                ? "Замінити фото (необов’язково)"
+                : "Додати 1–5 фото (необов’язково)"}
           </span>
           <input
             aria-label="Фото рослини"
@@ -200,7 +225,7 @@ function PlantForm({ onClose }: { onClose: () => void }) {
             required
           />
         </Field>
-        <details className="plant-extra-fields">
+        <details className="plant-extra-fields" open={Boolean(plant)}>
           <summary>Догляд та нагадування</summary>
           <div className="plant-form-extra">
             <Field label="Вид (необов’язково)">
@@ -228,7 +253,8 @@ function PlantForm({ onClose }: { onClose: () => void }) {
                 <input
                   name="lastWatered"
                   type="date"
-                  defaultValue={kyivDate()}
+                  value={lastWatered}
+                  onChange={(event) => setLastWatered(event.target.value)}
                   required
                 />
               </Field>
@@ -275,9 +301,9 @@ function PlantForm({ onClose }: { onClose: () => void }) {
         )}
         <Button
           type="submit"
-          busy={saving || recognizing || pending.includes("add-plant")}
+          busy={saving || recognizing || pending.includes(busyKey)}
         >
-          Зберегти рослину
+          {plant ? "Зберегти зміни" : "Зберегти рослину"}
         </Button>
       </form>
     </BottomSheet>
@@ -286,9 +312,11 @@ function PlantForm({ onClose }: { onClose: () => void }) {
 
 function PlantDetails({
   plant,
+  onEdit,
   onClose,
 }: {
   plant: Plant;
+  onEdit: () => void;
   onClose: () => void;
 }) {
   const { data, recordPlantCare, removePlant, pending } = useApp();
@@ -362,9 +390,12 @@ function PlantDetails({
               busy={pending.includes(`plant-${plant.id}`)}
             >
               <Droplet size={17} strokeWidth={2.2} />
-              <span>Полила сьогодні</span>
+              <span>Полити сьогодні</span>
             </Button>
           )}
+          <IconButton label="Редагувати рослину" onClick={onEdit}>
+            <Pencil size={18} />
+          </IconButton>
           <IconButton
             label="Видалити рослину"
             onClick={() => setConfirmDelete(true)}
@@ -373,7 +404,10 @@ function PlantDetails({
           </IconButton>
         </div>
         <details className="plant-detail-block plant-care-history">
-          <summary>Історія догляду · {data.plantCare.filter((entry) => entry.plant_id === plant.id).length}</summary>
+          <summary>
+            Історія догляду ·{" "}
+            {data.plantCare.filter((entry) => entry.plant_id === plant.id).length}
+          </summary>
           {data.plantCare.filter((entry) => entry.plant_id === plant.id)
             .length ? (
             <ul>
@@ -433,7 +467,7 @@ function PlantDetails({
 
 export default function Plants() {
   const { data, recordPlantCare, pending } = useApp();
-  const [form, setForm] = useState(false);
+  const [form, setForm] = useState<Plant | "new" | null>(null);
   const [detail, setDetail] = useState<Plant | null>(null);
   const today = kyivDate();
   const plants = [...data.plants].sort(
@@ -443,7 +477,7 @@ export default function Plants() {
   return (
     <section className="screen plants-screen">
       <ScreenHeader title="Рослини" subtitle="Догляд у своєму ритмі">
-        <AddButton label="Додати рослину" onClick={() => setForm(true)} />
+        <AddButton label="Додати рослину" onClick={() => setForm("new")} />
       </ScreenHeader>
       <div className="screen-panel plants-panel">
         {plants.length ? (
@@ -493,7 +527,7 @@ export default function Plants() {
                             className="plant-water-button"
                             disabled={pending.includes(`plant-${plant.id}`)}
                             aria-label={`Відмітити полив · ${plant.name}`}
-                            title="Полила сьогодні"
+                            title="Полити сьогодні"
                             onClick={() =>
                               void recordPlantCare(plant.id, "watered")
                             }
@@ -528,17 +562,28 @@ export default function Plants() {
             title="Додай першу рослину"
             description="Фото, інтервал перевірки ґрунту й короткі підказки будуть в одному місці."
           >
-            <Button onClick={() => setForm(true)}>Додати рослину</Button>
+            <Button onClick={() => setForm("new")}>Додати рослину</Button>
           </EmptyState>
         )}
       </div>
       <AnimatePresence>
-        {form && <PlantForm onClose={() => setForm(false)} />}
+        {form && (
+          <PlantForm
+            plant={form === "new" ? undefined : form}
+            onClose={() => setForm(null)}
+          />
+        )}
       </AnimatePresence>
       <AnimatePresence>
         {detail && (
           <PlantDetails
             plant={data.plants.find((item) => item.id === detail.id) ?? detail}
+            onEdit={() => {
+              const target =
+                data.plants.find((item) => item.id === detail.id) ?? detail;
+              setDetail(null);
+              setForm(target);
+            }}
             onClose={() => setDetail(null)}
           />
         )}

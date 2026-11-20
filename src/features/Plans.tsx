@@ -8,6 +8,7 @@ import {
   Clock3,
   ExternalLink,
   Link2,
+  MapPin,
   Copy,
   Repeat,
 } from "lucide-react";
@@ -26,6 +27,15 @@ import { AddButton, PagedList, ScreenHeader } from "../components/Compact";
 import { publicUrl } from "../../supabase/functions/_shared/urls";
 import { checked, configured, supabase } from "../lib/supabase";
 import publicConfig from "../lib/public-config.json";
+const EVENT_CATEGORY_COLORS: Record<string, string> = {
+  Побачення: "#C86D7C",
+  Поїздка: "#3B82A6",
+  Побут: "#5C8368",
+  Свято: "#D4943A",
+  Інше: "#7D8882",
+};
+const eventCategoryColor = (category?: string) =>
+  EVENT_CATEGORY_COLORS[category || "Інше"] ?? EVENT_CATEGORY_COLORS["Інше"];
 export default function Plans() {
   const { data, demo } = useApp(),
     today = kyivDate();
@@ -161,7 +171,11 @@ export default function Plans() {
           ))}
           {Array.from({ length }, (_, i) => {
             const d = i + 1,
-              date = dateKey(d);
+              date = dateKey(d),
+              dayEvents = data.events.filter((e) => eventOccursOn(e, date)),
+              dayDotColors = [
+                ...new Set(dayEvents.map((e) => eventCategoryColor(e.category))),
+              ].slice(0, 3);
             return (
               <button
                 key={date}
@@ -182,8 +196,18 @@ export default function Plans() {
                   />
                 )}
                 <span className="day-number">{d}</span>
-                {data.events.some((e) => eventOccursOn(e, date)) && (
-                  <i className="event-dot" />
+                {dayDotColors.length > 0 && (
+                  <span className="event-dots" aria-hidden="true">
+                    {dayDotColors.map((color) => (
+                      <i
+                        key={color}
+                        className="event-dot"
+                        style={
+                          date === selected ? undefined : { background: color }
+                        }
+                      />
+                    ))}
+                  </span>
                 )}
               </button>
             );
@@ -253,7 +277,13 @@ export default function Plans() {
                       setShowDescription(false);
                     }}
                   >
-                    <span className="event-icon">
+                    <span
+                      className="event-icon"
+                      style={{
+                        color: eventCategoryColor(event.category),
+                        background: `${eventCategoryColor(event.category)}1A`,
+                      }}
+                    >
                       <CalendarDays size={19} />
                     </span>
                     <div>
@@ -273,6 +303,16 @@ export default function Plans() {
                         {event.all_day
                           ? "Увесь день"
                           : event.time?.slice(0, 5) || "Без часу"}
+                        {event.category && event.category !== "Інше" && (
+                          <span className="event-category-inline">
+                            <i
+                              style={{
+                                background: eventCategoryColor(event.category),
+                              }}
+                            />
+                            {event.category}
+                          </span>
+                        )}
                         {repeatLabel && (
                           <span className="event-recurrence-tag">
                             <Repeat size={11} />
@@ -343,11 +383,36 @@ export default function Plans() {
                   ? "Увесь день"
                   : detail.time?.slice(0, 5) || "Без часу"}
               </p>
+              {detail.category && (
+                <p className="event-detail-category">
+                  <i
+                    className="event-detail-cat-dot"
+                    style={{ background: eventCategoryColor(detail.category) }}
+                  />
+                  {detail.category}
+                </p>
+              )}
+              {detail.location?.trim() && (
+                <p className="event-detail-location">
+                  <MapPin size={16} />
+                  <span>{detail.location.trim()}</span>
+                </p>
+              )}
               {recurrenceLabel(detail.recurrence) && (
                 <p>
                   <Repeat size={16} />
                   Повторюється: {recurrenceLabel(detail.recurrence).toLowerCase()}
                 </p>
+              )}
+              {detail.location?.trim() && (
+                <a
+                  className="button secondary"
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(detail.location.trim())}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <MapPin size={16} /> Відкрити на карті
+                </a>
               )}
               {detail.description && (
                 <>

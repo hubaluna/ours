@@ -19,6 +19,7 @@ import {
 } from "../../supabase/functions/_shared/budget-categorizer";
 import type {
   BudgetCategory,
+  BudgetRecurringPayment,
   BudgetSettings,
   BudgetTransaction,
 } from "./types";
@@ -80,29 +81,41 @@ const CUSTOM_CATEGORY_PALETTE = [
 ] as const;
 
 export const CUSTOM_CATEGORY_EMOJIS = [
+  "🚬",
   "🥑",
+  "☕",
   "🍽️",
   "🥤",
+  "🍷",
   "🧳",
+  "✈️",
   "🏠",
   "🏡",
+  "⚡",
+  "📱",
   "⛽",
   "🚗",
+  "🚕",
   "🅿️",
   "💊",
+  "🩺",
   "🐾",
   "👕",
+  "🛍️",
   "🌸",
+  "💅",
   "✂️",
+  "🏋️",
+  "📚",
+  "💻",
+  "🎮",
+  "🎵",
+  "🎬",
   "🔄",
   "🧴",
   "🧸",
-  "🎬",
-  "💱",
-  "🏷️",
-  "💼",
-  "↩️",
   "🎁",
+  "💼",
   "📦",
 ] as const;
 
@@ -510,4 +523,33 @@ export function budgetIngestUrl(): string {
     return "https://<your-project>.supabase.co/functions/v1/expense-ingest";
   }
   return `${base.replace(/\/+$/, "")}/functions/v1/expense-ingest`;
+}
+
+export function getRecurringDueDate(
+  dayOfMonth: number,
+  yearMonth: string,
+): string {
+  const ym = yearMonth.slice(0, 7);
+  const [yStr, mStr] = ym.split("-");
+  const year = Number(yStr) || 2026;
+  const month = Number(mStr) || 1;
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const clampedDay = Math.max(1, Math.min(Math.round(dayOfMonth), daysInMonth));
+  return `${ym}-${String(clampedDay).padStart(2, "0")}`;
+}
+
+export function getDueRecurringPayments(
+  items: BudgetRecurringPayment[],
+  today = kyivDate(),
+): BudgetRecurringPayment[] {
+  const yearMonth = today.slice(0, 7);
+  return items
+    .filter((item) => {
+      if (!item.active) return false;
+      if (item.last_confirmed_month === yearMonth) return false;
+      if (item.last_skipped_month === yearMonth) return false;
+      const dueDate = getRecurringDueDate(item.day_of_month, yearMonth);
+      return today >= dueDate;
+    })
+    .sort((a, b) => a.day_of_month - b.day_of_month || a.title.localeCompare(b.title, "uk"));
 }

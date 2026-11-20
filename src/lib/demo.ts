@@ -1,10 +1,8 @@
 import type { Data } from "./types";
-import { kyivDate } from "./utils";
 import { buildSkarboSeedTransactions } from "./budget";
-
+import { kyivDate } from "./utils";
 export const DEMO_USER = "demo-anna",
   DEMO_COUPLE = "demo-couple";
-
 const SKARBO_DEMO_SEED_FLAG = "ours-skarbo-seed-v1";
 export function createDemo(): Data {
   const now = new Date().toISOString(),
@@ -246,6 +244,7 @@ export function createDemo(): Data {
         updated_at: now,
       },
     ],
+    budgetRecurring: [],
   };
 }
 export function readDemo(): Data {
@@ -328,10 +327,14 @@ export function readDemo(): Data {
           budgetSettings: Array.isArray(data.budgetSettings)
             ? data.budgetSettings
             : createDemo().budgetSettings,
+          budgetRecurring: Array.isArray(data.budgetRecurring)
+            ? data.budgetRecurring
+            : [],
           wishes: data.wishes.map((w) => ({
             ...w,
             image_url: w.image_url ?? "",
             is_private: w.is_private ?? false,
+            fulfilled: w.fulfilled ?? false,
             size: w.size ?? "",
           })),
         };
@@ -339,6 +342,11 @@ export function readDemo(): Data {
     }
   } catch {
     /* reset invalid demo */
+  }
+  try {
+    localStorage.setItem(SKARBO_DEMO_SEED_FLAG, "1");
+  } catch {
+    /* ignore */
   }
   return createDemo();
 }

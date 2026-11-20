@@ -3,12 +3,12 @@ import { groceryCategories } from "../../supabase/functions/_shared/grocery-cate
 export type Tab =
   | "home"
   | "shopping"
-  | "budget"
   | "movies"
   | "wishes"
   | "plans"
   | "menu"
-  | "plants";
+  | "plants"
+  | "budget";
 export type Theme = "light" | "dark" | "system";
 export const categories = groceryCategories;
 export const eventCategories = [
@@ -52,6 +52,7 @@ export type Wish = {
   image_url: string;
   is_private: boolean;
   is_deleted?: boolean;
+  fulfilled?: boolean;
   size: string;
   created_at: string;
 };
@@ -135,7 +136,14 @@ export type Activity = {
   id: string;
   couple_id: string;
   actor_id: string;
-  kind: "shopping" | "wishes" | "movies" | "events" | "recipes";
+  kind:
+    | "shopping"
+    | "wishes"
+    | "movies"
+    | "events"
+    | "recipes"
+    | "plants"
+    | "budget";
   action: "added" | "updated" | "deleted" | "purchased";
   entity_id: string | null;
   title: string;
@@ -318,7 +326,28 @@ export type BudgetTokenStatus = {
   last_used_at: string | null;
   created_at: string | null;
 };
-
+export type BudgetRecurringPayment = {
+  id: string;
+  couple_id: string;
+  user_id: string;
+  title: string;
+  kind: BudgetKind;
+  amount: number;
+  category_key: string;
+  day_of_month: number;
+  active: boolean;
+  last_confirmed_month: string | null;
+  last_skipped_month: string | null;
+  created_at: string;
+  updated_at?: string;
+};
+export type NewBudgetRecurringPayment = {
+  title: string;
+  kind: BudgetKind;
+  amount: number;
+  category_key: string;
+  day_of_month: number;
+};
 export type Data = {
   mealPlan: MealPlanItem[];
   menuExcludedKeys?: string[];
@@ -342,6 +371,7 @@ export type Data = {
   budgetTransactions: BudgetTransaction[];
   budgetMerchantRules: BudgetMerchantRule[];
   budgetSettings: BudgetSettings[];
+  budgetRecurring: BudgetRecurringPayment[];
 };
 export type Table =
   | "recipes"

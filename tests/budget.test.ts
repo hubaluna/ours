@@ -9,7 +9,9 @@ import {
   formatBudgetDayHeading,
   formatUAH,
   generateBudgetIngestToken,
+  getDueRecurringPayments,
   getPeriodRange,
+  getRecurringDueDate,
   parseApplePayAmount,
   resolveBudgetCategories,
   suggestRulePattern,
@@ -25,18 +27,27 @@ import {
   readLocalBudgetState,
   writeLocalBudgetState,
 } from "../src/lib/budget-local";
+import {
+  applyBudgetQueue,
+  enqueueBudgetOp,
+  readBudgetQueue,
+  writeBudgetQueue,
+  type BudgetQueueOp,
+} from "../src/lib/budget-queue";
 import { DEMO_COUPLE, DEMO_USER, createDemo } from "../src/lib/demo";
 import type {
   BudgetCategory,
   BudgetMerchantRule,
+  BudgetRecurringPayment,
   BudgetSettings,
   BudgetTransaction,
 } from "../src/lib/types";
 
 describe("budget module", () => {
   it("exposes exact Skarbo expense & income categories with colors", () => {
-    expect(SKARBO_EXPENSE_CATEGORIES).toHaveLength(21);
+    expect(SKARBO_EXPENSE_CATEGORIES).toHaveLength(22);
     expect(SKARBO_INCOME_CATEGORIES).toHaveLength(2);
+    expect(SKARBO_EXPENSE_CATEGORIES.some((c) => c.id === "smoking" && c.name === "Куріння")).toBe(true);
     expect(SKARBO_EXPENSE_CATEGORIES[0]).toEqual({
       id: "groceries",
       name: "Продукти",
@@ -93,6 +104,11 @@ describe("budget module", () => {
 
     expect(autoCategorizeMerchant("MasterZoo Kyiv", rules, "expense")).toEqual({
       category_key: "pets",
+      matched_by: "dictionary",
+    });
+
+    expect(autoCategorizeMerchant("IQOS Space Kyiv", rules, "expense")).toEqual({
+      category_key: "smoking",
       matched_by: "dictionary",
     });
 
@@ -350,7 +366,7 @@ describe("budget module", () => {
       expect(
         isMissingBudgetTableError({
           code: "42703",
-          message: 'column budget_settings.id does not exist',
+          message: "column budget_settings.id does not exist",
         }),
       ).toBe(false);
 
@@ -396,6 +412,107 @@ describe("budget module", () => {
 
       markLocalBudgetSynced("couple-x");
       expect(peekLocalBudgetPendingSync("couple-x")).toBeNull();
+    } finally {
+      Object.defineProperty(globalThis, "localStorage", {
+        configurable: true,
+        value: prevStorage,
+      });
+    }
+  });
+
+  it("computes clamped recurring payment due dates and filters due items per month", () => {
+    expect(getRecurringDueDate(31, "2026-02-15")).toBe("2026-02-28");
+    expect(getRecurringDueDate(31, "2028-02-15")).toBe("2028-02-29");
+    expect(getRecurringDueDate(10, "2026-11-19")).toBe("2026-11-10");
+
+    const base: BudgetRecurringPayment = {
+      id: "rec-1",
+      couple_id: "c1",
+      created_by: "u1",
+      title: "Оренда",
+      kind: "expense",
+      amount: 15000,
+      category_key: "home",
+      day_of_month: 10,
+      active: true,
+      last_confirmed_month: null,
+      last_skipped_month: null,
+      created_at: "2026-10-01T00:00:00Z",
+    };
+
+    const items: BudgetRecurringPayment[] = [
+      base, // due on 10th -> due on 19th
+      { ...base, id: "rec-2", title: "Інтернет", day_of_month: 25 }, // future
+      { ...base, id: "rec-3", title: "Оплачено", last_confirmed_month: "2026-11" }, // confirmed
+      { ...base, id: "rec-4", title: "Пропущено", last_skipped_month: "2026-11" }, // skipped
+      { ...base, id: "rec-5", title: "На паузі", active: false }, // inactive
+      { ...base, id: "rec-6", title: "Мобільний", day_of_month: 5, last_confirmed_month: "2026-10" }, // due again in Nov
+    ];
+
+    const due = getDueRecurringPayments(items, "2026-11-19");
+    expect(due.map((i) => i.id)).toEqual(["rec-6", "rec-1"]);
+  });
+
+  it("coalesces offline budget queue operations cleanly", () => {
+    const store = new Map<string, string>();
+    const prevStorage = globalThis.localStorage;
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => store.set(k, v),
+        removeItem: (k: string) => store.delete(k),
+        clear: () => store.clear(),
+      },
+    });
+
+    try {
+      const scope = "c1:u1";
+      writeBudgetQueue(scope, []);
+      const tx1: BudgetTransaction = {
+        id: "offline-1",
+        couple_id: "c1",
+        user_id: "u1",
+        kind: "expense",
+        amount: 250,
+        merchant: "Кава",
+        note: "",
+        category_key: "restaurants",
+        status: "confirmed",
+        source: "manual",
+        is_private: false,
+        occurred_on: "2026-11-19",
+        occurred_at: "2026-11-19T09:00:00Z",
+        created_at: "2026-11-19T09:00:00Z",
+      };
+      let q: BudgetQueueOp[] = [];
+      q = enqueueBudgetOp(q, {
+        op: "add",
+        item: tx1,
+        queuedAt: "2026-11-19T09:00:00Z",
+      });
+      q = enqueueBudgetOp(q, {
+        op: "update",
+        id: "offline-1",
+        patch: { amount: 300, merchant: "Кава та круасан" },
+        queuedAt: "2026-11-19T09:01:00Z",
+      });
+      writeBudgetQueue(scope, q);
+      expect(readBudgetQueue(scope)).toHaveLength(1);
+
+      const applied = applyBudgetQueue([], readBudgetQueue(scope));
+      expect(applied).toHaveLength(1);
+      expect(applied[0].amount).toBe(300);
+      expect(applied[0].merchant).toBe("Кава та круасан");
+
+      // Removing a locally-added unsynced transaction cancels it completely
+      q = enqueueBudgetOp(q, {
+        op: "remove",
+        id: "offline-1",
+        queuedAt: "2026-11-19T09:02:00Z",
+      });
+      writeBudgetQueue(scope, q);
+      expect(readBudgetQueue(scope)).toHaveLength(0);
     } finally {
       Object.defineProperty(globalThis, "localStorage", {
         configurable: true,

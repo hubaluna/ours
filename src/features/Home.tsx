@@ -8,16 +8,27 @@ import {
   Film,
   Gift,
   HelpCircle,
+  Repeat,
   ShoppingBag,
   Sprout,
   Utensils,
+  Wallet,
   X,
 } from "lucide-react";
 import { useApp } from "../hooks/AppContext";
-import type { Activity, BudgetTransaction, Tab } from "../lib/types";
+import type {
+  Activity,
+  BudgetRecurringPayment,
+  BudgetTransaction,
+  Tab,
+} from "../lib/types";
+import {
+  formatUAH,
+  getDueRecurringPayments,
+  resolveBudgetCategories,
+} from "../lib/budget";
+import { BudgetRecurringConfirmSheet, BudgetReviewSheet } from "./Budget";
 import { greeting, kyivDate } from "../lib/utils";
-import { formatUAH, resolveBudgetCategories } from "../lib/budget";
-import { BudgetReviewSheet } from "./Budget";
 import { getEventReminders, getPlantReminders } from "../lib/home-reminders";
 import { eventOccursOn, nextOccurrence } from "../lib/recurrence";
 import { differenceDays, plantSchedule } from "../lib/plant-care";
@@ -39,6 +50,8 @@ const icons = {
   wishes: Gift,
   movies: Film,
   events: CalendarDays,
+  plants: Sprout,
+  budget: Wallet,
 };
 const labels = {
   recipes: "меню",
@@ -46,6 +59,8 @@ const labels = {
   wishes: "бажання",
   movies: "кіно",
   events: "календар",
+  plants: "рослини",
+  budget: "бюджет",
 };
 const actions = {
   added: "додає",
@@ -61,14 +76,19 @@ export default function Home({ navigate }: { navigate: (tab: Tab) => void }) {
     pending,
     categorizeBudgetTransaction,
     removeBudgetTransaction,
+    confirmBudgetRecurring,
+    skipBudgetRecurring,
   } = useApp();
   const [detail, setDetail] = useState<Activity | null>(null);
   const [reviewTx, setReviewTx] = useState<BudgetTransaction | null>(null);
+  const [confirmRecurring, setConfirmRecurring] =
+    useState<BudgetRecurringPayment | null>(null);
   const [dismissed, setDismissed] = useState<string[]>(readDismissed);
   const today = kyivDate();
   const needsReviewTxs = data.budgetTransactions
     .filter(
       (tx) =>
+        tx.kind === "expense" &&
         tx.status === "needs_review" &&
         (!tx.is_private || tx.user_id === userId),
     )
@@ -80,6 +100,8 @@ export default function Home({ navigate }: { navigate: (tab: Tab) => void }) {
         (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0),
     );
   const firstPendingTx = needsReviewTxs[0] ?? null;
+  const dueRecurring = getDueRecurringPayments(data.budgetRecurring, today);
+  const firstDueRecurring = dueRecurring[0] ?? null;
   const plantReminders = getPlantReminders(data.plants, today);
   const eventReminders = getEventReminders(data.events, today).filter(
     (reminder) => !dismissed.includes(reminder.dismissKey),
@@ -306,6 +328,26 @@ export default function Home({ navigate }: { navigate: (tab: Tab) => void }) {
           <ChevronRight size={16} />
         </button>
       )}
+      {firstDueRecurring && (
+        <button
+          type="button"
+          className="home-budget-alert home-recurring-alert"
+          onClick={() => setConfirmRecurring(firstDueRecurring)}
+        >
+          <span className="home-budget-alert-icon" aria-hidden="true">
+            <Repeat size={17} />
+          </span>
+          <span className="home-budget-alert-body">
+            <span className="row-kicker">Регулярний платіж · до внесення</span>
+            <strong>
+              {dueRecurring.length === 1
+                ? `${firstDueRecurring.title} · ${formatUAH(firstDueRecurring.amount)}`
+                : `${dueRecurring.length} платежі очікують · ${firstDueRecurring.title} (${formatUAH(firstDueRecurring.amount)})`}
+            </strong>
+          </span>
+          <ChevronRight size={16} />
+        </button>
+      )}
       {(plantReminders.length > 0 || eventReminders.length > 0) && (
         <div className="home-reminders" aria-label="Нагадування">
           {plantReminders.map((reminder) => (
@@ -437,6 +479,8 @@ export default function Home({ navigate }: { navigate: (tab: Tab) => void }) {
             </div>
           </BottomSheet>
         )}
+      </AnimatePresence>
+      <AnimatePresence>
         {reviewTx && (
           <BudgetReviewSheet
             tx={reviewTx}
@@ -467,6 +511,37 @@ export default function Home({ navigate }: { navigate: (tab: Tab) => void }) {
             onDelete={async () => {
               if (await removeBudgetTransaction(reviewTx.id)) {
                 setReviewTx(null);
+              }
+            }}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {confirmRecurring && (
+          <BudgetRecurringConfirmSheet
+            item={confirmRecurring}
+            customCategories={data.budgetCategories}
+            busy={pending.includes(`recurring-${confirmRecurring.id}`)}
+            onClose={() => setConfirmRecurring(null)}
+            onConfirm={async (amount) => {
+              const ok = await confirmBudgetRecurring(
+                confirmRecurring,
+                amount,
+              );
+              if (ok) {
+                const next = dueRecurring.filter(
+                  (item) => item.id !== confirmRecurring.id,
+                );
+                setConfirmRecurring(next[0] ?? null);
+              }
+            }}
+            onSkip={async () => {
+              const ok = await skipBudgetRecurring(confirmRecurring);
+              if (ok) {
+                const next = dueRecurring.filter(
+                  (item) => item.id !== confirmRecurring.id,
+                );
+                setConfirmRecurring(next[0] ?? null);
               }
             }}
           />
