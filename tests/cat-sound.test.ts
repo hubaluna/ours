@@ -3,9 +3,13 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 import {
   getCatPoseType,
   getCatReaction,
+  getMascotLevel,
   isCatMuted,
+  MASCOT_LEVEL_DESCRIPTIONS,
+  MASCOT_LEVEL_KEY,
   playCatSound,
   setCatMuted,
+  setMascotLevel,
 } from "../src/lib/cat-sound";
 
 describe("Cat sound and mascot reactions", () => {
@@ -116,5 +120,49 @@ describe("Cat sound and mascot reactions", () => {
     setCatMuted(false);
     playCatSound("cat-sitting.webp", 4);
     expect(vibrateSpy).toHaveBeenCalledWith([15, 30, 20]);
+  });
+
+  it("manages mascot activity levels in localStorage and dispatches change events", () => {
+    // Defaults to 3 (Максимум / Жвавий)
+    expect(getMascotLevel()).toBe(3);
+
+    const eventSpy = vi.fn();
+    window.addEventListener("ours-mascot-level-change", eventSpy);
+
+    // Set level to 0 (Вимкнено)
+    setMascotLevel(0);
+    expect(getMascotLevel()).toBe(0);
+    expect(localStorage.getItem(MASCOT_LEVEL_KEY)).toBe("0");
+    expect(eventSpy).toHaveBeenCalledTimes(1);
+    expect(eventSpy.mock.calls[0][0].detail).toBe(0);
+
+    // Set level to 1 (Рідко / Тихий спостерігач)
+    setMascotLevel(1);
+    expect(getMascotLevel()).toBe(1);
+    expect(localStorage.getItem(MASCOT_LEVEL_KEY)).toBe("1");
+
+    // Set level to 2 (Базовий)
+    setMascotLevel(2);
+    expect(getMascotLevel()).toBe(2);
+    expect(localStorage.getItem(MASCOT_LEVEL_KEY)).toBe("2");
+
+    // Invalid values in localStorage fallback to 3
+    localStorage.setItem(MASCOT_LEVEL_KEY, "invalid");
+    expect(getMascotLevel()).toBe(3);
+
+    localStorage.setItem(MASCOT_LEVEL_KEY, "99");
+    expect(getMascotLevel()).toBe(3);
+
+    window.removeEventListener("ours-mascot-level-change", eventSpy);
+  });
+
+  it("provides complete metadata descriptions for all mascot levels 0 to 3", () => {
+    for (const lvl of [0, 1, 2, 3] as const) {
+      const desc = MASCOT_LEVEL_DESCRIPTIONS[lvl];
+      expect(desc).toBeDefined();
+      expect(desc.label).toBeTruthy();
+      expect(desc.title).toBeTruthy();
+      expect(desc.hint).toBeTruthy();
+    }
   });
 });

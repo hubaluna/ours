@@ -7680,4 +7680,126 @@ p {
   opacity: 0.58;
 }
 
+/* Mascot Luna activity level slider */
+.mascot-slider-card {
+  padding: 16px;
+  border-radius: 18px;
+  background: var(--glass-subtle);
+  border: 1px solid var(--glass-edge);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mascot-slider-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mascot-slider-header h3 {
+  margin: 0 !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.mascot-slider-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 12px;
+  background: var(--accent-light);
+  color: var(--accent-strong);
+  border: 1px solid var(--glass-edge);
+}
+
+.mascot-slider-title {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.mascot-slider-hint {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.mascot-slider-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0 2px;
+}
+
+.mascot-range-input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 4px;
+  background: var(--line);
+  outline: none;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+.mascot-range-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  border: 2px solid #fff;
+  transition: transform 0.15s ease;
+}
+
+.mascot-range-input::-webkit-slider-thumb:active {
+  transform: scale(1.15);
+}
+
+.mascot-range-input::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  border: 2px solid #fff;
+  transition: transform 0.15s ease;
+}
+
+.mascot-slider-ticks {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+
+.mascot-slider-ticks span {
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s ease, font-weight 0.15s ease;
+  user-select: none;
+}
+
+.mascot-slider-ticks span.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.mascot-slider-card .cat-sound-toggle {
+  margin: 6px 0 0;
+  background: var(--glass-strong);
+}
+
+
 

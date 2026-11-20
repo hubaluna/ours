@@ -1,4 +1,60 @@
 const CAT_MUTED_KEY = "ours-cat-muted";
+export const MASCOT_LEVEL_KEY = "ours-mascot-level";
+
+export type MascotLevel = 0 | 1 | 2 | 3;
+
+export const MASCOT_LEVEL_DESCRIPTIONS: Record<
+  MascotLevel,
+  { label: string; title: string; hint: string }
+> = {
+  0: {
+    label: "Вимкнено",
+    title: "Відсутність Луни",
+    hint: "Кішка спить у своїй кімнаті й не з'являється в застосунку.",
+  },
+  1: {
+    label: "Рідко",
+    title: "Тихий спостерігач",
+    hint: "З'являється зрідка без спливаючих думок чи звуків.",
+  },
+  2: {
+    label: "Базовий",
+    title: "Базові взаємодії",
+    hint: "З'являється періодично, реагує на дотики та муркоче.",
+  },
+  3: {
+    label: "Максимум",
+    title: "Жвавий (як зараз)",
+    hint: "Повне життя: спонтанні думки, серії погладжувань, сердечка й контекстні фрази.",
+  },
+};
+
+export function getMascotLevel(): MascotLevel {
+  try {
+    if (typeof localStorage === "undefined") return 3;
+    const raw = localStorage.getItem(MASCOT_LEVEL_KEY);
+    if (raw === null) return 3;
+    const parsed = Number(raw);
+    if (parsed >= 0 && parsed <= 3) return parsed as MascotLevel;
+    return 3;
+  } catch {
+    return 3;
+  }
+}
+
+export function setMascotLevel(level: MascotLevel): void {
+  try {
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(MASCOT_LEVEL_KEY, String(level));
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("ours-mascot-level-change", { detail: level }),
+      );
+    }
+  } catch {
+    // Ignore localStorage errors
+  }
+}
 
 export type CatPoseType = "purr" | "chirp" | "meow";
 

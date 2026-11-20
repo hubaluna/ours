@@ -36,7 +36,12 @@ import {
   type MascotPose,
 } from "./components/MascotContext";
 import { CatMascot } from "./components/CatMascot";
-import { getCatReaction, playCatSound } from "./lib/cat-sound";
+import {
+  getCatReaction,
+  getMascotLevel,
+  playCatSound,
+  type MascotLevel,
+} from "./lib/cat-sound";
 import { extractShareTargetUrl } from "./lib/share-target";
 const UniversalShareImport = lazy(() =>
   import("./components/UniversalShareImport").then((m) => ({
@@ -90,11 +95,17 @@ const catScenes: Array<{
 ];
 
 function useOccasionalCat(): MascotContextValue {
+  const [level, setLevel] = useState<MascotLevel>(() => getMascotLevel());
   const [pose, setPose] = useState<MascotPose>(null);
   const [bubble, setBubble] = useState<{ text: string; key: number } | null>(
     null,
   );
   const [isSquishing, setIsSquishing] = useState(false);
+
+  const levelRef = useRef<MascotLevel>(level);
+  useEffect(() => {
+    levelRef.current = level;
+  }, [level]);
 
   const tapCountRef = useRef(0);
   const lastTapTimeRef = useRef(0);
@@ -111,7 +122,31 @@ function useOccasionalCat(): MascotContextValue {
     if (squishTimerRef.current) window.clearTimeout(squishTimerRef.current);
   };
 
+  useEffect(() => {
+    const onLevelChange = (e: Event) => {
+      const custom = e as CustomEvent<MascotLevel>;
+      const next =
+        typeof custom.detail === "number" ? custom.detail : getMascotLevel();
+      levelRef.current = next;
+      setLevel(next);
+      if (next === 0) {
+        setPose(null);
+        setBubble(null);
+        clearTimers();
+      } else {
+        scheduleRef.current();
+      }
+    };
+    window.addEventListener("ours-mascot-level-change", onLevelChange);
+    return () => {
+      window.removeEventListener("ours-mascot-level-change", onLevelChange);
+    };
+  }, []);
+
   const tapCat = useCallback(() => {
+    const currentLevel = levelRef.current;
+    if (currentLevel === 0) return;
+
     const now = Date.now();
     // After 2.5s of inactivity, reset streak so the next tap plays sound
     if (now - lastTapTimeRef.current > 2500) {
@@ -121,14 +156,14 @@ function useOccasionalCat(): MascotContextValue {
     tapCountRef.current++;
     const taps = tapCountRef.current;
 
-    // Reset 10-second hide timer on tap to extend visibility
+    // Reset hide timer on tap
     if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
     hideTimerRef.current = window.setTimeout(() => {
       setPose(null);
       setBubble(null);
       momentsRef.current++;
       scheduleRef.current();
-    }, 10000);
+    }, currentLevel === 1 ? 6000 : 10000);
 
     // Trigger squish animation on every tap
     setIsSquishing(true);
@@ -137,6 +172,11 @@ function useOccasionalCat(): MascotContextValue {
       setIsSquishing(false);
     }, 380);
 
+    if (currentLevel === 1) {
+      // Level 1: quiet observer — no speech bubble, no sound
+      return;
+    }
+
     setPose((currentPose) => {
       if (!currentPose) return null;
 
@@ -144,16 +184,17 @@ function useOccasionalCat(): MascotContextValue {
 
       // Play sound on alternating taps (через один тап: 1-й, 3-й, 5-й...)
       if (taps % 2 === 1) {
-        playCatSound(image, taps);
+        playCatSound(image, currentLevel === 3 ? taps : 1);
       }
 
       const hour = new Date().getHours();
-      // Trigger speech bubble with reaction
-      const reactionText = getCatReaction(
-        image,
-        previousReactionRef.current,
-        { streak: taps, hour },
-      );
+      // Level 2: basic reaction without extra streak/hour context
+      // Level 3: rich contextual reaction with streak and hour
+      const reactionText =
+        currentLevel === 3
+          ? getCatReaction(image, previousReactionRef.current, { streak: taps, hour })
+          : getCatReaction(image, previousReactionRef.current);
+
       previousReactionRef.current = reactionText;
       setBubble({ text: reactionText, key: Date.now() });
 
@@ -162,13 +203,18 @@ function useOccasionalCat(): MascotContextValue {
         setBubble(null);
       }, 1500);
 
-      // Keep original cat image without changing pose
       return currentPose;
     });
   }, []);
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (level === 0) {
+      setPose(null);
+      setBubble(null);
+      return;
+    }
+
     let sceneIndex = 0,
       showTimer: number | undefined;
     const isBusy = () =>
@@ -180,8 +226,24 @@ function useOccasionalCat(): MascotContextValue {
         ),
       );
     const schedule = () => {
+      if (levelRef.current === 0) return;
+
+      const delay =
+        momentsRef.current === 0
+          ? levelRef.current === 1
+            ? 8000
+            : levelRef.current === 2
+              ? 3000
+              : 1200
+          : levelRef.current === 1
+            ? 35000
+            : levelRef.current === 2
+              ? 14000
+              : 4500;
+
       showTimer = window.setTimeout(
         () => {
+          if (levelRef.current === 0) return;
           if (isBusy()) {
             momentsRef.current++;
             schedule();
@@ -198,8 +260,8 @@ function useOccasionalCat(): MascotContextValue {
           setIsSquishing(false);
           setPose(newPose);
 
-          // Every ~3rd appearance, give a subtle greeting thought bubble for 2.2s
-          if (momentsRef.current % 3 === 1) {
+          // Level 3 only: every ~3rd appearance give subtle greeting thought bubble for 2.2s
+          if (levelRef.current === 3 && momentsRef.current % 3 === 1) {
             const hour = new Date().getHours();
             const intro = getCatReaction(scene.image, undefined, { hour });
             setBubble({ text: intro, key: Date.now() });
@@ -214,14 +276,16 @@ function useOccasionalCat(): MascotContextValue {
           sceneIndex = (sceneIndex + 1) % catScenes.length;
 
           if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+          const visibleDuration =
+            levelRef.current === 1 ? 6000 : levelRef.current === 2 ? 8000 : 10000;
           hideTimerRef.current = window.setTimeout(() => {
             setPose(null);
             setBubble(null);
             momentsRef.current++;
             schedule();
-          }, 10000);
+          }, visibleDuration);
         },
-        momentsRef.current === 0 ? 1200 : 4500,
+        delay,
       );
     };
 
@@ -250,9 +314,9 @@ function useOccasionalCat(): MascotContextValue {
       document.removeEventListener("visibilitychange", pause);
       observer.disconnect();
     };
-  }, []);
+  }, [level]);
 
-  if (!pose) return null;
+  if (!pose || level === 0) return null;
 
   return {
     ...pose,

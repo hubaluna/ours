@@ -12,6 +12,7 @@ import {
   RefreshCw,
   RotateCcw,
   Smartphone,
+  Sparkles,
   Sun,
   Trash2,
   Upload,
@@ -43,7 +44,14 @@ import {
   sendTestReminderNotification,
   setReminderPushEnabled,
 } from "../lib/reminder-notifications";
-import { isCatMuted, setCatMuted } from "../lib/cat-sound";
+import {
+  getMascotLevel,
+  isCatMuted,
+  MASCOT_LEVEL_DESCRIPTIONS,
+  setCatMuted,
+  setMascotLevel,
+  type MascotLevel,
+} from "../lib/cat-sound";
 export default function Settings({
   onClose,
   theme,
@@ -78,6 +86,9 @@ export default function Settings({
     [invite, setInvite] = useState(""),
     [showTrash, setShowTrash] = useState(false),
     [catSoundEnabled, setCatSoundEnabled] = useState(() => !isCatMuted()),
+    [mascotLevel, setMascotLevelState] = useState<MascotLevel>(() =>
+      getMascotLevel(),
+    ),
     [checkingUpdate, setCheckingUpdate] = useState(false),
     [backupPreview, setBackupPreview] = useState<{
       fileName: string;
@@ -262,21 +273,86 @@ export default function Settings({
             </button>
           ))}
         </div>
-        <label className="push-reminder-toggle cat-sound-toggle">
-          <input
-            type="checkbox"
-            checked={catSoundEnabled}
-            onChange={(e) => {
-              const next = e.target.checked;
-              setCatMuted(!next);
-              setCatSoundEnabled(next);
-            }}
-          />
-          <span>
-            <strong>Звуки кішки</strong>
-            <small>Муркотіння та мявкання при погладжуванні</small>
-          </span>
-        </label>
+      </section>
+      <section className="settings-section">
+        <div className="mascot-slider-card">
+          <div className="mascot-slider-header">
+            <h3>
+              <Sparkles size={16} /> Маскот Луна
+            </h3>
+            <span className="mascot-slider-badge">
+              {MASCOT_LEVEL_DESCRIPTIONS[mascotLevel].label}
+            </span>
+          </div>
+          <p className="mascot-slider-title">
+            <strong>{MASCOT_LEVEL_DESCRIPTIONS[mascotLevel].title}</strong>
+          </p>
+          <p className="mascot-slider-hint">
+            {MASCOT_LEVEL_DESCRIPTIONS[mascotLevel].hint}
+          </p>
+          <div className="mascot-slider-wrap">
+            <input
+              type="range"
+              min="0"
+              max="3"
+              step="1"
+              value={mascotLevel}
+              onChange={(e) => {
+                const next = Number(e.target.value) as MascotLevel;
+                setMascotLevelState(next);
+                setMascotLevel(next);
+              }}
+              aria-label="Рівень активності маскота Луни"
+              className="mascot-range-input"
+            />
+            <div className="mascot-slider-ticks">
+              {([0, 1, 2, 3] as const).map((lvl) => (
+                <span
+                  key={lvl}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    setMascotLevelState(lvl);
+                    setMascotLevel(lvl);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setMascotLevelState(lvl);
+                      setMascotLevel(lvl);
+                    }
+                  }}
+                  className={mascotLevel === lvl ? "active" : ""}
+                >
+                  {lvl === 0
+                    ? "Вимкн."
+                    : lvl === 1
+                      ? "Рідко"
+                      : lvl === 2
+                        ? "Базовий"
+                        : "Максимум"}
+                </span>
+              ))}
+            </div>
+          </div>
+          {mascotLevel >= 2 && (
+            <label className="push-reminder-toggle cat-sound-toggle">
+              <input
+                type="checkbox"
+                checked={catSoundEnabled}
+                onChange={(e) => {
+                  const next = e.target.checked;
+                  setCatMuted(!next);
+                  setCatSoundEnabled(next);
+                }}
+              />
+              <span>
+                <strong>Звуки кішки</strong>
+                <small>Муркотіння та мявкання при погладжуванні</small>
+              </span>
+            </label>
+          )}
+        </div>
       </section>
       <PushSettings
         userId={userId}
