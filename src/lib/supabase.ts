@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import publicConfig from "./public-config.json";
+import { primeImageCache } from "../hooks/useImage";
 // Only PUBLIC client credentials belong in this file. Environment values win.
 // Test runs must never connect to a real project, even after public setup.
 const isTest = import.meta.env.MODE === "test";
@@ -73,6 +74,7 @@ export async function uploadImage(
       .from("photos")
       .upload(path, blob, { contentType: "image/webp" }),
   );
+  primeImageCache(path, blob);
   return path;
 }
 

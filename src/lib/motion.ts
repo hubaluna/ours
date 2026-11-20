@@ -14,3 +14,11 @@ export const enter = {
   exit: { opacity: 0, y: -3, transition: { duration: 0.1 } },
   transition: soft,
 };
+export const tabEnter = {
+  initial: { opacity: 0.01, y: 4 },
+  animate: { opacity: 1, y: 0 },
+  transition: {
+    duration: 0.13,
+    ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+  },
+};

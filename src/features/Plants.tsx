@@ -35,7 +35,7 @@ function PlantPhoto({
   return (
     <span className={`plant-photo${large ? " plant-photo-large" : ""}`}>
       {image ? (
-        <img src={image} alt={plant.name} />
+        <img src={image} alt={plant.name} decoding="async" />
       ) : (
         <Sprout aria-hidden="true" />
       )}

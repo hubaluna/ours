@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { useApp } from "../hooks/AppContext";
+import { clearImageCache } from "../hooks/useImage";
 import { checked, supabase, uploadImage } from "../lib/supabase";
 import { downloadJson } from "../lib/utils";
 import { forceAppUpdate, hardReloadApp } from "../lib/pwa-update";
@@ -151,6 +152,7 @@ export default function Settings({
     if (signingOut || !supabase) return;
     setSigningOut(true);
     try {
+      await clearImageCache();
       const { error } = await supabase.auth.signOut();
       if (error) {
         await supabase.auth.signOut({ scope: "local" });

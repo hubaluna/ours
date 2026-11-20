@@ -55,7 +55,7 @@ export function Avatar({
   return (
     <span className={`avatar ${size}`}>
       {url ? (
-        <img src={url} alt={name} />
+        <img src={url} alt={name} decoding="async" />
       ) : (
         name.slice(0, 1).toLocaleUpperCase("uk")
       )}

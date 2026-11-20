@@ -181,7 +181,7 @@ export function RecipeCatalog({
       </div>
       {shown.length ? (
         <div className="recipe-catalog-grid">
-          {shown.map((recipe) => (
+          {shown.map((recipe, index) => (
             <article
               className={`catalog-card card${inline ? " catalog-card-inline" : ""}`}
               key={recipe.key}
@@ -196,7 +196,8 @@ export function RecipeCatalog({
                   <img
                     src={recipe.image_url}
                     alt={recipe.title}
-                    loading="lazy"
+                    loading={index < 6 ? "eager" : "lazy"}
+                    decoding="async"
                     referrerPolicy="no-referrer"
                   />
                 </div>

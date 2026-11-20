@@ -24,7 +24,12 @@ import { useTheme } from "./hooks/useTheme";
 import { supabase } from "./lib/supabase";
 import { Auth, PairSetup } from "./features/Auth";
 import { Avatar, Button, Skeleton, Toast } from "./components/ui";
-import { spring, enter } from "./lib/motion";
+import { spring, tabEnter } from "./lib/motion";
+import {
+  clearImageCache,
+  prefetchExternalUrls,
+  prefetchImages,
+} from "./hooks/useImage";
 import type { Tab } from "./lib/types";
 import { kyivDate } from "./lib/utils";
 import { getDueRecurringPayments } from "./lib/budget";
@@ -58,6 +63,7 @@ const screens = {
   plants: () => import("./features/Plants"),
   budget: () => import("./features/Budget"),
 };
+const preloadSettings = () => import("./features/Settings");
 const Home = lazy(screens.home),
   Shopping = lazy(screens.shopping),
   Menu = lazy(screens.menu),
@@ -66,7 +72,7 @@ const Home = lazy(screens.home),
   Plans = lazy(screens.plans),
   Plants = lazy(screens.plants),
   Budget = lazy(screens.budget),
-  Settings = lazy(() => import("./features/Settings"));
+  Settings = lazy(preloadSettings);
 const tabs = [
   { id: "shopping", label: "Покупки", icon: ShoppingBag },
   { id: "menu", label: "Меню", icon: Utensils },
@@ -423,11 +429,44 @@ export default function App() {
       navigator as Navigator & { connection?: { saveData?: boolean } }
     ).connection;
     if (connection?.saveData) return;
-    const timer = setTimeout(() => {
-      void Promise.allSettled(Object.values(screens).map((load) => load()));
-    }, 1200);
-    return () => clearTimeout(timer);
+    const warmChunks = () => {
+      void Promise.allSettled([
+        ...Object.values(screens).map((load) => load()),
+        preloadSettings(),
+      ]);
+    };
+    const timer = window.setTimeout(warmChunks, 150);
+    return () => window.clearTimeout(timer);
   }, [demo, coupleId]);
+  useEffect(() => {
+    if ((!demo && !coupleId) || loading) return;
+    const connection = (
+      navigator as Navigator & { connection?: { saveData?: boolean } }
+    ).connection;
+    if (connection?.saveData) return;
+    const timer = window.setTimeout(() => {
+      prefetchImages([
+        ...data.profiles.map((p) => p.avatar_path),
+        ...data.plants.map((p) => p.image_path),
+        ...data.wishes.map((w) => w.image_path),
+      ]);
+      prefetchExternalUrls([
+        ...data.movies.slice(0, 12).map((m) => m.poster_url),
+        ...data.wishes.slice(0, 12).map((w) => w.image_url),
+        ...data.recipes.slice(0, 8).map((r) => r.image_url),
+      ]);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [
+    demo,
+    coupleId,
+    loading,
+    data.profiles,
+    data.plants,
+    data.wishes,
+    data.movies,
+    data.recipes,
+  ]);
   useEffect(() => {
     document.body.classList.toggle(
       "app-mode",
@@ -473,7 +512,10 @@ export default function App() {
             {supabase && (
               <Button
                 className="ghost"
-                onClick={() => void supabase?.auth.signOut()}
+                onClick={() => {
+                  void clearImageCache();
+                  void supabase?.auth.signOut();
+                }}
               >
                 Вийти з акаунта
               </Button>
@@ -516,6 +558,9 @@ export default function App() {
                 <button
                   className={`header-wallet-btn${tab === "budget" ? " active" : ""}`}
                   onClick={() => setTab(tab === "budget" ? "home" : "budget")}
+                  onPointerDown={() => {
+                    void screens.budget().catch(() => {});
+                  }}
                   onPointerEnter={() => {
                     void screens.budget().catch(() => {});
                   }}
@@ -532,6 +577,12 @@ export default function App() {
                 <button
                   className="avatar-button"
                   onClick={() => setSettings(true)}
+                  onPointerDown={() => {
+                    void preloadSettings().catch(() => {});
+                  }}
+                  onPointerEnter={() => {
+                    void preloadSettings().catch(() => {});
+                  }}
                   aria-label="Відкрити налаштування"
                 >
                   <Avatar name={me?.name ?? "Я"} path={me?.avatar_path} />
@@ -569,27 +620,25 @@ export default function App() {
                 <Skeleton />
               ) : (
                 <Suspense fallback={<Skeleton />}>
-                  <AnimatePresence mode="wait">
-                    <motion.div className="tab-view" key={tab} {...enter}>
-                      {tab === "home" ? (
-                        <Home navigate={setTab} />
-                      ) : tab === "budget" ? (
-                        <Budget />
-                      ) : tab === "shopping" ? (
-                        <Shopping />
-                      ) : tab === "menu" ? (
-                        <Menu />
-                      ) : tab === "movies" ? (
-                        <Movies />
-                      ) : tab === "wishes" ? (
-                        <Wishes />
-                      ) : tab === "plans" ? (
-                        <Plans />
-                      ) : (
-                        <Plants />
-                      )}
-                    </motion.div>
-                  </AnimatePresence>
+                  <motion.div className="tab-view" key={tab} {...tabEnter}>
+                    {tab === "home" ? (
+                      <Home navigate={setTab} />
+                    ) : tab === "budget" ? (
+                      <Budget />
+                    ) : tab === "shopping" ? (
+                      <Shopping />
+                    ) : tab === "menu" ? (
+                      <Menu />
+                    ) : tab === "movies" ? (
+                      <Movies />
+                    ) : tab === "wishes" ? (
+                      <Wishes />
+                    ) : tab === "plans" ? (
+                      <Plans />
+                    ) : (
+                      <Plants />
+                    )}
+                  </motion.div>
                 </Suspense>
               )}
             </main>
@@ -610,6 +659,9 @@ export default function App() {
                   title={label}
                   aria-current={tab === id ? "page" : undefined}
                   onClick={() => setTab(id)}
+                  onPointerDown={() => {
+                    void screens[id]().catch(() => {});
+                  }}
                   onPointerEnter={() => {
                     void screens[id]().catch(() => {});
                   }}

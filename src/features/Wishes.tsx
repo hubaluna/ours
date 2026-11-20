@@ -48,6 +48,7 @@ function WishImage({ wish, eager = false }: { wish: Wish; eager?: boolean }) {
           alt={wish.name}
           referrerPolicy="no-referrer"
           loading={eager ? "eager" : "lazy"}
+          decoding="async"
           onError={() => setFailedUrl(url)}
         />
       ) : (

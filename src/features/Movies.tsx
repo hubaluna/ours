@@ -38,6 +38,7 @@ export function Poster({ url, title }: { url: string; title: string }) {
           src={url}
           alt={title}
           loading="lazy"
+          decoding="async"
           referrerPolicy="no-referrer"
           onError={() => setFailedUrl(url)}
         />

@@ -155,7 +155,21 @@ export default defineConfig(({ command, mode }) => {
               options: {
                 cacheName: "ours-recipes-v1",
                 expiration: {
-                  maxEntries: 90,
+                  maxEntries: 120,
+                  maxAgeSeconds: 60 * 24 * 60 * 60,
+                },
+              },
+            },
+            {
+              urlPattern: /^https:\/\/image\.tmdb\.org\/t\/p\/.+/,
+              handler: "CacheFirst",
+              options: {
+                cacheName: "ours-tmdb-posters-v1",
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+                expiration: {
+                  maxEntries: 120,
                   maxAgeSeconds: 30 * 24 * 60 * 60,
                 },
               },
