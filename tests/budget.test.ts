@@ -23,6 +23,10 @@ import {
   preparePdfAnalyticsData,
 } from "../src/lib/budget-pdf";
 import {
+  buildBudgetSankey,
+  formatCompactUAH,
+} from "../src/lib/budget-sankey";
+import {
   isMissingBudgetTableError,
   markLocalBudgetSynced,
   peekLocalBudgetPendingSync,
@@ -607,5 +611,75 @@ describe("budget module", () => {
     expect(pace.statusText).toContain("−25%");
     expect(pace.dailyAverage).toBe(150); // 3000 / 20
     expect(pace.projectedMonthTotal).toBe(4500); // 150 * 30 days in Nov
+  });
+
+  it("builds balanced Sankey cash-flow layouts for surplus, deficit, hidden income, and category tail grouping", () => {
+    expect(formatCompactUAH(8450)).toBe("8 450 ₴");
+    expect(formatCompactUAH(24500)).toBe("24,5 тис. ₴");
+    expect(formatCompactUAH(1250000)).toBe("1,25 млн ₴");
+
+    const incomeRows = [
+      { key: "salary", name: "Зарплата", emoji: "💼", color: "#22C55E", amount: 60000, percent: 80, count: 2 },
+      { key: "freelance", name: "Фріланс", emoji: "💻", color: "#10B981", amount: 15000, percent: 20, count: 1 },
+    ];
+    const expenseRows = [
+      { key: "home", name: "Житло", emoji: "🏠", color: "#3B82F6", amount: 18000, percent: 40, count: 1 },
+      { key: "groceries", name: "Продукти", emoji: "🛒", color: "#F97316", amount: 12000, percent: 26.7, count: 9 },
+      { key: "restaurants", name: "Кафе", emoji: "☕", color: "#EC4899", amount: 5000, percent: 11.1, count: 6 },
+      { key: "transport", name: "Транспорт", emoji: "🚕", color: "#8B5CF6", amount: 3000, percent: 6.7, count: 4 },
+      { key: "health", name: "Здоров'я", emoji: "💊", color: "#14B8A6", amount: 2500, percent: 5.6, count: 2 },
+      { key: "fun", name: "Дозвілля", emoji: "🎬", color: "#EAB308", amount: 2000, percent: 4.4, count: 2 },
+      { key: "clothes", name: "Одяг", emoji: "👕", color: "#6366F1", amount: 1500, percent: 3.3, count: 1 },
+      { key: "gifts", name: "Подарунки", emoji: "🎁", color: "#F43F5E", amount: 1000, percent: 2.2, count: 1 },
+    ];
+
+    // 1. Surplus period: income (75 000) > expense (45 000) => 30 000 savings at top of right column + grouped tail
+    const surplusLayout = buildBudgetSankey({
+      incomeRows,
+      expenseRows,
+      incomeTotal: 75000,
+      expenseTotal: 45000,
+    });
+    expect(surplusLayout.totalFlow).toBe(75000);
+    expect(surplusLayout.surplus).toBe(30000);
+    expect(surplusLayout.deficit).toBe(0);
+    expect(surplusLayout.savingsRate).toBe(40);
+    expect(surplusLayout.rightNodes[0].kind).toBe("savings");
+    expect(surplusLayout.rightNodes[0].amount).toBe(30000);
+    const tailNode = surplusLayout.rightNodes[surplusLayout.rightNodes.length - 1];
+    expect(tailNode.kind).toBe("other_expense");
+    expect(tailNode.amount).toBe(4500); // 2000 + 1500 + 1000
+    const leftSum = surplusLayout.leftNodes.reduce((s, n) => s + n.amount, 0);
+    const rightSum = surplusLayout.rightNodes.reduce((s, n) => s + n.amount, 0);
+    expect(leftSum).toBe(75000);
+    expect(rightSum).toBe(75000);
+    expect(surplusLayout.links).toHaveLength(
+      surplusLayout.leftNodes.length + surplusLayout.rightNodes.length,
+    );
+
+    // 2. Deficit period: expenses (45 000) > income (30 000) => 15 000 "Із заощаджень" on left
+    const deficitLayout = buildBudgetSankey({
+      incomeRows: [{ ...incomeRows[0], amount: 30000, percent: 100 }],
+      expenseRows: expenseRows.slice(0, 3),
+      incomeTotal: 30000,
+      expenseTotal: 45000,
+    });
+    expect(deficitLayout.totalFlow).toBe(45000);
+    expect(deficitLayout.surplus).toBe(0);
+    expect(deficitLayout.deficit).toBe(15000);
+    expect(deficitLayout.leftNodes.some((n) => n.kind === "deficit" && n.amount === 15000)).toBe(true);
+
+    // 3. Hidden partner income: single clean neutral source node on left
+    const hiddenLayout = buildBudgetSankey({
+      incomeRows: [],
+      expenseRows: expenseRows.slice(0, 2),
+      incomeTotal: null,
+      expenseTotal: 30000,
+    });
+    expect(hiddenLayout.incomeHidden).toBe(true);
+    expect(hiddenLayout.leftNodes).toHaveLength(1);
+    expect(hiddenLayout.leftNodes[0].kind).toBe("neutral_source");
+    expect(hiddenLayout.leftNodes[0].name).toBe("Дохід приховано");
+    expect(hiddenLayout.totalFlow).toBe(30000);
   });
 });

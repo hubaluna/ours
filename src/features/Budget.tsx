@@ -63,9 +63,11 @@ import { kyivDate } from "../lib/utils";
 import { Avatar, BottomSheet, Button, Field, IconButton } from "../components/ui";
 import { MascotContext } from "../components/MascotContext";
 import { CatMascot } from "../components/CatMascot";
+import { BudgetSankeyCard } from "../components/BudgetSankey";
 
 type HeroMetricTab = "expense" | "income" | "balance";
 type ViewMode = "overview" | "analytics";
+type AnalyticsChartMode = "sankey" | "donut";
 
 export default function Budget() {
   const mascot = useContext(MascotContext);
@@ -101,6 +103,8 @@ export default function Budget() {
   const [scope, setScope] = useState<BudgetMemberScope>("all");
   const [heroTab, setHeroTab] = useState<HeroMetricTab>("balance");
   const [viewMode, setViewMode] = useState<ViewMode>("overview");
+  const [analyticsChart, setAnalyticsChart] =
+    useState<AnalyticsChartMode>("sankey");
   const [showAllExpenseCats, setShowAllExpenseCats] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -593,16 +597,58 @@ export default function Budget() {
 
         {viewMode === "analytics" && (
           <>
+            {(() => {
+              const chartToggle = (
+                <div
+                  className="budget-chart-switch"
+                  role="tablist"
+                  aria-label="Тип графіка"
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={analyticsChart === "sankey"}
+                    className={analyticsChart === "sankey" ? "active" : ""}
+                    onClick={() => setAnalyticsChart("sankey")}
+                  >
+                    Потоки
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={analyticsChart === "donut"}
+                    className={analyticsChart === "donut" ? "active" : ""}
+                    onClick={() => setAnalyticsChart("donut")}
+                  >
+                    Коло
+                  </button>
+                </div>
+              );
+
+              return analyticsChart === "sankey" ? (
+                <BudgetSankeyCard
+                  incomeRows={stats.incomeRows}
+                  expenseRows={stats.expenseRows}
+                  incomeTotal={stats.incomeTotal}
+                  expenseTotal={stats.expenseTotal}
+                  periodLabel={period.label}
+                  onSelectCategory={filterByCategoryAndScroll}
+                  headerRight={chartToggle}
+                />
+              ) : (
+                <BudgetExpenseDonut
+                  rows={stats.expenseRows}
+                  total={stats.expenseTotal}
+                  periodLabel={period.label}
+                  onSelectCategory={filterByCategoryAndScroll}
+                  headerRight={chartToggle}
+                />
+              );
+            })()}
             <BudgetSpendingPaceCard
               transactions={data.budgetTransactions}
               userId={userId}
               today={today}
-            />
-            <BudgetExpenseDonut
-              rows={stats.expenseRows}
-              total={stats.expenseTotal}
-              periodLabel={period.label}
-              onSelectCategory={filterByCategoryAndScroll}
             />
             <div className="budget-section-card glass">
               <div className="budget-section-head">
@@ -1362,11 +1408,13 @@ function BudgetExpenseDonut({
   total,
   periodLabel,
   onSelectCategory,
+  headerRight,
 }: {
   rows: ReturnType<typeof computeBudgetStats>["expenseRows"];
   total: number;
   periodLabel: string;
   onSelectCategory: (key: string) => void;
+  headerRight?: React.ReactNode;
 }) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
@@ -1440,8 +1488,11 @@ function BudgetExpenseDonut({
   return (
     <div className="budget-section-card glass budget-donut-card">
       <div className="budget-section-head">
-        <h2>Структура витрат</h2>
-        <span className="budget-section-meta">{periodLabel}</span>
+        <div className="budget-sankey-title-wrap">
+          <h2>Структура витрат</h2>
+          <span className="budget-sankey-period">{periodLabel}</span>
+        </div>
+        {headerRight ?? <span className="budget-section-meta">{periodLabel}</span>}
       </div>
 
       {slices.length === 0 ? (
