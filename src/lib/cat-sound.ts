@@ -64,9 +64,20 @@ export function getCatPoseType(image: string): CatPoseType {
   return "meow";
 }
 
-export function getCatReaction(image: string, previous?: string): string {
+export type CatReactionContext = {
+  streak?: number;
+  hour?: number;
+  completedAllPlants?: boolean;
+  completedAllShopping?: boolean;
+};
+
+export function getCatReaction(
+  image: string,
+  previous?: string,
+  context?: CatReactionContext,
+): string {
   const type = getCatPoseType(image);
-  const options =
+  const baseOptions =
     type === "purr"
       ? ["мррр… 💤", "ще 5 хвилинок…", "хрр-мрр"]
       : [
@@ -76,8 +87,73 @@ export function getCatReaction(image: string, previous?: string): string {
           "час смаколиків?",
           "мурк ♥",
         ];
-  const filtered = options.filter((o) => o !== previous);
-  const pool = filtered.length > 0 ? filtered : options;
+
+  if (!context) {
+    const filtered = baseOptions.filter((o) => o !== previous);
+    const pool = filtered.length > 0 ? filtered : baseOptions;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  const contextualPool: string[] = [];
+
+  if (context.streak && context.streak >= 4) {
+    contextualPool.push(
+      "Мррр-муррр! Найкращі погладжування ♥",
+      "Тану від задоволення... 😻",
+      "Муркіт увімкнено на 100%! ✨",
+      "Ви мої улюблені люди 🐾",
+    );
+  } else if (context.streak && context.streak === 3) {
+    contextualPool.push(
+      "О, почухай ще за вушком! 🐾",
+      "Мррр ♥ Затишок на максимум!",
+      "Лапки від щастя мнуть ковдру ✨",
+    );
+  } else if (context.completedAllPlants) {
+    contextualPool.push(
+      "Всі рослини ситі й зелені! 🌿",
+      "Оазис під контролем, мурк! 💧",
+    );
+  } else if (context.completedAllShopping) {
+    contextualPool.push(
+      "Холодильник повний — котик спокійний 🐟",
+      "Смаколики вдома! Мяу 🐾",
+    );
+  } else if (context.hour !== undefined) {
+    const h = context.hour;
+    if (h >= 6 && h < 11) {
+      contextualPool.push(
+        "Доброго ранку! Час кави? ☕",
+        "Потягуськи... Лапки готові до дня 🐾",
+        "Хто перший встає — той годує кота 🍳",
+      );
+    } else if (h >= 11 && h < 18) {
+      contextualPool.push(
+        "Лежу на сонечку й контролюю затишок 🛋️",
+        "Мурк! Чудовий день удвох ✨",
+        "Де сонячний зайчик? ☀️",
+      );
+    } else if (h >= 18 && h <= 23) {
+      contextualPool.push(
+        "Вечір для обіймів і смаколиків 🍲",
+        "Який фільм сьогодні дивимось? 🎬",
+        "Муррр... Теплий вечір ♥",
+      );
+    } else {
+      contextualPool.push(
+        "Тиць лапкою... Чому ще не спимо? 😴",
+        "Тссс... Теплих і солодких снів 🌌",
+        "Хрр-мрр біля ваших ніжок 💤",
+      );
+    }
+  }
+
+  const finalPool =
+    contextualPool.length > 0
+      ? contextualPool
+      : baseOptions;
+  const filtered = finalPool.filter((o) => o !== previous);
+  const pool = filtered.length > 0 ? filtered : finalPool;
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
@@ -169,12 +245,52 @@ function playMeow(ctx: AudioContext, now: number) {
   osc.stop(now + 0.32);
 }
 
-export function playCatSound(image: string): void {
+function playHappyTrill(ctx: AudioContext, now: number) {
+  // Melodic joyful upward purr-trill for streak pet interactions
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(560, now);
+  osc.frequency.exponentialRampToValueAtTime(840, now + 0.12);
+  osc.frequency.exponentialRampToValueAtTime(720, now + 0.28);
+
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.setValueAtTime(1800, now);
+
+  const lfo = ctx.createOscillator();
+  lfo.type = "triangle";
+  lfo.frequency.setValueAtTime(30, now);
+  const lfoGain = ctx.createGain();
+  lfoGain.gain.setValueAtTime(0.06, now);
+
+  const masterGain = ctx.createGain();
+  masterGain.gain.setValueAtTime(0.001, now);
+  masterGain.gain.linearRampToValueAtTime(0.26, now + 0.05);
+  masterGain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+
+  lfo.connect(lfoGain);
+  lfoGain.connect(masterGain.gain);
+
+  osc.connect(filter);
+  filter.connect(masterGain);
+  masterGain.connect(ctx.destination);
+
+  osc.start(now);
+  lfo.start(now);
+  osc.stop(now + 0.28);
+  lfo.stop(now + 0.28);
+}
+
+export function playCatSound(image: string, streak = 1): void {
   if (isCatMuted()) return;
 
   try {
     if (typeof navigator !== "undefined") {
-      navigator.vibrate?.(15);
+      if (streak >= 3) {
+        navigator.vibrate?.([15, 30, 20]);
+      } else {
+        navigator.vibrate?.(15);
+      }
     }
   } catch {
     // Ignore tactile feedback errors
@@ -187,6 +303,10 @@ export function playCatSound(image: string): void {
     const trigger = () => {
       try {
         const now = ctx.currentTime;
+        if (streak >= 3) {
+          playHappyTrill(ctx, now);
+          return;
+        }
         const type = getCatPoseType(image);
         if (type === "purr") {
           playPurr(ctx, now);

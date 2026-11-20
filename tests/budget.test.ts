@@ -6,11 +6,13 @@ import {
   autoCategorizeMerchant,
   buildSkarboSeedTransactions,
   computeBudgetStats,
+  computeSpendingPace,
   formatBudgetDayHeading,
   formatUAH,
   generateBudgetIngestToken,
   getDueRecurringPayments,
   getPeriodRange,
+  getPreviousYearMonth,
   getRecurringDueDate,
   parseApplePayAmount,
   resolveBudgetCategories,
@@ -519,5 +521,91 @@ describe("budget module", () => {
         value: prevStorage,
       });
     }
+  });
+
+  it("computes spending pace comparing current month to previous month up to the same day", () => {
+    expect(getPreviousYearMonth("2026-11")).toBe("2026-10");
+    expect(getPreviousYearMonth("2026-01")).toBe("2025-12");
+
+    const txs: BudgetTransaction[] = [
+      // Current month (Nov 2026): Nov 5, Nov 12 (today is Nov 20) -> total 3000
+      {
+        id: "tx-1",
+        couple_id: "c1",
+        user_id: "u1",
+        kind: "expense",
+        amount: 1000,
+        merchant: "Сільпо",
+        note: "",
+        category_key: "groceries",
+        status: "confirmed",
+        source: "manual",
+        is_private: false,
+        occurred_on: "2026-11-05",
+        occurred_at: "2026-11-05T10:00:00Z",
+        created_at: "2026-11-05T10:00:00Z",
+      },
+      {
+        id: "tx-2",
+        couple_id: "c1",
+        user_id: "u1",
+        kind: "expense",
+        amount: 2000,
+        merchant: "Comfy",
+        note: "",
+        category_key: "home",
+        status: "confirmed",
+        source: "manual",
+        is_private: false,
+        occurred_on: "2026-11-12",
+        occurred_at: "2026-11-12T10:00:00Z",
+        created_at: "2026-11-12T10:00:00Z",
+      },
+      // Previous month (Oct 2026): Oct 8 -> 4000 (up to Oct 20)
+      {
+        id: "tx-3",
+        couple_id: "c1",
+        user_id: "u1",
+        kind: "expense",
+        amount: 4000,
+        merchant: "Епіцентр",
+        note: "",
+        category_key: "home",
+        status: "confirmed",
+        source: "manual",
+        is_private: false,
+        occurred_on: "2026-10-08",
+        occurred_at: "2026-10-08T10:00:00Z",
+        created_at: "2026-10-08T10:00:00Z",
+      },
+      // Previous month after 20th: Oct 25 -> 5000 (should NOT count in same-day comparison)
+      {
+        id: "tx-4",
+        couple_id: "c1",
+        user_id: "u1",
+        kind: "expense",
+        amount: 5000,
+        merchant: "Rozetka",
+        note: "",
+        category_key: "home",
+        status: "confirmed",
+        source: "manual",
+        is_private: false,
+        occurred_on: "2026-10-25",
+        occurred_at: "2026-10-25T10:00:00Z",
+        created_at: "2026-10-25T10:00:00Z",
+      },
+    ];
+
+    const pace = computeSpendingPace(txs, "2026-11-20");
+    expect(pace.currentDay).toBe(20);
+    expect(pace.currentSpentSoFar).toBe(3000);
+    expect(pace.prevSpentSameDay).toBe(4000);
+    expect(pace.diff).toBe(-1000);
+    expect(pace.percentChange).toBe(-25);
+    expect(pace.status).toBe("calmer");
+    expect(pace.statusText).toContain("−25%");
+    expect(pace.dailyAverage).toBe(150); // 3000 / 20
+    expect(pace.projectedMonthTotal).toBe(4500); // 150 * 30 days in Nov
   });
 });

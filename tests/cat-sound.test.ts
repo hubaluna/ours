@@ -89,4 +89,32 @@ describe("Cat sound and mascot reactions", () => {
     playCatSound("cat-sitting.webp");
     expect(vibrateSpy).toHaveBeenCalledWith(15);
   });
+
+  it("provides rich contextual reactions and streak handling", () => {
+    const morningReaction = getCatReaction("cat-sitting.webp", undefined, {
+      hour: 8,
+    });
+    expect(morningReaction).toBeTruthy();
+
+    const streakReaction = getCatReaction("cat-sitting.webp", undefined, {
+      streak: 4,
+    });
+    expect(streakReaction).toMatch(/Мррр-муррр|Тану від задоволення|Муркіт увімкнено|улюблені люди/);
+
+    const plantReaction = getCatReaction("cat-sitting.webp", undefined, {
+      completedAllPlants: true,
+    });
+    expect(plantReaction).toMatch(/рослини|Оазис/);
+
+    const vibrateSpy = vi.fn();
+    Object.defineProperty(navigator, "vibrate", {
+      value: vibrateSpy,
+      configurable: true,
+      writable: true,
+    });
+
+    setCatMuted(false);
+    playCatSound("cat-sitting.webp", 4);
+    expect(vibrateSpy).toHaveBeenCalledWith([15, 30, 20]);
+  });
 });

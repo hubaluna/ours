@@ -553,3 +553,117 @@ export function getDueRecurringPayments(
     })
     .sort((a, b) => a.day_of_month - b.day_of_month || a.title.localeCompare(b.title, "uk"));
 }
+
+export type SpendingPace = {
+  currentDay: number;
+  currentMonthDays: number;
+  currentMonthLabel: string;
+  prevMonthLabel: string;
+  currentSpentSoFar: number;
+  prevSpentSameDay: number;
+  diff: number;
+  percentChange: number | null;
+  dailyAverage: number;
+  projectedMonthTotal: number;
+  status: "calmer" | "faster" | "on_track";
+  statusText: string;
+  insight: string;
+};
+
+export function getPreviousYearMonth(yearMonth: string): string {
+  const [yStr, mStr] = yearMonth.slice(0, 7).split("-");
+  const y = Number(yStr) || 2026;
+  const m = Number(mStr) || 1;
+  if (m === 1) return `${y - 1}-12`;
+  return `${y}-${String(m - 1).padStart(2, "0")}`;
+}
+
+export function computeSpendingPace(
+  transactions: BudgetTransaction[],
+  today = kyivDate(),
+  userId?: string,
+): SpendingPace {
+  const currentYM = today.slice(0, 7);
+  const prevYM = getPreviousYearMonth(currentYM);
+
+  const [currY, currM] = currentYM.split("-").map(Number);
+  const [prevY, prevM] = prevYM.split("-").map(Number);
+
+  const currentMonthDays = new Date(Date.UTC(currY, currM, 0)).getUTCDate();
+  const prevMonthDays = new Date(Date.UTC(prevY, prevM, 0)).getUTCDate();
+
+  const currentDay = Math.max(1, Math.min(Number(today.slice(8, 10)) || 1, currentMonthDays));
+  const prevTargetDay = Math.min(currentDay, prevMonthDays);
+
+  const currentEndDate = `${currentYM}-${String(currentDay).padStart(2, "0")}`;
+  const prevEndDate = `${prevYM}-${String(prevTargetDay).padStart(2, "0")}`;
+
+  const monthGenitive = [
+    "січня", "лютого", "березня", "квітня", "травня", "червня",
+    "липня", "серпня", "вересня", "жовтня", "листопада", "грудня",
+  ];
+  const currentMonthLabel = monthGenitive[currM - 1] || "";
+  const prevMonthLabel = monthGenitive[prevM - 1] || "";
+
+  let currentSpentSoFar = 0;
+  let prevSpentSameDay = 0;
+
+  for (const tx of transactions) {
+    if (tx.kind !== "expense") continue;
+    if (tx.is_private && userId && tx.user_id !== userId) continue;
+
+    if (tx.occurred_on >= `${currentYM}-01` && tx.occurred_on <= currentEndDate) {
+      currentSpentSoFar += tx.amount;
+    } else if (tx.occurred_on >= `${prevYM}-01` && tx.occurred_on <= prevEndDate) {
+      prevSpentSameDay += tx.amount;
+    }
+  }
+
+  currentSpentSoFar = Math.round(currentSpentSoFar * 100) / 100;
+  prevSpentSameDay = Math.round(prevSpentSameDay * 100) / 100;
+
+  const diff = Math.round((currentSpentSoFar - prevSpentSameDay) * 100) / 100;
+  const percentChange =
+    prevSpentSameDay > 0
+      ? Math.round(((currentSpentSoFar - prevSpentSameDay) / prevSpentSameDay) * 100)
+      : null;
+
+  const dailyAverage = Math.round((currentSpentSoFar / currentDay) * 100) / 100;
+  const projectedMonthTotal = Math.round(dailyAverage * currentMonthDays);
+
+  let status: "calmer" | "faster" | "on_track" = "on_track";
+  let statusText = "Темп на рівні";
+  let insight = `Витрати йдуть на рівні минулого місяця (1–${currentDay} ${prevMonthLabel}).`;
+
+  if (percentChange !== null) {
+    if (percentChange <= -5) {
+      status = "calmer";
+      statusText = `−${Math.abs(percentChange)}% спокійніше`;
+      insight = `Витрачаєте повільніше, ніж у ${prevMonthLabel} на цей же день (−${formatUAH(Math.abs(diff))}).`;
+    } else if (percentChange >= 5) {
+      status = "faster";
+      statusText = `+${percentChange}% швидше`;
+      insight = `Темп трохи вищий, ніж на ${currentDay}-те ${prevMonthLabel} (+${formatUAH(diff)}).`;
+    }
+  } else if (prevSpentSameDay === 0 && currentSpentSoFar > 0) {
+    status = "on_track";
+    statusText = `~${formatUAH(dailyAverage)}/день`;
+    insight = `За перші ${currentDay} дн. витрачено ${formatUAH(currentSpentSoFar)}.`;
+  }
+
+  return {
+    currentDay,
+    currentMonthDays,
+    currentMonthLabel,
+    prevMonthLabel,
+    currentSpentSoFar,
+    prevSpentSameDay,
+    diff,
+    percentChange,
+    dailyAverage,
+    projectedMonthTotal,
+    status,
+    statusText,
+    insight,
+  };
+}

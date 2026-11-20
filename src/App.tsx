@@ -144,13 +144,15 @@ function useOccasionalCat(): MascotContextValue {
 
       // Play sound on alternating taps (через один тап: 1-й, 3-й, 5-й...)
       if (taps % 2 === 1) {
-        playCatSound(image);
+        playCatSound(image, taps);
       }
 
+      const hour = new Date().getHours();
       // Trigger speech bubble with reaction
       const reactionText = getCatReaction(
         image,
         previousReactionRef.current,
+        { streak: taps, hour },
       );
       previousReactionRef.current = reactionText;
       setBubble({ text: reactionText, key: Date.now() });
@@ -158,7 +160,7 @@ function useOccasionalCat(): MascotContextValue {
       if (bubbleTimerRef.current) window.clearTimeout(bubbleTimerRef.current);
       bubbleTimerRef.current = window.setTimeout(() => {
         setBubble(null);
-      }, 1400);
+      }, 1500);
 
       // Keep original cat image without changing pose
       return currentPose;
@@ -193,9 +195,21 @@ function useOccasionalCat(): MascotContextValue {
             navSlot,
           };
           tapCountRef.current = 0;
-          setBubble(null);
           setIsSquishing(false);
           setPose(newPose);
+
+          // Every ~3rd appearance, give a subtle greeting thought bubble for 2.2s
+          if (momentsRef.current % 3 === 1) {
+            const hour = new Date().getHours();
+            const intro = getCatReaction(scene.image, undefined, { hour });
+            setBubble({ text: intro, key: Date.now() });
+            if (bubbleTimerRef.current) window.clearTimeout(bubbleTimerRef.current);
+            bubbleTimerRef.current = window.setTimeout(() => {
+              setBubble(null);
+            }, 2200);
+          } else {
+            setBubble(null);
+          }
 
           sceneIndex = (sceneIndex + 1) % catScenes.length;
 

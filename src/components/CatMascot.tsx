@@ -86,6 +86,11 @@ export function CatMascot({
             {mascot.bubble.text}
           </span>
         )}
+        {mascot.isSquishing && (
+          <span className="cat-heart-sparkle" aria-hidden="true">
+            ♥
+          </span>
+        )}
       </AnimatePresence>
     </motion.span>
   );

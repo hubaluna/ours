@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AnimatePresence } from "motion/react";
 import {
+  Activity,
   ChevronDown,
   ChevronRight,
   ChevronUp,
@@ -18,6 +19,8 @@ import {
   Smartphone,
   SquarePen,
   Trash2,
+  TrendingDown,
+  TrendingUp,
   Wallet,
   X,
 } from "lucide-react";
@@ -28,6 +31,7 @@ import {
   autoCategorizeMerchant,
   budgetIngestUrl,
   computeBudgetStats,
+  computeSpendingPace,
   findCategoryMeta,
   formatBudgetDayHeading,
   formatUAH,
@@ -574,6 +578,11 @@ export default function Budget() {
 
         {viewMode === "analytics" && (
           <>
+            <BudgetSpendingPaceCard
+              transactions={data.budgetTransactions}
+              userId={userId}
+              today={today}
+            />
             <BudgetExpenseDonut
               rows={stats.expenseRows}
               total={stats.expenseTotal}
@@ -1235,6 +1244,104 @@ export default function Budget() {
   );
 }
 
+function BudgetSpendingPaceCard({
+  transactions,
+  userId,
+  today = kyivDate(),
+}: {
+  transactions: BudgetTransaction[];
+  userId: string;
+  today?: string;
+}) {
+  const pace = useMemo(
+    () => computeSpendingPace(transactions, today, userId),
+    [transactions, today, userId],
+  );
+
+  const maxVal = Math.max(pace.currentSpentSoFar, pace.prevSpentSameDay, 1);
+  const currPct = Math.min(100, Math.round((pace.currentSpentSoFar / maxVal) * 100));
+  const prevPct = Math.min(100, Math.round((pace.prevSpentSameDay / maxVal) * 100));
+
+  const statusClass =
+    pace.status === "calmer"
+      ? "pace-status-calmer"
+      : pace.status === "faster"
+        ? "pace-status-faster"
+        : "pace-status-ontrack";
+
+  const StatusIcon =
+    pace.status === "calmer"
+      ? TrendingDown
+      : pace.status === "faster"
+        ? TrendingUp
+        : Activity;
+
+  return (
+    <div className={`budget-section-card glass budget-pace-card ${statusClass}`}>
+      <div className="budget-section-head">
+        <div className="budget-pace-title">
+          <Activity size={16} />
+          <h2>Темп витрат</h2>
+        </div>
+        <span className={`budget-pace-badge ${statusClass}`}>
+          <StatusIcon size={13} />
+          <span>{pace.statusText}</span>
+        </span>
+      </div>
+
+      <div className="budget-pace-body">
+        <p className="budget-pace-subtitle">
+          Порівняння витрат на <strong>{pace.currentDay}-те число</strong>:
+        </p>
+
+        <div className="budget-pace-metrics">
+          <div className="budget-pace-col">
+            <span className="budget-pace-kicker">
+              Цього місяця (1–{pace.currentDay} {pace.currentMonthLabel})
+            </span>
+            <strong className="budget-pace-val current">
+              {formatUAH(pace.currentSpentSoFar)}
+            </strong>
+            <div className="budget-pace-bar-track">
+              <div
+                className="budget-pace-bar-fill current"
+                style={{ width: `${currPct}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="budget-pace-col">
+            <span className="budget-pace-kicker">
+              Минулого місяця (1–{pace.currentDay} {pace.prevMonthLabel})
+            </span>
+            <strong className="budget-pace-val previous">
+              {formatUAH(pace.prevSpentSameDay)}
+            </strong>
+            <div className="budget-pace-bar-track">
+              <div
+                className="budget-pace-bar-fill previous"
+                style={{ width: `${prevPct}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="budget-pace-insight">
+          <p>{pace.insight}</p>
+          <div className="budget-pace-footer-meta">
+            <span>
+              Середній темп: <strong>~{formatUAH(pace.dailyAverage)}/день</strong>
+            </span>
+            <span>
+              Прогноз на місяць: <strong>~{formatUAH(pace.projectedMonthTotal)}</strong>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BudgetExpenseDonut({
   rows,
   total,
@@ -1273,8 +1380,8 @@ function BudgetExpenseDonut({
           ]
         : rows;
 
-    const radius = 76;
-    const strokeWidth = 18;
+    const radius = 72;
+    const strokeWidth = 15;
     const circumference = 2 * Math.PI * radius;
 
     if (base.length === 1) {
@@ -1290,31 +1397,24 @@ function BudgetExpenseDonut({
       ];
     }
 
-    const visualGap = 6;
-    const capPad = strokeWidth + visualGap;
-    const minSlot = capPad + 1;
-    const rawSlots = base.map((row) =>
-      Math.max(0, (row.amount / total) * circumference),
-    );
-    const clampedSlots = rawSlots.map((slot) => Math.max(minSlot, slot));
-    const slotSum = clampedSlots.reduce((acc, v) => acc + v, 0);
-    const scale = slotSum > 0 ? circumference / slotSum : 1;
-    const normSlots = clampedSlots.map((slot) => slot * scale);
+    const gap = 2.5;
+    const totalGap = base.length * gap;
+    const available = Math.max(0, circumference - totalGap);
 
     let offset = 0;
-    return base.map((row, idx) => {
-      const slotLen = normSlots[idx];
-      const dashLen = Math.max(0.2, slotLen - capPad);
-      const centerOffset = offset + (slotLen - dashLen) / 2;
+    return base.map((row) => {
+      const ratio = total > 0 ? row.amount / total : 0;
+      const dashLen = Math.max(1, ratio * available);
+      const dashOffset = -offset;
       const item = {
         ...row,
         dashLen,
-        dashOffset: -centerOffset,
+        dashOffset,
         circumference,
         radius,
         strokeWidth,
       };
-      offset += slotLen;
+      offset += dashLen + gap;
       return item;
     });
   }, [rows, total]);
@@ -1346,11 +1446,11 @@ function BudgetExpenseDonut({
               <circle
                 cx="100"
                 cy="100"
-                r="76"
+                r="72"
                 fill="none"
                 stroke="var(--glass-edge)"
-                strokeWidth="18"
-                opacity="0.45"
+                strokeWidth="15"
+                opacity="0.35"
               />
               {slices.map((slice) => {
                 const isSelected = activeSlice?.key === slice.key;
@@ -1364,11 +1464,11 @@ function BudgetExpenseDonut({
                     fill="none"
                     stroke={slice.color}
                     strokeWidth={isSelected ? slice.strokeWidth + 4 : slice.strokeWidth}
-                    strokeLinecap="round"
+                    strokeLinecap="butt"
                     strokeDasharray={`${slice.dashLen} ${slice.circumference}`}
                     strokeDashoffset={slice.dashOffset}
                     transform="rotate(-90 100 100)"
-                    opacity={dimmed ? 0.3 : 1}
+                    opacity={dimmed ? 0.28 : 1}
                     className={`budget-donut-arc${isSelected ? " is-selected" : ""}`}
                     onClick={() =>
                       setSelectedKey((prev) =>
@@ -1403,6 +1503,35 @@ function BudgetExpenseDonut({
                 </>
               )}
             </div>
+          </div>
+
+          {/* Segmented Distribution Bar */}
+          <div
+            className="budget-dist-bar"
+            role="progressbar"
+            aria-label="Розподіл витрат за категоріями"
+            aria-valuenow={100}
+          >
+            {slices.map((slice) => {
+              const isSelected = activeSlice?.key === slice.key;
+              const widthPct = Math.max(1.5, slice.percent);
+              return (
+                <div
+                  key={slice.key}
+                  className={`budget-dist-seg${isSelected ? " is-selected" : ""}`}
+                  style={{
+                    width: `${widthPct}%`,
+                    backgroundColor: slice.color,
+                  }}
+                  title={`${slice.name}: ${Math.round(slice.percent)}% (${formatUAH(slice.amount)})`}
+                  onClick={() =>
+                    setSelectedKey((prev) =>
+                      prev === slice.key ? null : slice.key,
+                    )
+                  }
+                />
+              );
+            })}
           </div>
 
           <div className="budget-donut-legend" role="list">
