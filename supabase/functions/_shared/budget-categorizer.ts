@@ -2340,16 +2340,98 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function matchesDictionaryKeyword(normMerchant: string, kwNorm: string): boolean {
-  if (!kwNorm) return false;
-  if (kwNorm.length <= 5) {
-    const re = new RegExp(
-      `(^|[^\\p{L}\\p{N}])${escapeRegExp(kwNorm)}(?=$|[^\\p{L}\\p{N}])`,
-      "u",
-    );
-    return re.test(normMerchant);
+const WORD_SPLIT_RE = /[^\p{L}\p{N}]+/u;
+const SINGLE_WORD_RE = /^[\p{L}\p{N}]+$/u;
+
+type CompiledDictionary = {
+  shortWordMap: Map<string, { key: string; len: number }>;
+  shortPunctMatchers: Array<{
+    key: string;
+    len: number;
+    re: RegExp;
+    relaxedRe: RegExp | null;
+  }>;
+  longEntries: Array<{
+    key: string;
+    len: number;
+    kwNorm: string;
+    kwRelaxed: string | null;
+  }>;
+};
+
+function makeWordBoundaryRegExp(token: string): RegExp {
+  return new RegExp(
+    `(^|[^\\p{L}\\p{N}])${escapeRegExp(token)}(?=$|[^\\p{L}\\p{N}])`,
+    "u",
+  );
+}
+
+function compileDictionary(
+  list: DefaultBudgetCategory[],
+): CompiledDictionary {
+  const shortWordMap = new Map<string, { key: string; len: number }>();
+  const shortPunctMatchers: CompiledDictionary["shortPunctMatchers"] = [];
+  const longEntries: CompiledDictionary["longEntries"] = [];
+
+  for (const cat of list) {
+    for (const kw of cat.keywords) {
+      const kwNorm = normalizeMerchantName(kw);
+      if (!kwNorm) continue;
+      const kwRelaxed = relaxMerchantPunctuation(kwNorm);
+      const len = kwNorm.length;
+
+      if (len <= 5) {
+        if (SINGLE_WORD_RE.test(kwNorm)) {
+          const prev = shortWordMap.get(kwNorm);
+          if (!prev || len > prev.len) {
+            shortWordMap.set(kwNorm, { key: cat.key, len });
+          }
+        } else {
+          const re = makeWordBoundaryRegExp(kwNorm);
+          shortPunctMatchers.push({
+            key: cat.key,
+            len,
+            re,
+            relaxedRe:
+              kwRelaxed.length >= 4
+                ? kwRelaxed === kwNorm
+                  ? re
+                  : makeWordBoundaryRegExp(kwRelaxed)
+                : null,
+          });
+        }
+      } else {
+        longEntries.push({
+          key: cat.key,
+          len,
+          kwNorm,
+          kwRelaxed: kwRelaxed.length >= 4 ? kwRelaxed : null,
+        });
+      }
+    }
   }
-  return normMerchant.includes(kwNorm);
+
+  // Longest first so we can short-circuit on the first hit.
+  longEntries.sort((a, b) => b.len - a.len);
+  shortPunctMatchers.sort((a, b) => b.len - a.len);
+
+  return { shortWordMap, shortPunctMatchers, longEntries };
+}
+
+let compiledExpenseDict: CompiledDictionary | null = null;
+let compiledIncomeDict: CompiledDictionary | null = null;
+
+function getCompiledDictionary(kind: BudgetKind): CompiledDictionary {
+  if (kind === "income") {
+    if (!compiledIncomeDict) {
+      compiledIncomeDict = compileDictionary(DEFAULT_INCOME_CATEGORIES);
+    }
+    return compiledIncomeDict;
+  }
+  if (!compiledExpenseDict) {
+    compiledExpenseDict = compileDictionary(DEFAULT_EXPENSE_CATEGORIES);
+  }
+  return compiledExpenseDict;
 }
 
 export function categorizeMerchantFromDictionary(
@@ -2359,27 +2441,49 @@ export function categorizeMerchantFromDictionary(
   const norm = normalizeMerchantName(merchant);
   if (!norm) return null;
   const relaxed = relaxMerchantPunctuation(norm);
-  const list =
-    kind === "income"
-      ? DEFAULT_INCOME_CATEGORIES
-      : DEFAULT_EXPENSE_CATEGORIES;
+  const hasPunctDiff = relaxed !== norm;
+  const dict = getCompiledDictionary(kind);
 
-  let best: { key: string; len: number } | null = null;
-  for (const cat of list) {
-    for (const kw of cat.keywords) {
-      const kwNorm = normalizeMerchantName(kw);
-      const kwRelaxed = relaxMerchantPunctuation(kwNorm);
-      const matched =
-        matchesDictionaryKeyword(norm, kwNorm) ||
-        (kwRelaxed.length >= 4 &&
-          matchesDictionaryKeyword(relaxed, kwRelaxed));
-      if (matched) {
-        if (!best || kwNorm.length > best.len) {
-          best = { key: cat.key, len: kwNorm.length };
-        }
-      }
+  // 1. Check long entries first (sorted longest -> shortest; first match is guaranteed > 5 chars).
+  for (let i = 0; i < dict.longEntries.length; i++) {
+    const entry = dict.longEntries[i];
+    if (
+      norm.includes(entry.kwNorm) ||
+      (entry.kwRelaxed !== null &&
+        (hasPunctDiff || entry.kwRelaxed !== entry.kwNorm) &&
+        relaxed.includes(entry.kwRelaxed))
+    ) {
+      return entry.key;
     }
   }
+
+  // 2. Check short (<= 5 char) single-word tokens in O(tokens) via Map lookup.
+  let best: { key: string; len: number } | null = null;
+  const tokens = norm.split(WORD_SPLIT_RE);
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (!token || token.length > 5) continue;
+    const hit = dict.shortWordMap.get(token);
+    if (hit && (!best || hit.len > best.len)) {
+      best = hit;
+    }
+  }
+
+  // 3. Check the few short punctuation keywords (e.g. "h&m", "g.bar", "e-zoo").
+  for (let i = 0; i < dict.shortPunctMatchers.length; i++) {
+    const entry = dict.shortPunctMatchers[i];
+    if (best && entry.len <= best.len) break;
+    if (
+      entry.re.test(norm) ||
+      (entry.relaxedRe !== null &&
+        (hasPunctDiff || entry.relaxedRe !== entry.re) &&
+        entry.relaxedRe.test(relaxed))
+    ) {
+      best = { key: entry.key, len: entry.len };
+      break;
+    }
+  }
+
   return best?.key ?? null;
 }
 
