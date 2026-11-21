@@ -126,6 +126,91 @@ describe("budget module", () => {
     expect(suggestRulePattern("FOP IVANOV - 4521 KYIV")).toBe("FOP IVANOV");
   });
 
+  it("recognizes expanded Ukrainian and international merchants across all categories", () => {
+    const cases: Array<[string, string]> = [
+      // Clothes (including New Yorker spellings & hyphenated terminals)
+      ["NEW YORKER KYIV", "clothes"],
+      ["NEW-YORKER LAVINA", "clothes"],
+      ["Нью Йоркер", "clothes"],
+      ["Нюйоркер", "clothes"],
+      ["LC Waikiki Ocean Plaza", "clothes"],
+      ["Pull & Bear Kyiv", "clothes"],
+      ["H & M River Mall", "clothes"],
+      ["Decathlon Kyiv", "clothes"],
+      ["Megasport", "clothes"],
+      ["Pandora Kyiv", "clothes"],
+      ["Intimissimi", "clothes"],
+      ["Vsi Svoi", "clothes"],
+      ["MustHave Store", "clothes"],
+      // Smoking / vape / tobacco / hookah
+      ["Табакерка Київ", "smoking"],
+      ["FORTUNA TABAK #12", "smoking"],
+      ["Сигарний дім Фортуна", "smoking"],
+      ["Vape Shop Kyiv", "smoking"],
+      ["VapeMarket UA", "smoking"],
+      ["DR.SMOKE", "smoking"],
+      ["Smoke-House", "smoking"],
+      ["Кальянчик", "smoking"],
+      ["Dymok Hookah", "smoking"],
+      ["Lost Mary Pod", "smoking"],
+      ["Chaser Salt", "smoking"],
+      ["VELO Snus", "smoking"],
+      ["Тютюновий кіоск", "smoking"],
+      // Other categories & collision checks
+      ["Близенько Львів", "groceries"],
+      ["Biedronka Warszawa", "groceries"],
+      ["М'ясомаркет", "groceries"],
+      ["Ябко Київ", "home"],
+      ["Foxtrot", "home"],
+      ["ДТЕК Київські електромережі", "home"],
+      ["Брокард", "household_chem"],
+      ["Аврора Мультимаркет", "household_chem"],
+      ["Аптека Доброго Дня", "health"],
+      ["Ескулаб", "health"],
+      ["Frisor Barbershop", "haircut"],
+      ["G.Bar Kyiv", "haircut"],
+      ["Takava Coffee", "drinks"],
+      ["Море Пива", "drinks"],
+      ["Реберня Львів", "restaurants"],
+      ["Wolt Delivery", "restaurants"],
+      ["Orlen Station", "fuel"],
+      ["EcoFactor EV", "fuel"],
+      ["Уклон Таксі", "car"],
+      ["Автомийка Самообслуговування", "car"],
+      ["UNIP Parking", "parking"],
+      ["Буковель", "travel"],
+      ["WizzAir", "travel"],
+      ["Украфлора", "flowers"],
+      ["Pethouse.ua", "pets"],
+      ["Чудо Острів", "kids"],
+      ["Apollo Next", "entertainment"],
+      ["Книгарня Є", "entertainment"],
+      ["Claude AI", "subscriptions"],
+      ["Binance", "currency"],
+      ["Оплата частинами", "credit_card"],
+      ["єОселя", "mortgage"],
+    ];
+
+    for (const [merchant, expected] of cases) {
+      expect(
+        autoCategorizeMerchant(merchant, [], "expense"),
+        `Expected "${merchant}" -> "${expected}"`,
+      ).toEqual({
+        category_key: expected,
+        matched_by: "dictionary",
+      });
+    }
+
+    expect(autoCategorizeMerchant("Нацкешбек", [], "income")).toEqual({
+      category_key: "refund",
+      matched_by: "dictionary",
+    });
+    expect(autoCategorizeMerchant("Upwork Payout", [], "income")).toEqual({
+      category_key: "salary",
+      matched_by: "dictionary",
+    });
+  });
+
   it("computes period ranges including all_time from Aug 2026, UAH formatting, and day headings", () => {
     expect(getPeriodRange("all_time", "", "", "2026-11-17")).toMatchObject({
       from: "2026-08-01",
