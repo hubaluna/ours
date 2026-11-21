@@ -116,3 +116,28 @@ Deno.test("plantDueToday and nextEventOccurrence match seasonal care and recurri
   }
 });
 
+Deno.test("allowedPushEndpoint allows regional Apple/Mozilla/FCM/Windows endpoints and rejects unsafe URLs", async () => {
+  const { allowedPushEndpoint } = await import("./web-push.ts");
+  const valid = [
+    "https://web.push.apple.com/Q123",
+    "https://eu01.push.apple.com/Q123",
+    "https://fcm.googleapis.com/fcm/send/abc",
+    "https://updates.push.services.mozilla.com/wpush/v2/abc",
+    "https://wns2-par02p.notify.windows.com/w/?token=abc",
+  ];
+  for (const url of valid) {
+    if (!allowedPushEndpoint(url)) throw new Error(`Expected valid endpoint: ${url}`);
+  }
+  const invalid = [
+    "http://web.push.apple.com/Q123",
+    "https://user:pass@web.push.apple.com/Q123",
+    "https://web.push.apple.com:8443/Q123",
+    "https://127.0.0.1/push",
+    "https://evil.example.com/push",
+  ];
+  for (const url of invalid) {
+    if (allowedPushEndpoint(url)) throw new Error(`Expected rejected endpoint: ${url}`);
+  }
+});
+
+

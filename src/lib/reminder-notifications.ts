@@ -60,15 +60,31 @@ async function displayNotification(
     data: { url: `${location.origin}${base}` },
   };
   if ("serviceWorker" in navigator) {
+    let timer: number | undefined;
     try {
-      const registration = await navigator.serviceWorker.ready;
-      await registration.showNotification(title, options);
-      return;
+      const registration = await Promise.race<ServiceWorkerRegistration | null>([
+        navigator.serviceWorker.ready,
+        new Promise<null>((resolve) => {
+          timer = window.setTimeout(() => resolve(null), 4000);
+        }),
+      ]);
+      if (registration) {
+        await registration.showNotification(title, options);
+        return;
+      }
     } catch {
       /* fallback below */
+    } finally {
+      if (timer !== undefined) window.clearTimeout(timer);
     }
   }
-  new Notification(title, options);
+  try {
+    new Notification(title, options);
+  } catch {
+    throw new Error(
+      "На цьому пристрої сповіщення працюють лише у встановленому застосунку (додайте Ours на екран «Додому»).",
+    );
+  }
 }
 
 export async function sendTestReminderNotification(): Promise<void> {

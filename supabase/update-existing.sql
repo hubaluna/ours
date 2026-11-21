@@ -1050,4 +1050,48 @@ begin
   end loop;
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- 022: Web Push reliability fixes
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  c record;
+begin
+  if to_regclass('public.pending_push_digest') is not null then
+    for c in
+      select conname
+      from pg_constraint
+      where conrelid = 'public.pending_push_digest'::regclass
+        and contype = 'c'
+        and pg_get_constraintdef(oid) ilike '%kind%'
+    loop
+      execute format('alter table public.pending_push_digest drop constraint %I', c.conname);
+    end loop;
+
+    alter table public.pending_push_digest
+      add constraint pending_push_digest_kind_check
+      check (kind in ('shopping', 'wishes', 'movies', 'events', 'recipes', 'plants', 'budget'));
+  end if;
+end $$;
+
+create or replace function public.push_dispatch_service_config()
+returns table(vapid_private_jwk text, vapid_public_key text, vapid_subject text, app_url text)
+language plpgsql security definer set search_path = '' as $$
+begin
+  return query
+  select
+    (select decrypted_secret from vault.decrypted_secrets where name = 'ours_vapid_private_jwk'),
+    (select decrypted_secret from vault.decrypted_secrets where name = 'ours_vapid_public_key'),
+    (select decrypted_secret from vault.decrypted_secrets where name = 'ours_vapid_subject'),
+    (select decrypted_secret from vault.decrypted_secrets where name = 'ours_public_app_url');
+end;
+$$;
+revoke all on function public.push_dispatch_service_config() from public, anon, authenticated;
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    grant execute on function public.push_dispatch_service_config() to service_role;
+  end if;
+end $$;
+
 commit;

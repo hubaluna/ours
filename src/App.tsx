@@ -34,6 +34,7 @@ import type { Tab } from "./lib/types";
 import { kyivDate } from "./lib/utils";
 import { getDueRecurringPayments } from "./lib/budget";
 import { syncLocalReminderNotifications } from "./lib/reminder-notifications";
+import { syncExistingPushSubscription } from "./lib/push-notifications";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import {
   MascotContext,
@@ -512,6 +513,10 @@ export default function App() {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [demo, coupleId, loading, data.plants, data.events]);
+  useEffect(() => {
+    if (demo || !session || !userId || !coupleId || loading) return;
+    void syncExistingPushSubscription(userId, coupleId);
+  }, [demo, session, userId, coupleId, loading]);
   const me = data.profiles.find((p) => p.id === userId);
   return (
     <MotionConfig reducedMotion="user">

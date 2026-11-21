@@ -83,8 +83,9 @@ export async function createVapidAuthorization(
   now = Math.floor(Date.now() / 1000),
 ): Promise<string> {
   const audience = new URL(endpoint).origin;
+  const cleanSubject = subject.trim();
   const header = encodeBase64Url(encoder.encode(JSON.stringify({ typ: "JWT", alg: "ES256" })));
-  const claims = encodeBase64Url(encoder.encode(JSON.stringify({ aud: audience, exp: now + 12 * 60 * 60, sub: subject })));
+  const claims = encodeBase64Url(encoder.encode(JSON.stringify({ aud: audience, exp: now + 12 * 60 * 60, sub: cleanSubject })));
   const unsigned = `${header}.${claims}`;
   const key = await crypto.subtle.importKey(
     "jwk", privateJwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"],
@@ -92,18 +93,23 @@ export async function createVapidAuthorization(
   const signature = new Uint8Array(await crypto.subtle.sign(
     { name: "ECDSA", hash: "SHA-256" }, key, encoder.encode(unsigned),
   ));
-  return `vapid t=${unsigned}.${encodeBase64Url(signature)}, k=${publicKey}`;
+  return `vapid t=${unsigned}.${encodeBase64Url(signature)}, k=${publicKey.trim()}`;
 }
 
 export function allowedPushEndpoint(value: string): boolean {
   try {
     const url = new URL(value);
+    if (url.protocol !== "https:") return false;
+    if (url.username || url.password) return false;
+    if (url.port && url.port !== "443") return false;
     const host = url.hostname.toLowerCase();
-    return url.protocol === "https:" && (
+    return (
       host === "fcm.googleapis.com" ||
       host === "web.push.apple.com" ||
+      host.endsWith(".push.apple.com") ||
       host === "updates.push.services.mozilla.com" ||
       host === "push.services.mozilla.com" ||
+      host.endsWith(".push.services.mozilla.com") ||
       host.endsWith(".notify.windows.com")
     );
   } catch {

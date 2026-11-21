@@ -35,10 +35,14 @@ import {
   IconButton,
 } from "../components/ui";
 import {
+  getDevicePushState,
   pushSupportMessage,
   savePushPreferences,
   savePushSubscription,
+  sendTestServerPush,
   subscribeToPush,
+  unsubscribeDevicePush,
+  type DevicePushState,
 } from "../lib/push-notifications";
 import {
   enableReminderNotifications,
@@ -767,14 +771,31 @@ function PushSettings({
   notify: (text: string) => void;
 }) {
   const [preferences, setPreferences] = useState(defaultPushPrefs);
+  const [deviceState, setDeviceState] = useState<DevicePushState | null>(null);
   const [busy, setBusy] = useState(false);
   const [remindersEnabled, setRemindersEnabled] = useState(() =>
     getReminderPushEnabled(),
   );
   const [testing, setTesting] = useState(false);
+
+  const refreshDeviceState = async () => {
+    if (typeof window === "undefined") return;
+    const state = await getDevicePushState(demo ? "" : userId);
+    setDeviceState(state);
+  };
+
   useEffect(() => {
-    if (!supabase || demo || !userId) return;
+    if (typeof window === "undefined") return;
     let alive = true;
+    void (async () => {
+      const state = await getDevicePushState(demo ? "" : userId);
+      if (alive) setDeviceState(state);
+    })();
+    if (!supabase || demo || !userId) {
+      return () => {
+        alive = false;
+      };
+    }
     void (async () => {
       try {
         const row = await checked(
@@ -794,28 +815,50 @@ function PushSettings({
     };
   }, [demo, userId, notify]);
 
-  const toggle = async () => {
+  const connectThisDevice = async (forceResubscribe = false) => {
     if (demo || !coupleId) {
       notify("Сповіщення про зміни партнера доступні після входу в акаунт.");
       return;
     }
     setBusy(true);
     try {
-      if (preferences.enabled) {
-        const next = { ...preferences, enabled: false };
-        await savePushPreferences(userId, next);
-        setPreferences(next);
-        notify("Push-сповіщення вимкнено для акаунта.");
-      } else {
-        const subscription = await subscribeToPush();
-        await savePushSubscription(subscription, userId, coupleId);
-        const next = { ...preferences, enabled: true };
-        await savePushPreferences(userId, next);
-        setPreferences(next);
-        setReminderPushEnabled(true);
-        setRemindersEnabled(true);
-        notify("Push-сповіщення увімкнено на цьому пристрої.");
-      }
+      const subscription = await subscribeToPush({ forceResubscribe });
+      await savePushSubscription(subscription, userId, coupleId);
+      const next = { ...preferences, enabled: true };
+      await savePushPreferences(userId, next);
+      setPreferences(next);
+      setReminderPushEnabled(true);
+      setRemindersEnabled(true);
+      await refreshDeviceState();
+      notify("Push-сповіщення увімкнено на цьому пристрої.");
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "Не вдалося увімкнути сповіщення.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggle = async () => {
+    if (demo || !coupleId) {
+      notify("Сповіщення про зміни партнера доступні після входу в акаунт.");
+      return;
+    }
+    if (!preferences.enabled) {
+      await connectThisDevice(false);
+      return;
+    }
+    setBusy(true);
+    try {
+      await unsubscribeDevicePush(userId);
+      const next = { ...preferences, enabled: false };
+      await savePushPreferences(userId, next);
+      setPreferences(next);
+      await refreshDeviceState();
+      notify("Push-сповіщення вимкнено для акаунта.");
     } catch (error) {
       notify(
         error instanceof Error
@@ -848,6 +891,24 @@ function PushSettings({
   const testNotification = async () => {
     setTesting(true);
     try {
+      if (!demo && coupleId && !pushSupportMessage()) {
+        const result = await sendTestServerPush(userId, coupleId);
+        await refreshDeviceState();
+        if (result.kind === "server") {
+          setRemindersEnabled(true);
+          notify(result.message);
+          return;
+        }
+        if (result.kind === "error") {
+          notify(result.message);
+          return;
+        }
+        // Fallback when server push-dispatch hasn't been redeployed yet:
+        await sendTestReminderNotification();
+        setRemindersEnabled(true);
+        notify(`Локальне сповіщення працює. ${result.message}`);
+        return;
+      }
       await sendTestReminderNotification();
       setRemindersEnabled(true);
       notify("Тестове сповіщення надіслано.");
@@ -874,15 +935,27 @@ function PushSettings({
   };
   const supportMessage =
     typeof window === "undefined" ? null : pushSupportMessage();
+  const deviceReady = Boolean(
+    deviceState?.hasLocalSubscription &&
+      deviceState.vapidMatches &&
+      deviceState.savedInDatabase,
+  );
+  const deviceNeedsConnect = Boolean(
+    !demo &&
+      coupleId &&
+      !supportMessage &&
+      preferences.enabled &&
+      deviceState &&
+      !deviceReady,
+  );
   return (
     <section className="settings-section push-settings">
       <h3>
         <Bell size={16} /> Сповіщення
       </h3>
       <p className="settings-help">
-        Push приходять з 11:00 до 22:00, а нові покупки збираються в одне
-        повідомлення без спаму з магазину. На iPhone додайте Ours на екран
-        «Додому».
+        Push приходять з 11:00 до 22:00, а серія покупок збирається без спаму з
+        магазину. На iPhone додайте Ours на екран «Додому».
       </p>
       {isReminderNotificationSupported() && (
         <label className="push-reminder-toggle">
@@ -906,6 +979,12 @@ function PushSettings({
         </p>
       ) : supportMessage ? (
         <p className="settings-help">{supportMessage}</p>
+      ) : deviceNeedsConnect ? (
+        <p className="settings-help">
+          Push увімкнені в акаунті, але цей пристрій ще не підключений (або
+          підписка скинулась після оновлення). Натисніть «Підключити цей
+          пристрій».
+        </p>
       ) : null}
       {typeof window !== "undefined" &&
         "Notification" in window &&
@@ -916,6 +995,15 @@ function PushSettings({
           </p>
         )}
       <div className="push-actions">
+        {!demo && deviceNeedsConnect && (
+          <Button
+            className="primary"
+            busy={busy}
+            onClick={() => void connectThisDevice(true)}
+          >
+            Підключити цей пристрій
+          </Button>
+        )}
         {!demo && (
           <Button
             className={preferences.enabled ? "secondary" : "ghost"}
