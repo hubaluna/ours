@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from "react";
-import { Camera, Plus } from "lucide-react";
+import { Camera, Plus, X } from "lucide-react";
 import { z } from "zod";
 import { useApp } from "../hooks/AppContext";
 import { uploadImage } from "../lib/supabase";
@@ -17,8 +17,10 @@ import {
   groceryCatalogMatches,
 } from "../lib/grocery-catalog";
 import {
+  hasBatchDelimiter,
   isBatchShoppingInput,
   parseBatchShoppingInput,
+  splitBatchTokens,
 } from "../lib/shopping-parser";
 import { quantityLabel } from "../lib/recipe-catalog";
 import { publicUrl } from "../../supabase/functions/_shared/urls";
@@ -45,8 +47,36 @@ export function ShoppingForm({
   const [unit, setUnit] = useState(item?.unit ?? "шт.");
   const input = useRef<HTMLInputElement>(null);
 
+  const hasBatchSep = !item && hasBatchDelimiter(name);
+  const rawTokens = hasBatchSep ? splitBatchTokens(name) : [];
+  const batchItems = hasBatchSep ? parseBatchShoppingInput(name, unit) : [];
   const isBatch = !item && isBatchShoppingInput(name);
-  const batchItems = isBatch ? parseBatchShoppingInput(name, unit) : [];
+  const showBatchPreview = hasBatchSep && batchItems.length > 0;
+  const trailingDelimiter = hasBatchSep && /[\n,;]\s*$/.test(name);
+  const activeQuery = hasBatchSep
+    ? trailingDelimiter
+      ? ""
+      : (rawTokens[rawTokens.length - 1] ?? "")
+    : name;
+
+  const removeBatchToken = (index: number) => {
+    const remaining = rawTokens.filter((_, idx) => idx !== index);
+    setName(remaining.join(", "));
+    setError("");
+    input.current?.focus();
+  };
+
+  const applySuggestion = (suggestedName: string, suggestedCategory?: string) => {
+    if (hasBatchSep) {
+      const prefix = trailingDelimiter ? rawTokens : rawTokens.slice(0, -1);
+      setName([...prefix, suggestedName].join(", ") + ", ");
+      setError("");
+      input.current?.focus();
+      return;
+    }
+    setName(suggestedName);
+    setManualCategory(suggestedCategory ?? null);
+  };
 
   const category =
     manualCategory ??
@@ -58,6 +88,11 @@ export function ShoppingForm({
     )?.category ??
     (name.trim() ? groceryCatalogCategory(name) : undefined) ??
     groceryCategory(name);
+  const catalogSuggestions =
+    item || !activeQuery.trim() ? [] : groceryCatalogMatches(activeQuery, 5);
+  const catalogNames = new Set(
+    catalogSuggestions.map((c) => c.name.toLocaleLowerCase("uk")),
+  );
   const suggestions = [
     ...new Map(
       [...data.history, ...data.shopping].map((i) => [i.name.toLowerCase(), i]),
@@ -65,13 +100,11 @@ export function ShoppingForm({
   ]
     .filter(
       (i) =>
-        !isBatch &&
-        name.length > 0 &&
-        i.name.toLowerCase().includes(name.toLowerCase()),
+        activeQuery.trim().length > 0 &&
+        i.name.toLowerCase().includes(activeQuery.trim().toLowerCase()) &&
+        !catalogNames.has(i.name.toLocaleLowerCase("uk")),
     )
     .slice(0, 4);
-  const catalogSuggestions =
-    item || isBatch ? [] : groceryCatalogMatches(name, 5);
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (isBatch && batchItems.length > 1) {
@@ -95,19 +128,26 @@ export function ShoppingForm({
       }
       return;
     }
-    const parsed = textSchema.safeParse(name);
+    const singleFromBatch = hasBatchSep && batchItems.length === 1 ? batchItems[0] : null;
+    const parsed = textSchema.safeParse(singleFromBatch ? singleFromBatch.name : name);
     if (!parsed.success) {
       setError(parsed.error.issues[0].message);
       return;
     }
     const f = new FormData(e.currentTarget);
+    const effectiveUnit = singleFromBatch ? singleFromBatch.unit : unit;
     const value = {
       name: parsed.data,
-      quantity: ["за смаком", "за рецептом"].includes(unit)
-        ? null
-        : Number(f.get("quantity")),
-      unit,
-      category,
+      quantity:
+        singleFromBatch && singleFromBatch.quantity !== null
+          ? singleFromBatch.quantity
+          : ["за смаком", "за рецептом"].includes(effectiveUnit)
+            ? null
+            : Number(f.get("quantity")),
+      unit: effectiveUnit,
+      category: singleFromBatch
+        ? (manualCategory ?? singleFromBatch.category)
+        : category,
       price: price(String(f.get("price"))),
     };
     if (
@@ -192,35 +232,12 @@ export function ShoppingForm({
             placeholder={
               item
                 ? "Наприклад, вівсяне молоко"
-                : "Наприклад, молоко 1 л, яйця 10 шт, сир 200 г, авокадо"
+                : "Молоко 1 л, яйця 10 шт, сир 200 г, авокадо"
             }
             required
-            maxLength={280}
+            maxLength={320}
           />
         </Field>
-        {isBatch && batchItems.length > 1 && (
-          <div className="batch-preview" aria-label="Пакетний ввід покупок">
-            <div className="batch-preview-title">
-              <span>Пакетне додавання · {batchItems.length} поз.</span>
-              <small>розпізнано окремо</small>
-            </div>
-            <div className="batch-chips">
-              {batchItems.map((b, idx) => (
-                <span key={idx} className="batch-chip">
-                  <strong>{b.name}</strong>
-                  {b.quantity !== null && (
-                    <span className="batch-chip-qty">
-                      {b.quantity} {b.unit}
-                    </span>
-                  )}
-                  <span className="batch-chip-category">
-                    {manualCategory ?? b.category}
-                  </span>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
         {catalogSuggestions.length > 0 && !item && (
           <div
             className="suggestions catalog-suggestions"
@@ -231,15 +248,16 @@ export function ShoppingForm({
                 type="button"
                 key={product.id}
                 onClick={() => {
-                  setName(product.name);
-                  setManualCategory(null);
-                  setUnit(
-                    product.unit === "шт"
-                      ? "шт."
-                      : product.unit === "уп"
-                        ? "уп."
-                        : product.unit,
-                  );
+                  applySuggestion(product.name);
+                  if (!hasBatchSep) {
+                    setUnit(
+                      product.unit === "шт"
+                        ? "шт."
+                        : product.unit === "уп"
+                          ? "уп."
+                          : product.unit,
+                    );
+                  }
                 }}
               >
                 <span>{product.name}</span>
@@ -249,22 +267,70 @@ export function ShoppingForm({
           </div>
         )}
         {suggestions.length > 0 && !item && (
-          <div className="suggestions">
+          <div className="suggestions" aria-label="Недавні товари">
             {suggestions.map((s) => (
               <button
                 type="button"
                 key={s.id}
-                onClick={() => {
-                  setName(s.name);
-                  setManualCategory(s.category);
-                }}
+                onClick={() => applySuggestion(s.name, s.category)}
               >
                 {s.name}
               </button>
             ))}
           </div>
         )}
-        {name.trim() && !isBatch && (
+        {!item &&
+          !showBatchPreview &&
+          catalogSuggestions.length === 0 &&
+          suggestions.length === 0 && (
+            <p className="batch-hint">
+              Кілька товарів — через кому, кількість і категорія визначаться самі
+            </p>
+          )}
+        {showBatchPreview && (
+          <div className="batch-preview" aria-label="Пакетний ввід покупок">
+            <div className="batch-preview-title">
+              <span>
+                {batchItems.length > 1
+                  ? `Пакетне додавання · ${batchItems.length} поз.`
+                  : "Швидкий список через кому"}
+              </span>
+              <small>
+                {trailingDelimiter
+                  ? "допишіть наступний товар"
+                  : batchItems.length > 1
+                    ? "додадуться окремо"
+                    : "поставте кому для ще одного"}
+              </small>
+            </div>
+            <div className="batch-chips" role="list">
+              {batchItems.map((b, idx) => (
+                <span key={`${b.name}-${idx}`} className="batch-chip" role="listitem">
+                  <span className="batch-chip-main">
+                    <strong>{b.name}</strong>
+                    {b.quantity !== null && (
+                      <span className="batch-chip-qty">
+                        {b.quantity} {b.unit}
+                      </span>
+                    )}
+                    <span className="batch-chip-category">
+                      {manualCategory ?? b.category}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    className="batch-chip-remove"
+                    aria-label={`Прибрати ${b.name}`}
+                    onClick={() => removeBatchToken(idx)}
+                  >
+                    <X size={13} aria-hidden="true" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {name.trim() && !showBatchPreview && (
           <p className="category-hint">
             {category} ·{" "}
             {manualCategory ? "обрано вами" : "визначено автоматично"}

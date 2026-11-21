@@ -569,19 +569,66 @@ export default function App() {
                 </AnimatePresence>
               </button>
               <div className="header-right">
-                <span
-                  className={demo ? "demo-badge" : "sync-badge"}
-                  title={
-                    demo
-                      ? "Деморежим · лише на цьому пристрої"
-                      : sync === "live"
-                        ? "Ваш приватний простір"
-                        : "Відновлюємо з’єднання"
-                  }
-                >
-                  <i />
-                  {demo ? "Демо" : "Для двох"}
-                </span>
+                {!online ? (
+                  <span
+                    className="header-status-badge is-offline"
+                    role="status"
+                    title={
+                      totalQueuedCount > 0
+                        ? `Без інтернету · збережено локально (${totalQueuedCount})`
+                        : "Без інтернету · покупки й бюджет зберігаються локально"
+                    }
+                  >
+                    <WifiOff size={12} aria-hidden="true" />
+                    <span>
+                      {totalQueuedCount > 0
+                        ? `Офлайн · ${totalQueuedCount}`
+                        : "Офлайн"}
+                    </span>
+                  </span>
+                ) : !demo && totalQueuedCount > 0 ? (
+                  <button
+                    type="button"
+                    className="header-status-badge is-syncing"
+                    role="status"
+                    aria-label={`Синхронізувати зміни (${totalQueuedCount})`}
+                    title="Синхронізуємо збережені зміни — натисніть, щоб оновити"
+                    onClick={() => void refresh()}
+                  >
+                    <RefreshCw size={12} aria-hidden="true" />
+                    <span>Синхр. · {totalQueuedCount}</span>
+                  </button>
+                ) : !demo && (failure || showReconnectingBanner) ? (
+                  <button
+                    type="button"
+                    className="header-status-badge is-reconnecting"
+                    role="status"
+                    aria-label="Оновити дані"
+                    title={
+                      failure
+                        ? "Не вдалося оновити простір — натисніть, щоб повторити"
+                        : "Відновлюємо живе з’єднання — натисніть, щоб оновити"
+                    }
+                    onClick={() => void refresh()}
+                  >
+                    <RefreshCw size={12} aria-hidden="true" />
+                    <span>{failure ? "Оновити" : "З’єднання…"}</span>
+                  </button>
+                ) : (
+                  <span
+                    className={demo ? "demo-badge" : "sync-badge"}
+                    title={
+                      demo
+                        ? "Деморежим · лише на цьому пристрої"
+                        : sync === "live"
+                          ? "Ваш приватний простір"
+                          : "Відновлюємо з’єднання"
+                    }
+                  >
+                    <i />
+                    {demo ? "Демо" : "Для двох"}
+                  </span>
+                )}
                 <button
                   className={`header-wallet-btn${tab === "budget" ? " active" : ""}`}
                   onClick={() => setTab(tab === "budget" ? "home" : "budget")}
@@ -616,32 +663,6 @@ export default function App() {
                 </button>
               </div>
             </header>
-            {(!online ||
-              failure ||
-              (!demo && (showReconnectingBanner || totalQueuedCount > 0))) && (
-              <div className="connection-banner" role="status">
-                <WifiOff size={14} />
-                <span>
-                  {!online
-                    ? totalQueuedCount > 0
-                      ? `Без інтернету · збережено в черзі (${totalQueuedCount})`
-                      : "Без інтернету · покупки й бюджет зберігаються локально"
-                    : totalQueuedCount > 0
-                      ? `Синхронізуємо зміни (${totalQueuedCount})…`
-                      : failure
-                        ? "Не вдалося оновити простір"
-                        : "Відновлюємо живе з’єднання"}
-                </span>
-                {online && (
-                  <button
-                    aria-label="Оновити дані"
-                    onClick={() => void refresh()}
-                  >
-                    <RefreshCw size={15} />
-                  </button>
-                )}
-              </div>
-            )}
             <main id="main-content">
               {loading ? (
                 <Skeleton />

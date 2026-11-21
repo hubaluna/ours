@@ -30,8 +30,18 @@ export function ShoppingRow({
       exit={{ opacity: 0 }}
       className={`shopping-row ${purchased ? "purchased" : ""} ${busy ? "pending" : ""}`}
     >
+      <button
+        className="item-body"
+        aria-label={`Редагувати ${item.name}`}
+        onClick={onEdit}
+      >
+        <span className="item-name">{item.name}</span>
+        <span className="item-quantity">
+          {quantityLabel(item.quantity, item.unit)}
+        </span>
+      </button>
       <motion.button
-        whileTap={{ scale: 0.94 }}
+        whileTap={{ scale: 0.92 }}
         className="check-button"
         role="checkbox"
         aria-checked={purchased}
@@ -44,7 +54,7 @@ export function ShoppingRow({
           setVisual(!item.purchased);
           // A short, pending visual beat lets the check resolve before relocation.
           if (!reduced)
-            await new Promise((resolve) => setTimeout(resolve, 180));
+            await new Promise((resolve) => setTimeout(resolve, 160));
           const ok = await update("shopping_items", item.id, {
             purchased: !item.purchased,
           });
@@ -61,25 +71,19 @@ export function ShoppingRow({
             );
         }}
       >
-        {purchased && (
-          <motion.span
-            initial={{ scale: 0.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-          >
-            <Check size={15} strokeWidth={2.5} />
-          </motion.span>
-        )}
-      </motion.button>
-      <button
-        className="item-body"
-        aria-label={`Редагувати ${item.name}`}
-        onClick={onEdit}
-      >
-        <span className="item-name">{item.name}</span>
-        <span className="item-quantity">
-          {quantityLabel(item.quantity, item.unit)}
+        <span className="check-box" aria-hidden="true">
+          {purchased && (
+            <motion.span
+              className="check-mark"
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.14 }}
+            >
+              <Check size={15} strokeWidth={2.6} />
+            </motion.span>
+          )}
         </span>
-      </button>
+      </motion.button>
     </motion.div>
   );
 }

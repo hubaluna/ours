@@ -737,6 +737,74 @@ describe("Compact seven-tab app", () => {
       status: "confirmed",
     });
   });
+
+  it("supports quick comma batch input with live removable preview chips", async () => {
+    const user = userEvent.setup();
+    await user.click(nav().getByText("Покупки"));
+    await user.click(
+      await screen.findByRole("button", { name: "Додати товар" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    await user.type(
+      within(dialog).getByLabelText("Назва товару"),
+      "банани 1,5 кг, манго, рукола",
+    );
+
+    const preview = within(dialog).getByLabelText("Пакетний ввід покупок");
+    const suggestionsEl = dialog.querySelector(".suggestions");
+    expect(suggestionsEl).toBeInTheDocument();
+    expect(
+      Boolean(
+        suggestionsEl &&
+          suggestionsEl.compareDocumentPosition(preview) &
+            Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+    ).toBe(true);
+    expect(within(preview).getByText("Банани")).toBeInTheDocument();
+    expect(within(preview).getByText("1.5 кг")).toBeInTheDocument();
+    expect(within(preview).getByText("Манго")).toBeInTheDocument();
+    expect(within(preview).getByText("Рукола")).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Додати 3 до списку" }),
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(preview).getByRole("button", { name: "Прибрати Манго" }),
+    );
+    expect(within(preview).queryByText("Манго")).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Додати 2 до списку" }),
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(dialog).getByRole("button", { name: "Додати 2 до списку" }),
+    );
+    await closed();
+
+    const names = (saved().shopping as { name: string }[]).map((i) => i.name);
+    expect(names).toContain("Банани");
+    expect(names).toContain("Рукола");
+    expect(names).not.toContain("Манго");
+  });
+
+  it("shows a soft offline badge in the header instead of an alarming banner", async () => {
+    const onlineSpy = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    fireEvent(window, new Event("offline"));
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("Офлайн"),
+    );
+    expect(document.querySelector(".header-status-badge.is-offline")).toBeInTheDocument();
+    expect(document.querySelector(".connection-banner")).not.toBeInTheDocument();
+
+    onlineSpy.mockReturnValue(true);
+    fireEvent(window, new Event("online"));
+    await waitFor(() =>
+      expect(
+        document.querySelector(".header-status-badge.is-offline"),
+      ).not.toBeInTheDocument(),
+    );
+  });
 });
 
 

@@ -175,6 +175,57 @@ export function parseShoppingItemInput(
 }
 
 /**
+ * Splits raw batch input by newlines, semicolons, or commas,
+ * while preserving decimal commas inside numbers (e.g. "молоко 1,5 л, хліб").
+ */
+export function splitBatchTokens(input: string): string[] {
+  if (!input) return [];
+  const tokens: string[] = [];
+  let current = "";
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (ch === "\n" || ch === ";") {
+      const trimmed = current.trim();
+      if (trimmed) tokens.push(trimmed);
+      current = "";
+      continue;
+    }
+    if (ch === ",") {
+      const prev = i > 0 ? input[i - 1] : "";
+      const next = i + 1 < input.length ? input[i + 1] : "";
+      const isDecimalComma = /\d/.test(prev) && /\d/.test(next);
+      if (!isDecimalComma) {
+        const trimmed = current.trim();
+        if (trimmed) tokens.push(trimmed);
+        current = "";
+        continue;
+      }
+    }
+    current += ch;
+  }
+  const trailing = current.trim();
+  if (trailing) tokens.push(trailing);
+  return tokens;
+}
+
+/**
+ * Checks whether the input contains a batch separator (newline, semicolon, or non-decimal comma).
+ */
+export function hasBatchDelimiter(input: string): boolean {
+  if (!input) return false;
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (ch === "\n" || ch === ";") return true;
+    if (ch === ",") {
+      const prev = i > 0 ? input[i - 1] : "";
+      const next = i + 1 < input.length ? input[i + 1] : "";
+      if (!(/\d/.test(prev) && /\d/.test(next))) return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Splits raw input by commas, semicolons, or newlines and returns parsed items.
  */
 export function parseBatchShoppingInput(
@@ -182,21 +233,17 @@ export function parseBatchShoppingInput(
   defaultUnit = "шт.",
 ): ParsedShoppingItem[] {
   if (!input.trim()) return [];
-  const tokens = input
-    .split(/[\n,;]+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-
-  return tokens.map((token) => parseShoppingItemInput(token, defaultUnit));
+  const tokens = splitBatchTokens(input);
+  return tokens
+    .map((token) => parseShoppingItemInput(token, defaultUnit))
+    .filter((item) => item.name.length > 0);
 }
 
 /**
  * Checks whether the input string represents a batch input (has delimiters and produces > 1 item).
  */
 export function isBatchShoppingInput(input: string): boolean {
-  if (!input) return false;
-  const hasDelimiter = /[\n,;]/.test(input);
-  if (!hasDelimiter) return false;
+  if (!hasBatchDelimiter(input)) return false;
   const items = parseBatchShoppingInput(input);
   return items.length > 1;
 }

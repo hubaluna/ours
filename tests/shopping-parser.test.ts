@@ -139,5 +139,31 @@ describe("Shopping Parser - Batch Parsing and Detection", () => {
     expect(isBatchShoppingInput("молоко")).toBe(false);
     expect(isBatchShoppingInput("молоко, ")).toBe(false);
     expect(isBatchShoppingInput("молоко 1.5 л")).toBe(false);
+    expect(isBatchShoppingInput("молоко 1,5 л")).toBe(false);
+  });
+
+  it("preserves decimal commas inside comma-separated batch lists", () => {
+    const input = "молоко 1,5 л, сир 200 г, авокадо";
+    expect(isBatchShoppingInput(input)).toBe(true);
+    const items = parseBatchShoppingInput(input);
+    expect(items).toHaveLength(3);
+    expect(items[0]).toEqual({
+      name: "Молоко",
+      quantity: 1.5,
+      unit: "л",
+      category: "Молочне",
+    });
+    expect(items[1]).toEqual({
+      name: "Сир",
+      quantity: 200,
+      unit: "г",
+      category: "Молочне",
+    });
+    expect(items[2]).toEqual({
+      name: "Авокадо",
+      quantity: null,
+      unit: "шт.",
+      category: "Овочі та фрукти",
+    });
   });
 });
