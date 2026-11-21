@@ -223,25 +223,40 @@ export function getPeriodRange(
   customFrom: string,
   customTo: string,
   today = kyivDate(),
+  earliestDate?: string,
+  latestDate?: string,
 ): { from: string; to: string; label: string } {
   const [yStr, mStr] = today.split("-");
   const year = Number(yStr) || 2026;
   const month0 = (Number(mStr) || 1) - 1;
 
   if (preset === "all_time") {
-    const from =
-      today < INITIAL_BUDGET_SEED.periodStart
-        ? today
-        : INITIAL_BUDGET_SEED.periodStart;
-    const to =
-      today >= INITIAL_BUDGET_SEED.periodEnd
-        ? today
-        : INITIAL_BUDGET_SEED.periodEnd;
-    return {
-      from,
-      to,
-      label: "Весь час · з 1 серп. 2026",
-    };
+    const validEarliest =
+      earliestDate && /^\d{4}-\d{2}-\d{2}$/.test(earliestDate)
+        ? earliestDate
+        : "";
+    const validLatest =
+      latestDate && /^\d{4}-\d{2}-\d{2}$/.test(latestDate) ? latestDate : "";
+    const from = validEarliest
+      ? validEarliest < today
+        ? validEarliest
+        : today
+      : "2000-01-01";
+    const to = validLatest && validLatest > today ? validLatest : today;
+    let label = "Весь час";
+    if (validEarliest) {
+      const formattedStart = new Intl.DateTimeFormat("uk-UA", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        timeZone: "UTC",
+      })
+        .format(new Date(`${validEarliest}T12:00:00Z`))
+        .replace(/\s*р\.?$/i, "")
+        .trim();
+      label = `Весь час · з ${formattedStart}`;
+    }
+    return { from, to, label };
   }
   if (preset === "this_month") {
     return monthBounds(year, month0);
@@ -251,9 +266,12 @@ export function getPeriodRange(
     return monthBounds(prevDate.getUTCFullYear(), prevDate.getUTCMonth());
   }
 
+  const monthStart = monthBounds(year, month0).from;
   const from = /^\d{4}-\d{2}-\d{2}$/.test(customFrom)
     ? customFrom
-    : INITIAL_BUDGET_SEED.periodStart;
+    : earliestDate && /^\d{4}-\d{2}-\d{2}$/.test(earliestDate)
+      ? earliestDate
+      : monthStart;
   const to = /^\d{4}-\d{2}-\d{2}$/.test(customTo) ? customTo : today;
   const [start, end] = from <= to ? [from, to] : [to, from];
   const fmt = new Intl.DateTimeFormat("uk-UA", {
@@ -447,63 +465,17 @@ export function deterministicSeedUuid(seedKey: string): string {
   return `${raw.slice(0, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}-${raw.slice(16, 20)}-${raw.slice(20, 32)}`;
 }
 
-export const SKARBO_SEED_NOTE = "Імпорт зі Skarbo (серпень–листопад 2026)";
+export const SKARBO_SEED_NOTE = "Імпорт зі Skarbo";
 
 export function buildSkarboSeedTransactions(
-  coupleId: string,
-  userId: string,
-  now = new Date().toISOString(),
+  coupleId?: string,
+  userId?: string,
+  now?: string,
 ): BudgetTransaction[] {
-  const rows: BudgetTransaction[] = [];
-  const baseDate = INITIAL_BUDGET_SEED.periodStart;
-
-  INITIAL_BUDGET_SEED.expenses.forEach((entry, index) => {
-    const meta = findCategoryMeta(entry.categoryId, [], "expense");
-    const ts = `${baseDate}T12:${String(59 - Math.min(index, 59)).padStart(2, "0")}:00.000Z`;
-    rows.push({
-      id: deterministicSeedUuid(`skarbo-v1:${coupleId}:expense:${entry.categoryId}`),
-      couple_id: coupleId,
-      user_id: userId,
-      kind: "expense",
-      amount: entry.amount,
-      merchant: meta.name,
-      note: entry.note,
-      category_key: entry.categoryId,
-      status: "confirmed",
-      source: "manual",
-      is_private: false,
-      card_label: "Skarbo",
-      occurred_on: baseDate,
-      occurred_at: ts,
-      created_at: now,
-      updated_at: now,
-    });
-  });
-
-  INITIAL_BUDGET_SEED.incomes.forEach((entry, index) => {
-    const meta = findCategoryMeta(entry.categoryId, [], "income");
-    const ts = `${baseDate}T11:${String(59 - index).padStart(2, "0")}:00.000Z`;
-    rows.push({
-      id: deterministicSeedUuid(`skarbo-v1:${coupleId}:income:${entry.categoryId}`),
-      couple_id: coupleId,
-      user_id: userId,
-      kind: "income",
-      amount: entry.amount,
-      merchant: meta.name,
-      note: entry.note,
-      category_key: entry.categoryId,
-      status: "confirmed",
-      source: "manual",
-      is_private: false,
-      card_label: "Skarbo",
-      occurred_on: baseDate,
-      occurred_at: ts,
-      created_at: now,
-      updated_at: now,
-    });
-  });
-
-  return rows;
+  void coupleId;
+  void userId;
+  void now;
+  return [];
 }
 
 export function generateBudgetIngestToken(): string {

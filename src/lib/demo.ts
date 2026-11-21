@@ -1,9 +1,7 @@
 import type { Data } from "./types";
-import { buildSkarboSeedTransactions } from "./budget";
 import { kyivDate } from "./utils";
 export const DEMO_USER = "demo-anna",
   DEMO_COUPLE = "demo-couple";
-const SKARBO_DEMO_SEED_FLAG = "ours-skarbo-seed-v1";
 export function createDemo(): Data {
   const now = new Date().toISOString(),
     today = kyivDate();
@@ -213,7 +211,62 @@ export function createDemo(): Data {
     recipeCooks: [],
     history: [],
     budgetCategories: [],
-    budgetTransactions: buildSkarboSeedTransactions(DEMO_COUPLE, DEMO_USER, now),
+    budgetTransactions: [
+      {
+        id: "demo-tx-1",
+        couple_id: DEMO_COUPLE,
+        user_id: DEMO_USER,
+        kind: "expense",
+        amount: 640,
+        merchant: "Сільпо",
+        note: "Продукти на тиждень",
+        category_key: "groceries",
+        status: "confirmed",
+        source: "manual",
+        is_private: false,
+        card_label: "Monobank",
+        occurred_on: today,
+        occurred_at: now,
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: "demo-tx-2",
+        couple_id: DEMO_COUPLE,
+        user_id: "demo-mark",
+        kind: "expense",
+        amount: 320,
+        merchant: "Diletant",
+        note: "Кава та сніданок",
+        category_key: "restaurants",
+        status: "confirmed",
+        source: "manual",
+        is_private: false,
+        card_label: "Monobank",
+        occurred_on: today,
+        occurred_at: now,
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: "demo-tx-3",
+        couple_id: DEMO_COUPLE,
+        user_id: DEMO_USER,
+        kind: "income",
+        amount: 24000,
+        merchant: "Зарплата",
+        note: "Демо-дохід",
+        category_key: "salary",
+        status: "confirmed",
+        source: "manual",
+        is_private: false,
+        card_label: "",
+        occurred_on: today,
+        occurred_at: now,
+        created_at: now,
+        updated_at: now,
+      },
+    ],
     budgetMerchantRules: [
       {
         id: "rule-1",
@@ -264,38 +317,9 @@ export function readDemo(): Data {
           "history",
         ].every((key) => Array.isArray(data[key as keyof Data]))
       ) {
-        const seedRows = buildSkarboSeedTransactions(DEMO_COUPLE, DEMO_USER);
-        const seedIds = new Set(seedRows.map((r) => r.id));
-        let budgetTransactions = Array.isArray(data.budgetTransactions)
+        const budgetTransactions = Array.isArray(data.budgetTransactions)
           ? data.budgetTransactions
-          : seedRows;
-        let seededBefore = false;
-        try {
-          seededBefore = localStorage.getItem(SKARBO_DEMO_SEED_FLAG) === "1";
-        } catch {
-          /* ignore */
-        }
-        if (!seededBefore) {
-          const alreadyHasSeed = budgetTransactions.some((t) => seedIds.has(t.id));
-          if (!alreadyHasSeed) {
-            const legacyDemoIds = new Set([
-              "tx-pending-1",
-              "tx-pending-2",
-              "tx-1",
-              "tx-2",
-              "tx-3",
-              "tx-4",
-              "tx-5",
-            ]);
-            const userAdded = budgetTransactions.filter((t) => !legacyDemoIds.has(t.id));
-            budgetTransactions = [...userAdded, ...seedRows];
-          }
-          try {
-            localStorage.setItem(SKARBO_DEMO_SEED_FLAG, "1");
-          } catch {
-            /* ignore */
-          }
-        }
+          : createDemo().budgetTransactions;
         return {
           ...data,
           mealPlan: Array.isArray(data.mealPlan) ? data.mealPlan : [],
@@ -342,11 +366,6 @@ export function readDemo(): Data {
     }
   } catch {
     /* reset invalid demo */
-  }
-  try {
-    localStorage.setItem(SKARBO_DEMO_SEED_FLAG, "1");
-  } catch {
-    /* ignore */
   }
   return createDemo();
 }

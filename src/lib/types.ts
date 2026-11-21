@@ -305,6 +305,7 @@ export type NewBudgetTransaction = {
   is_private: boolean;
   card_label?: string;
   occurred_on: string;
+  occurred_at?: string;
 };
 export type BudgetMerchantRule = {
   id: string;

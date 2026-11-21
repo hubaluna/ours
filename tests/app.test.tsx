@@ -703,7 +703,7 @@ describe("Compact seven-tab app", () => {
     ]);
   });
 
-  it("displays seeded Skarbo summary in Budget and allows quick manual entry", async () => {
+  it("displays demo budget summary and allows quick manual entry", async () => {
     const user = userEvent.setup();
     await user.click(
       await screen.findByRole("button", { name: "Відкрити бюджет" }),
@@ -711,8 +711,8 @@ describe("Compact seven-tab app", () => {
     expect(
       await screen.findByRole("heading", { name: "Бюджет" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/51 655,23 ₴/)).toBeInTheDocument();
-    expect(screen.getByText(/Норма заощаджень 14%/)).toBeInTheDocument();
+    expect(screen.getByText(/23 040 ₴/)).toBeInTheDocument();
+    expect(screen.getByText(/Норма заощаджень 96%/)).toBeInTheDocument();
 
     const initialCount = saved().budgetTransactions.length;
     await user.click(

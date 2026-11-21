@@ -9,10 +9,12 @@ import {
 import { AnimatePresence } from "motion/react";
 import {
   Activity,
+  ArrowUpDown,
   ChevronDown,
   ChevronRight,
   ChevronUp,
   Copy,
+  Download,
   Eye,
   EyeOff,
   FileDown,
@@ -28,6 +30,7 @@ import {
   Trash2,
   TrendingDown,
   TrendingUp,
+  Upload,
   Wallet,
   X,
 } from "lucide-react";
@@ -53,11 +56,21 @@ import {
   type BudgetPeriodPreset,
 } from "../lib/budget";
 import { exportBudgetPdfReport } from "../lib/budget-pdf";
+import {
+  buildBudgetExportCsv,
+  buildBudgetExportJson,
+  downloadOrShareBudgetFile,
+  parseBudgetImportFile,
+  type BudgetImportParseResult,
+} from "../lib/budget-transfer";
 import type {
+  BudgetCategory,
+  BudgetMerchantRule,
   BudgetRecurringPayment,
   BudgetTokenStatus,
   BudgetTransaction,
   NewBudgetRecurringPayment,
+  NewBudgetTransaction,
 } from "../lib/types";
 import { kyivDate } from "../lib/utils";
 import { Avatar, BottomSheet, Button, Field, IconButton } from "../components/ui";
@@ -77,6 +90,7 @@ export default function Budget() {
     pending,
     notify,
     addBudgetTransaction,
+    importBudgetTransactions,
     updateBudgetTransaction,
     removeBudgetTransaction,
     categorizeBudgetTransaction,
@@ -98,7 +112,7 @@ export default function Budget() {
   const today = kyivDate();
   const [periodPreset, setPeriodPreset] =
     useState<BudgetPeriodPreset>("all_time");
-  const [customFrom, setCustomFrom] = useState("2026-08-01");
+  const [customFrom, setCustomFrom] = useState(`${today.slice(0, 7)}-01`);
   const [customTo, setCustomTo] = useState(today);
   const [scope, setScope] = useState<BudgetMemberScope>("all");
   const [heroTab, setHeroTab] = useState<HeroMetricTab>("balance");
@@ -121,6 +135,7 @@ export default function Budget() {
   const [categorySheetKind, setCategorySheetKind] =
     useState<BudgetKind | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
 
   const opsCardRef = useRef<HTMLDivElement>(null);
@@ -129,9 +144,36 @@ export default function Budget() {
   const mySettings = data.budgetSettings.find((s) => s.user_id === userId);
   const myShareIncome = mySettings?.share_income_with_partner ?? false;
 
+  const txDateBounds = useMemo(() => {
+    let earliest = "";
+    let latest = "";
+    for (const tx of data.budgetTransactions) {
+      if (tx.is_private && tx.user_id !== userId) continue;
+      if (!tx.occurred_on) continue;
+      if (!earliest || tx.occurred_on < earliest) earliest = tx.occurred_on;
+      if (!latest || tx.occurred_on > latest) latest = tx.occurred_on;
+    }
+    return { earliest, latest };
+  }, [data.budgetTransactions, userId]);
+
   const period = useMemo(
-    () => getPeriodRange(periodPreset, customFrom, customTo, today),
-    [periodPreset, customFrom, customTo, today],
+    () =>
+      getPeriodRange(
+        periodPreset,
+        customFrom,
+        customTo,
+        today,
+        txDateBounds.earliest || undefined,
+        txDateBounds.latest || undefined,
+      ),
+    [
+      periodPreset,
+      customFrom,
+      customTo,
+      today,
+      txDateBounds.earliest,
+      txDateBounds.latest,
+    ],
   );
 
   const stats = useMemo(
@@ -377,6 +419,12 @@ export default function Budget() {
               <FileDown size={15} />
               <span>PDF</span>
             </button>
+            <IconButton
+              label="Імпорт та експорт витрат і виписок"
+              onClick={() => setTransferOpen(true)}
+            >
+              <ArrowUpDown size={17} />
+            </IconButton>
             <IconButton
               label="Налаштування бюджету та Apple Pay"
               onClick={() => setSettingsOpen(true)}
@@ -1283,6 +1331,10 @@ export default function Budget() {
             pending={pending}
             notify={notify}
             onClose={() => setSettingsOpen(false)}
+            onOpenTransfer={() => {
+              setSettingsOpen(false);
+              setTransferOpen(true);
+            }}
             onToggleShareIncome={(share) => void setBudgetIncomeSharing(share)}
             onAddCategory={() => setCategorySheetKind("expense")}
             onDeleteCategory={(id) => void removeBudgetCategory(id)}
@@ -1298,6 +1350,30 @@ export default function Budget() {
             fetchTokenStatus={fetchBudgetIngestTokenStatus}
             rotateToken={rotateBudgetIngestToken}
             revokeToken={revokeBudgetIngestToken}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {transferOpen && (
+          <BudgetTransferSheet
+            userId={userId}
+            transactions={data.budgetTransactions.filter(
+              (tx) => !tx.is_private || tx.user_id === userId,
+            )}
+            customCategories={data.budgetCategories}
+            expenseCategories={expenseCategories}
+            incomeCategories={incomeCategories}
+            merchantRules={data.budgetMerchantRules}
+            defaultIncomePrivate={!myShareIncome}
+            today={today}
+            busy={pending.includes("import-budget-tx")}
+            notify={notify}
+            onClose={() => setTransferOpen(false)}
+            onImport={async (items) => {
+              const count = await importBudgetTransactions(items);
+              if (count > 0) setTransferOpen(false);
+            }}
           />
         )}
       </AnimatePresence>
@@ -2218,6 +2294,7 @@ function BudgetSettingsSheet({
   pending,
   notify,
   onClose,
+  onOpenTransfer,
   onToggleShareIncome,
   onAddCategory,
   onDeleteCategory,
@@ -2239,6 +2316,7 @@ function BudgetSettingsSheet({
   pending: string[];
   notify: (text: string) => void;
   onClose: () => void;
+  onOpenTransfer: () => void;
   onToggleShareIncome: (share: boolean) => void;
   onAddCategory: () => void;
   onDeleteCategory: (id: string) => void;
@@ -2402,6 +2480,24 @@ function BudgetSettingsSheet({
                   </small>
                 </span>
               </label>
+            </section>
+
+            <section className="budget-settings-card">
+              <h3>
+                <ArrowUpDown size={15} /> Дані та виписки банку
+              </h3>
+              <p className="settings-help">
+                Експортуйте резервну копію витрат (JSON/CSV) або імпортуйте
+                виписку Monobank, ПриватБанк, ПУМБ, Sense чи інший CSV-файл.
+              </p>
+              <Button
+                type="button"
+                className="secondary"
+                onClick={onOpenTransfer}
+              >
+                <ArrowUpDown size={14} />
+                Імпорт / Експорт даних
+              </Button>
             </section>
 
             <section className="budget-settings-card">
@@ -2834,6 +2930,446 @@ function BudgetSettingsSheet({
             </section>
           </div>
         )}
+      </div>
+    </BottomSheet>
+  );
+}
+
+function BudgetTransferSheet({
+  userId,
+  transactions,
+  customCategories,
+  expenseCategories,
+  incomeCategories,
+  merchantRules,
+  defaultIncomePrivate,
+  today,
+  busy,
+  notify,
+  onClose,
+  onImport,
+}: {
+  userId: string;
+  transactions: BudgetTransaction[];
+  customCategories: BudgetCategory[];
+  expenseCategories: ReturnType<typeof resolveBudgetCategories>;
+  incomeCategories: ReturnType<typeof resolveBudgetCategories>;
+  merchantRules: BudgetMerchantRule[];
+  defaultIncomePrivate: boolean;
+  today: string;
+  busy: boolean;
+  notify: (text: string) => void;
+  onClose: () => void;
+  onImport: (items: NewBudgetTransaction[]) => Promise<void>;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<BudgetImportParseResult | null>(null);
+  const [fileName, setFileName] = useState("");
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [skipDuplicates, setSkipDuplicates] = useState(true);
+  const [skipTransfers, setSkipTransfers] = useState(true);
+  const [includeIncomes, setIncludeIncomes] = useState(true);
+  const [excludedIds, setExcludedIds] = useState<Record<string, boolean>>({});
+  const [categoryOverrides, setCategoryOverrides] = useState<
+    Record<string, string | null>
+  >({});
+  const [showAllPreview, setShowAllPreview] = useState(false);
+
+  const handleExportJson = async () => {
+    const payload = buildBudgetExportJson({
+      transactions,
+      customCategories,
+      merchantRules,
+      userId,
+    });
+    const result = await downloadOrShareBudgetFile({
+      content: JSON.stringify(payload, null, 2),
+      fileName: `ours-budget-${today}.json`,
+      mimeType: "application/json;charset=utf-8",
+      shareTitle: "Резервна копія бюджету ours.",
+    });
+    notify(
+      result === "shared"
+        ? `JSON-бекап готовий (${transactions.length} операцій)`
+        : `Експортовано ${transactions.length} операцій у JSON`,
+    );
+  };
+
+  const handleExportCsv = async () => {
+    const content = buildBudgetExportCsv({
+      transactions,
+      customCategories,
+      userId,
+    });
+    const result = await downloadOrShareBudgetFile({
+      content,
+      fileName: `ours-budget-${today}.csv`,
+      mimeType: "text/csv;charset=utf-8",
+      shareTitle: "Таблиця бюджету ours. (CSV)",
+    });
+    notify(
+      result === "shared"
+        ? `CSV-таблиця готова (${transactions.length} операцій)`
+        : `Експортовано ${transactions.length} операцій у CSV`,
+    );
+  };
+
+  const handleFileSelected = async (file: File | null) => {
+    if (!file) return;
+    setParseError(null);
+    setFileName(file.name);
+    try {
+      const parsed = await parseBudgetImportFile({
+        file,
+        existingTransactions: transactions,
+        customCategories,
+        merchantRules,
+      });
+      if (parsed.rows.length === 0) {
+        setPreview(null);
+        setParseError(
+          "У файлі не знайдено коректних операцій. Перевірте, що це CSV-виписка або JSON-бекап ours.",
+        );
+        return;
+      }
+      setPreview(parsed);
+      setSkipDuplicates(true);
+      setSkipTransfers(
+        parsed.format !== "ours_json" && parsed.format !== "ours_csv",
+      );
+      setIncludeIncomes(true);
+      setExcludedIds({});
+      setCategoryOverrides({});
+      setShowAllPreview(false);
+    } catch (err) {
+      setPreview(null);
+      setParseError(
+        err instanceof Error ? err.message : "Не вдалося прочитати файл.",
+      );
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const previewSummary = useMemo(() => {
+    if (!preview) {
+      return {
+        expenseCount: 0,
+        incomeCount: 0,
+        expenseTotal: 0,
+        incomeTotal: 0,
+        duplicateCount: 0,
+        transferCount: 0,
+      };
+    }
+    let expenseCount = 0;
+    let incomeCount = 0;
+    let expenseTotal = 0;
+    let incomeTotal = 0;
+    let duplicateCount = 0;
+    let transferCount = 0;
+    for (const r of preview.rows) {
+      if (r.duplicate) duplicateCount++;
+      if (r.isTransfer) transferCount++;
+      if (r.kind === "income") {
+        incomeCount++;
+        incomeTotal += r.amount;
+      } else {
+        expenseCount++;
+        expenseTotal += r.amount;
+      }
+    }
+    return {
+      expenseCount,
+      incomeCount,
+      expenseTotal: Math.round(expenseTotal * 100) / 100,
+      incomeTotal: Math.round(incomeTotal * 100) / 100,
+      duplicateCount,
+      transferCount,
+    };
+  }, [preview]);
+
+  const selectedRows = useMemo(() => {
+    if (!preview) return [];
+    return preview.rows.filter((row) => {
+      if (skipDuplicates && row.duplicate) return false;
+      if (skipTransfers && row.isTransfer) return false;
+      if (!includeIncomes && row.kind === "income") return false;
+      if (excludedIds[row.tempId]) return false;
+      return true;
+    });
+  }, [preview, skipDuplicates, skipTransfers, includeIncomes, excludedIds]);
+
+  const displayedPreviewRows = useMemo(() => {
+    if (!preview) return [];
+    return showAllPreview ? preview.rows : preview.rows.slice(0, 40);
+  }, [preview, showAllPreview]);
+
+  const handleConfirmImport = async () => {
+    if (selectedRows.length === 0) {
+      notify("Оберіть хоча б одну операцію для імпорту");
+      return;
+    }
+    const items: NewBudgetTransaction[] = selectedRows.map((row) => {
+      const overridden =
+        row.tempId in categoryOverrides
+          ? categoryOverrides[row.tempId]
+          : row.category_key;
+      const finalCategory =
+        overridden || (row.kind === "income" ? "refund" : "other");
+      return {
+        kind: row.kind,
+        amount: row.amount,
+        merchant: row.merchant,
+        note: row.note,
+        category_key: finalCategory,
+        status: "confirmed",
+        source: "manual",
+        is_private:
+          typeof row.is_private === "boolean"
+            ? row.is_private
+            : row.kind === "income"
+              ? defaultIncomePrivate
+              : false,
+        card_label: row.card_label,
+        occurred_on: row.occurred_on || today,
+        occurred_at: row.occurred_at,
+      };
+    });
+    await onImport(items);
+  };
+
+  return (
+    <BottomSheet
+      title="Імпорт та експорт"
+      onClose={onClose}
+      guardChanges={false}
+    >
+      <div className="budget-transfer-sheet">
+        <section className="budget-settings-card">
+          <h3>
+            <Download size={15} /> Експорт ваших даних
+          </h3>
+          <p className="settings-help">
+            Збережіть усі внесені операції ({transactions.length}) у файл, щоб
+            мати резервну копію або перенести дані.
+          </p>
+          <div className="budget-transfer-actions">
+            <Button
+              type="button"
+              className="secondary"
+              disabled={transactions.length === 0}
+              onClick={() => void handleExportJson()}
+            >
+              <Download size={14} />
+              Бекап (JSON)
+            </Button>
+            <Button
+              type="button"
+              className="secondary"
+              disabled={transactions.length === 0}
+              onClick={() => void handleExportCsv()}
+            >
+              <FileDown size={14} />
+              Таблиця (CSV)
+            </Button>
+          </div>
+        </section>
+
+        <section className="budget-settings-card">
+          <h3>
+            <Upload size={15} /> Імпорт у додаток
+          </h3>
+          <p className="settings-help">
+            Підтримуються резервні копії <strong>ours. (JSON / CSV)</strong> та
+            банківські CSV-виписки{" "}
+            <strong>Monobank, ПриватБанк, ПУМБ, Sense, А-Банк</strong>.
+            Категорії визначаються автоматично за словником магазинів і MCC.
+          </p>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,.csv,.txt,text/csv,application/json"
+            className="sr-only"
+            aria-label="Обрати файл для імпорту бюджету"
+            onChange={(e) => void handleFileSelected(e.target.files?.[0] ?? null)}
+          />
+          <Button
+            type="button"
+            className={preview ? "secondary" : ""}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload size={14} />
+            {preview ? "Обрати інший файл" : "Обрати файл (JSON / CSV)"}
+          </Button>
+
+          {parseError && <p className="budget-transfer-error">{parseError}</p>}
+
+          {preview && (
+            <div className="budget-import-preview">
+              <div className="budget-import-summary">
+                <div className="budget-import-summary-head">
+                  <strong>{preview.formatLabel}</strong>
+                  <small>{fileName}</small>
+                </div>
+                <div className="budget-import-metrics">
+                  <span>
+                    Витрати: <b>{previewSummary.expenseCount}</b> (
+                    {formatUAH(previewSummary.expenseTotal)})
+                  </span>
+                  {previewSummary.incomeCount > 0 && (
+                    <span>
+                      Доходи: <b>{previewSummary.incomeCount}</b> (
+                      {formatUAH(previewSummary.incomeTotal)})
+                    </span>
+                  )}
+                  {previewSummary.duplicateCount > 0 && (
+                    <span>
+                      Дублікатів знайдено: <b>{previewSummary.duplicateCount}</b>
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="budget-import-toggles">
+                {previewSummary.duplicateCount > 0 && (
+                  <label className="budget-import-check">
+                    <input
+                      type="checkbox"
+                      checked={skipDuplicates}
+                      onChange={(e) => setSkipDuplicates(e.target.checked)}
+                    />
+                    <span>
+                      Пропускати дублікати ({previewSummary.duplicateCount})
+                    </span>
+                  </label>
+                )}
+                {previewSummary.transferCount > 0 && (
+                  <label className="budget-import-check">
+                    <input
+                      type="checkbox"
+                      checked={skipTransfers}
+                      onChange={(e) => setSkipTransfers(e.target.checked)}
+                    />
+                    <span>
+                      Пропускати перекази між своїми ({previewSummary.transferCount})
+                    </span>
+                  </label>
+                )}
+                {previewSummary.incomeCount > 0 && (
+                  <label className="budget-import-check">
+                    <input
+                      type="checkbox"
+                      checked={includeIncomes}
+                      onChange={(e) => setIncludeIncomes(e.target.checked)}
+                    />
+                    <span>
+                      Імпортувати доходи ({previewSummary.incomeCount})
+                    </span>
+                  </label>
+                )}
+              </div>
+
+              <div className="budget-import-list">
+                {displayedPreviewRows.map((row) => {
+                  const autoSkipped =
+                    (skipDuplicates && row.duplicate) ||
+                    (skipTransfers && row.isTransfer) ||
+                    (!includeIncomes && row.kind === "income");
+                  const checked = !autoSkipped && !excludedIds[row.tempId];
+                  const cats =
+                    row.kind === "income"
+                      ? incomeCategories
+                      : expenseCategories;
+                  const currentCat =
+                    row.tempId in categoryOverrides
+                      ? categoryOverrides[row.tempId]
+                      : row.category_key ?? (row.kind === "income" ? "refund" : "other");
+
+                  return (
+                    <div
+                      key={row.tempId}
+                      className={`budget-import-row${checked ? "" : " is-muted"}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={autoSkipped}
+                        aria-label={`Включити ${row.merchant}`}
+                        onChange={(e) =>
+                          setExcludedIds((prev) => ({
+                            ...prev,
+                            [row.tempId]: !e.target.checked,
+                          }))
+                        }
+                      />
+                      <div className="budget-import-row-body">
+                        <div className="budget-import-row-top">
+                          <strong>{row.merchant}</strong>
+                          <span
+                            className={`budget-tx-amount ${
+                              row.kind === "income" ? "is-income" : "is-expense"
+                            }`}
+                          >
+                            {formatUAH(row.amount, {
+                              signed: true,
+                              kind: row.kind,
+                            })}
+                          </span>
+                        </div>
+                        <div className="budget-import-row-bottom">
+                          <small>
+                            {row.occurred_on}
+                            {row.duplicate ? " · Дублікат" : ""}
+                            {row.isTransfer ? " · Переказ" : ""}
+                          </small>
+                          <select
+                            value={currentCat ?? ""}
+                            aria-label={`Категорія для ${row.merchant}`}
+                            onChange={(e) =>
+                              setCategoryOverrides((prev) => ({
+                                ...prev,
+                                [row.tempId]: e.target.value,
+                              }))
+                            }
+                          >
+                            {cats.map((c) => (
+                              <option key={c.key} value={c.key}>
+                                {c.emoji} {c.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {preview.rows.length > 40 && !showAllPreview && (
+                <button
+                  type="button"
+                  className="budget-inline-link"
+                  onClick={() => setShowAllPreview(true)}
+                >
+                  Показати всі ({preview.rows.length})
+                </button>
+              )}
+
+              <div className="budget-sheet-sticky-actions">
+                <Button
+                  type="button"
+                  busy={busy}
+                  disabled={selectedRows.length === 0}
+                  onClick={() => void handleConfirmImport()}
+                >
+                  Імпортувати {selectedRows.length} операцій
+                </Button>
+              </div>
+            </div>
+          )}
+        </section>
       </div>
     </BottomSheet>
   );

@@ -31,36 +31,11 @@ export const SKARBO_INCOME_CATEGORIES = [
 ] as const;
 
 export const INITIAL_BUDGET_SEED = {
-  periodStart: "2026-08-01",
-  periodEnd: "2026-11-17",
+  periodStart: "",
+  periodEnd: "",
   currency: "UAH",
-  expenses: [
-    { categoryId: "groceries", amount: 71577.83, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-    { categoryId: "travel", amount: 55000.0, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-    { categoryId: "mortgage", amount: 35000.0, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-    { categoryId: "other", amount: 34242.92, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-    { categoryId: "fuel", amount: 28727.82, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-    { categoryId: "restaurants", amount: 27343.0, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-    { categoryId: "currency", amount: 20000.0, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-    { categoryId: "credit_card", amount: 13500.0, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-    { categoryId: "clothes", amount: 10465.0, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-    { categoryId: "home", amount: 9938.0, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-    { categoryId: "flowers", amount: 6080.0, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-    { categoryId: "parking", amount: 4800.0, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-    { categoryId: "car", amount: 2366.0, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-    { categoryId: "haircut", amount: 2100.0, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-    { categoryId: "subscriptions", amount: 1650.0, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-    { categoryId: "household_chem", amount: 1420.0, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-    { categoryId: "health", amount: 1280.2, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-    { categoryId: "drinks", amount: 940.0, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-    { categoryId: "pets", amount: 780.0, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-    { categoryId: "kids", amount: 560.0, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-    { categoryId: "entertainment", amount: 436.0, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-  ],
-  incomes: [
-    { categoryId: "salary", amount: 352042.0, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-    { categoryId: "refund", amount: 27820.0, note: "Імпорт зі Skarbo (серпень–листопад 2026)" },
-  ],
+  expenses: [] as ReadonlyArray<{ categoryId: string; amount: number; note: string }>,
+  incomes: [] as ReadonlyArray<{ categoryId: string; amount: number; note: string }>,
 } as const;
 
 export const LEGACY_CATEGORY_MAP: Record<string, string> = {

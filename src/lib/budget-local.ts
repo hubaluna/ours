@@ -1,4 +1,3 @@
-import { buildSkarboSeedTransactions } from "./budget";
 import type {
   BudgetCategory,
   BudgetMerchantRule,
@@ -48,8 +47,9 @@ function storageKey(coupleId: string): string {
 
 export function readLocalBudgetState(
   coupleId: string,
-  userId: string,
+  userId?: string,
 ): LocalBudgetState {
+  void userId;
   const key = storageKey(coupleId);
   try {
     const raw = localStorage.getItem(key);
@@ -67,34 +67,15 @@ export function readLocalBudgetState(
       const settings = Array.isArray(parsed.settings) ? parsed.settings : [];
       const recurring = Array.isArray(parsed.recurring) ? parsed.recurring : [];
 
-      if (parsed.seeded) {
-        return {
-          seeded: true,
-          pendingSync: Boolean(parsed.pendingSync),
-          categories,
-          transactions,
-          merchantRules,
-          settings,
-          recurring,
-        };
-      }
-
-      const seedRows = buildSkarboSeedTransactions(coupleId, userId);
-      const existingIds = new Set(transactions.map((t) => t.id));
-      const merged: LocalBudgetState = {
+      return {
         seeded: true,
         pendingSync: Boolean(parsed.pendingSync),
         categories,
-        transactions: [
-          ...transactions,
-          ...seedRows.filter((r) => !existingIds.has(r.id)),
-        ],
+        transactions,
         merchantRules,
         settings,
         recurring,
       };
-      localStorage.setItem(key, JSON.stringify(merged));
-      return merged;
     }
   } catch {
     /* initialize fresh local budget store */
@@ -104,7 +85,7 @@ export function readLocalBudgetState(
     seeded: true,
     pendingSync: false,
     categories: [],
-    transactions: buildSkarboSeedTransactions(coupleId, userId),
+    transactions: [],
     merchantRules: [],
     settings: [],
     recurring: [],

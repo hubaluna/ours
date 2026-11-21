@@ -23,6 +23,11 @@ import {
   preparePdfAnalyticsData,
 } from "../src/lib/budget-pdf";
 import {
+  buildBudgetExportCsv,
+  buildBudgetExportJson,
+  parseBudgetImportContent,
+} from "../src/lib/budget-transfer";
+import {
   buildBudgetSankey,
   formatCompactUAH,
 } from "../src/lib/budget-sankey";
@@ -211,10 +216,17 @@ describe("budget module", () => {
     });
   });
 
-  it("computes period ranges including all_time from Aug 2026, UAH formatting, and day headings", () => {
-    expect(getPeriodRange("all_time", "", "", "2026-11-17")).toMatchObject({
+  it("computes dynamic period ranges, UAH formatting, and day headings", () => {
+    expect(
+      getPeriodRange("all_time", "", "", "2026-11-17", "2026-08-01"),
+    ).toMatchObject({
       from: "2026-08-01",
       to: "2026-11-17",
+    });
+    expect(getPeriodRange("all_time", "", "", "2026-11-17")).toMatchObject({
+      from: "2000-01-01",
+      to: "2026-11-17",
+      label: "Весь час",
     });
     expect(getPeriodRange("this_month", "", "", "2026-11-17")).toMatchObject({
       from: "2026-11-01",
@@ -230,16 +242,13 @@ describe("budget module", () => {
     expect(formatBudgetDayHeading("2026-11-16", "2026-11-17")).toBe("Вчора");
   });
 
-  it("builds deterministic INITIAL_BUDGET_SEED matching exact Skarbo totals without duplication", () => {
-    const first = buildSkarboSeedTransactions(DEMO_COUPLE, DEMO_USER);
-    const second = buildSkarboSeedTransactions(DEMO_COUPLE, DEMO_USER);
-    expect(first.map((r) => r.id)).toEqual(second.map((r) => r.id));
-    expect(first).toHaveLength(
-      INITIAL_BUDGET_SEED.expenses.length + INITIAL_BUDGET_SEED.incomes.length,
-    );
+  it("keeps INITIAL_BUDGET_SEED free of personal totals and uses sample demo data", () => {
+    expect(INITIAL_BUDGET_SEED.expenses).toHaveLength(0);
+    expect(INITIAL_BUDGET_SEED.incomes).toHaveLength(0);
+    expect(buildSkarboSeedTransactions(DEMO_COUPLE, DEMO_USER)).toEqual([]);
 
     const demo = createDemo();
-    const range = getPeriodRange("all_time", "", "", "2026-11-17");
+    const range = getPeriodRange("all_time", "", "");
     const stats = computeBudgetStats({
       transactions: demo.budgetTransactions,
       customCategories: demo.budgetCategories,
@@ -250,16 +259,15 @@ describe("budget module", () => {
       to: range.to,
     });
 
-    expect(stats.expenseTotal).toBe(328206.77);
-    expect(stats.incomeTotal).toBe(379862);
-    expect(stats.balance).toBe(51655.23);
-    expect(stats.savingsRate).toBe(14);
+    expect(stats.expenseTotal).toBe(960);
+    expect(stats.incomeTotal).toBe(24000);
+    expect(stats.balance).toBe(23040);
     expect(stats.expenseRows[0]).toMatchObject({
       key: "groceries",
       name: "Продукти",
       emoji: "🥑",
       color: "#22C55E",
-      amount: 71577.83,
+      amount: 640,
     });
   });
 
@@ -356,12 +364,52 @@ describe("budget module", () => {
     expect(header).toBe("%PDF-1.4");
     expect(tail).toContain("%%EOF");
 
-    const demo = createDemo();
-    const range = getPeriodRange("all_time", "", "", "2026-11-17");
+    const sampleTxs: BudgetTransaction[] = [
+      ["groceries", 4200, "Сільпо", "2026-11-10"],
+      ["restaurants", 2800, "Кав'ярня", "2026-11-11"],
+      ["fuel", 2100, "OKKO", "2026-11-12"],
+      ["clothes", 1650, "New Yorker", "2026-11-13"],
+      ["home", 1200, "Епіцентр", "2026-11-14"],
+      ["health", 800, "Аптека", "2026-11-15"],
+      ["entertainment", 450, "Multiplex", "2026-11-16"],
+    ].map(([cat, amt, merch, dt], i) => ({
+      id: `pdf-tx-${i}`,
+      couple_id: DEMO_COUPLE,
+      user_id: DEMO_USER,
+      kind: "expense" as const,
+      amount: Number(amt),
+      merchant: String(merch),
+      note: "",
+      category_key: String(cat),
+      status: "confirmed" as const,
+      source: "manual" as const,
+      is_private: false,
+      occurred_on: String(dt),
+      occurred_at: `${dt}T12:00:00Z`,
+      created_at: `${dt}T12:00:00Z`,
+    }));
+    sampleTxs.push({
+      id: "pdf-inc-1",
+      couple_id: DEMO_COUPLE,
+      user_id: DEMO_USER,
+      kind: "income",
+      amount: 25000,
+      merchant: "Зарплата",
+      note: "",
+      category_key: "salary",
+      status: "confirmed",
+      source: "manual",
+      is_private: false,
+      occurred_on: "2026-11-05",
+      occurred_at: "2026-11-05T12:00:00Z",
+      created_at: "2026-11-05T12:00:00Z",
+    });
+
+    const range = getPeriodRange("all_time", "", "", "2026-11-17", "2026-08-01");
     const stats = computeBudgetStats({
-      transactions: demo.budgetTransactions,
-      customCategories: demo.budgetCategories,
-      budgetSettings: demo.budgetSettings,
+      transactions: sampleTxs,
+      customCategories: [],
+      budgetSettings: [],
       scope: "all",
       userId: DEMO_USER,
       from: range.from,
@@ -400,7 +448,12 @@ describe("budget module", () => {
       expenseRows: stats.expenseRows.slice(0, 3),
       incomeRows: stats.incomeRows,
       transactions: [
-        ...demo.budgetTransactions.slice(0, 2),
+        {
+          ...sampleTxs[0],
+          id: "extra-aug",
+          card_label: "Skarbo",
+          occurred_on: "2026-08-10",
+        },
         {
           id: "extra-nov",
           couple_id: DEMO_COUPLE,
@@ -766,5 +819,156 @@ describe("budget module", () => {
     expect(hiddenLayout.leftNodes[0].kind).toBe("neutral_source");
     expect(hiddenLayout.leftNodes[0].name).toBe("Дохід приховано");
     expect(hiddenLayout.totalFlow).toBe(30000);
+  });
+
+  it("exports and re-imports ours. JSON & CSV backups with deduplication", () => {
+    const existing: BudgetTransaction[] = [
+      {
+        id: "tx-exp-1",
+        couple_id: DEMO_COUPLE,
+        user_id: DEMO_USER,
+        kind: "expense",
+        amount: 540.5,
+        merchant: "New Yorker",
+        note: "Футболка",
+        category_key: "clothes",
+        status: "confirmed",
+        source: "manual",
+        is_private: false,
+        card_label: "Monobank",
+        occurred_on: "2026-11-10",
+        occurred_at: "2026-11-10T12:00:00.000Z",
+        created_at: "2026-11-10T12:00:00.000Z",
+      },
+      {
+        id: "tx-inc-1",
+        couple_id: DEMO_COUPLE,
+        user_id: DEMO_USER,
+        kind: "income",
+        amount: 18500,
+        merchant: "Зарплата",
+        note: "Аванс",
+        category_key: "salary",
+        status: "confirmed",
+        source: "manual",
+        is_private: true,
+        card_label: "",
+        occurred_on: "2026-11-05",
+        occurred_at: "2026-11-05T10:00:00.000Z",
+        created_at: "2026-11-05T10:00:00.000Z",
+      },
+    ];
+
+    const jsonPayload = buildBudgetExportJson({
+      transactions: existing,
+      customCategories: [],
+      merchantRules: [],
+      userId: DEMO_USER,
+    });
+    const jsonText = JSON.stringify(jsonPayload);
+    const jsonPreviewFresh = parseBudgetImportContent({
+      text: jsonText,
+      fileName: "ours-budget.json",
+      existingTransactions: [],
+      customCategories: [],
+      merchantRules: [],
+    });
+    expect(jsonPreviewFresh.format).toBe("ours_json");
+    expect(jsonPreviewFresh.rows).toHaveLength(2);
+    expect(jsonPreviewFresh.rows.filter((r) => r.duplicate)).toHaveLength(0);
+
+    const jsonPreviewDup = parseBudgetImportContent({
+      text: jsonText,
+      fileName: "ours-budget.json",
+      existingTransactions: existing,
+      customCategories: [],
+      merchantRules: [],
+    });
+    expect(jsonPreviewDup.rows.filter((r) => r.duplicate)).toHaveLength(2);
+
+    const csvText = buildBudgetExportCsv({
+      transactions: existing,
+      customCategories: [],
+      userId: DEMO_USER,
+    });
+    expect(csvText.startsWith("\uFEFF")).toBe(true);
+    const csvPreview = parseBudgetImportContent({
+      text: csvText,
+      fileName: "ours-budget.csv",
+      existingTransactions: [],
+      customCategories: [],
+      merchantRules: [],
+    });
+    expect(csvPreview.format).toBe("ours_csv");
+    expect(csvPreview.rows).toHaveLength(2);
+    expect(csvPreview.rows.find((r) => r.merchant === "New Yorker")?.category_key).toBe(
+      "clothes",
+    );
+  });
+
+  it("imports Monobank and PrivatBank CSV statements with merchant dictionary and MCC fallback", () => {
+    const monoCsv = [
+      "Дата i час операції,Деталі операції,MCC,Сума в валюті картки (UAH),Сума в валюті операції,Валюта",
+      "18.11.2026 14:22:10,NEW YORKER LAVINA,5651,-1299.00,-1299.00,UAH",
+      "18.11.2026 16:05:00,ФOP NONAME KIOSK,5993,-245.50,-245.50,UAH",
+      "19.11.2026 09:00:00,Нацкешбек,6012,350.00,350.00,UAH",
+    ].join("\n");
+
+    const monoPreview = parseBudgetImportContent({
+      text: monoCsv,
+      fileName: "mono-statement.csv",
+      existingTransactions: [],
+      customCategories: [],
+      merchantRules: [],
+    });
+    expect(monoPreview.format).toBe("monobank_csv");
+    expect(monoPreview.rows).toHaveLength(3);
+    expect(monoPreview.rows[0]).toMatchObject({
+      kind: "expense",
+      amount: 1299,
+      category_key: "clothes",
+      occurred_on: "2026-11-18",
+      card_label: "Monobank",
+    });
+    expect(monoPreview.rows[1]).toMatchObject({
+      kind: "expense",
+      amount: 245.5,
+      category_key: "smoking",
+      categorizedBy: "mcc",
+    });
+    expect(monoPreview.rows[2]).toMatchObject({
+      kind: "income",
+      amount: 350,
+      category_key: "refund",
+    });
+
+    const privatCsv = [
+      "Виписка по картці ПриватБанк",
+      "Дата;Час;Категорія;Картка;Опис операції;Сума в валюті картки;Валюта картки",
+      "17.11.2026;19:15;Продукти харчування;5168****1234;Сільпо Київ;-812,40;UAH",
+      "17.11.2026;20:00;Медицина;5168****1234;ФОП Петренко;-1 500,00;UAH",
+    ].join("\n");
+
+    const privatPreview = parseBudgetImportContent({
+      text: privatCsv,
+      fileName: "privat.csv",
+      existingTransactions: [],
+      customCategories: [],
+      merchantRules: [],
+    });
+    expect(privatPreview.format).toBe("privatbank_csv");
+    expect(privatPreview.rows).toHaveLength(2);
+    expect(privatPreview.rows[0]).toMatchObject({
+      kind: "expense",
+      amount: 812.4,
+      category_key: "groceries",
+      occurred_on: "2026-11-17",
+    });
+    expect(privatPreview.rows[1]).toMatchObject({
+      kind: "expense",
+      amount: 1500,
+      category_key: "health",
+      categorizedBy: "bank_category",
+    });
   });
 });

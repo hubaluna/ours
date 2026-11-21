@@ -43,8 +43,6 @@ import type {
   NewBudgetCategory,
 } from "../lib/types";
 import {
-  SKARBO_SEED_NOTE,
-  buildSkarboSeedTransactions,
   findCategoryMeta,
   generateBudgetIngestToken,
   normalizeCategoryKey,
@@ -761,78 +759,6 @@ function useStore() {
             ]);
           } catch {
             // Keep pendingSync = true to retry on next refresh
-          }
-        }
-        const seedFlagKey = `ours-skarbo-seed-v1:${couple}`;
-        const hasSeedFlag = (() => {
-          try {
-            return localStorage.getItem(seedFlagKey) === "1";
-          } catch {
-            return false;
-          }
-        })();
-        if (!hasSeedFlag) {
-          const seedRows = buildSkarboSeedTransactions(couple, userId);
-          const seedIds = new Set(seedRows.map((r) => r.id));
-          const alreadySeeded = finalBudgetTransactions.some(
-            (tx) => seedIds.has(tx.id) || tx.note === SKARBO_SEED_NOTE,
-          );
-          if (alreadySeeded) {
-            try {
-              localStorage.setItem(seedFlagKey, "1");
-            } catch {
-              /* ignore */
-            }
-          } else {
-            try {
-              const insertedSeeds = (await checked(
-                supabase
-                  .from("budget_transactions")
-                  .upsert(
-                    seedRows.map((r) => ({
-                      id: r.id,
-                      couple_id: r.couple_id,
-                      user_id: r.user_id,
-                      kind: r.kind,
-                      amount: r.amount,
-                      merchant: r.merchant,
-                      note: r.note,
-                      category_key: r.category_key,
-                      status: r.status,
-                      source: r.source,
-                      is_private: r.is_private,
-                      card_label: r.card_label,
-                      occurred_on: r.occurred_on,
-                      occurred_at: r.occurred_at,
-                    })),
-                    { onConflict: "id", ignoreDuplicates: true },
-                  )
-                  .select("*"),
-              )) as BudgetTransaction[] | null;
-              if (Array.isArray(insertedSeeds) && insertedSeeds.length > 0) {
-                const existingIds = new Set(
-                  finalBudgetTransactions.map((t) => t.id),
-                );
-                finalBudgetTransactions = [
-                  ...finalBudgetTransactions,
-                  ...insertedSeeds.filter((s) => !existingIds.has(s.id)),
-                ];
-              } else {
-                finalBudgetTransactions = await readAll<BudgetTransaction>(
-                  "budget_transactions",
-                  { couple_id: couple },
-                  "occurred_on",
-                  false,
-                ).catch(() => finalBudgetTransactions);
-              }
-              try {
-                localStorage.setItem(seedFlagKey, "1");
-              } catch {
-                /* ignore */
-              }
-            } catch {
-              // Skip silently if budget_transactions is unavailable yet
-            }
           }
         }
       }
@@ -2694,6 +2620,158 @@ function useStore() {
     );
   };
 
+  const importBudgetTransactions = async (
+    items: NewBudgetTransaction[],
+  ): Promise<number> => {
+    const activeCoupleId = coupleId ?? coupleIdRef.current;
+    if (supabase && !activeCoupleId) {
+      notify("Зачекайте завершення синхронізації простору");
+      return 0;
+    }
+    const myShareIncome =
+      data.budgetSettings.find((s) => s.user_id === userId)
+        ?.share_income_with_partner ?? false;
+    const now = new Date().toISOString();
+
+    const rows: BudgetTransaction[] = [];
+    for (const input of items) {
+      const cleanAmount = Math.round(Number(input.amount) * 100) / 100;
+      if (!Number.isFinite(cleanAmount) || cleanAmount <= 0 || cleanAmount >= 100_000_000) {
+        continue;
+      }
+      const isPrivate =
+        input.is_private ?? (input.kind === "income" ? !myShareIncome : false);
+      const status =
+        input.status ?? (input.category_key ? "confirmed" : "needs_review");
+      const catMeta = findCategoryMeta(
+        input.category_key,
+        data.budgetCategories,
+        input.kind,
+      );
+      const cleanMerchant =
+        input.merchant.trim().slice(0, 160) ||
+        (input.category_key ? catMeta.name : "");
+      const occurredOn = /^\d{4}-\d{2}-\d{2}$/.test(input.occurred_on)
+        ? input.occurred_on
+        : kyivDate();
+
+      const occurredAt =
+        input.occurred_at && /^\d{4}-\d{2}-\d{2}T/.test(input.occurred_at)
+          ? input.occurred_at
+          : `${occurredOn}T12:00:00.000Z`;
+
+      rows.push({
+        id: crypto.randomUUID(),
+        couple_id: activeCoupleId ?? DEMO_COUPLE,
+        user_id: userId,
+        kind: input.kind,
+        amount: cleanAmount,
+        merchant: cleanMerchant,
+        note: (input.note ?? "").trim().slice(0, 500),
+        category_key: input.category_key,
+        status,
+        source: input.source ?? "manual",
+        is_private: isPrivate,
+        card_label: (input.card_label ?? "").trim().slice(0, 60),
+        occurred_on: occurredOn,
+        occurred_at: occurredAt,
+        created_at: now,
+        updated_at: now,
+      });
+    }
+
+    if (rows.length === 0) {
+      notify("Немає коректних операцій для імпорту");
+      return 0;
+    }
+
+    if (supabase && !budgetLocalModeRef.current) {
+      if (busy.current.has("import-budget-tx")) return 0;
+      busy.current.add("import-budget-tx");
+      setPending([...busy.current]);
+      const insertedAll: BudgetTransaction[] = [];
+      try {
+        const CHUNK_SIZE = 100;
+        for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+          const chunk = rows.slice(i, i + CHUNK_SIZE).map((r) => ({
+            id: r.id,
+            couple_id: r.couple_id,
+            user_id: r.user_id,
+            kind: r.kind,
+            amount: r.amount,
+            merchant: r.merchant,
+            note: r.note,
+            category_key: r.category_key,
+            status: r.status,
+            source: r.source,
+            is_private: r.is_private,
+            card_label: r.card_label,
+            occurred_on: r.occurred_on,
+            occurred_at: r.occurred_at,
+          }));
+          const inserted = (await checked(
+            supabase.from("budget_transactions").insert(chunk).select("*"),
+          )) as BudgetTransaction[];
+          insertedAll.push(...inserted);
+        }
+        setData((d) => {
+          const insertedIds = new Set(insertedAll.map((tx) => tx.id));
+          return {
+            ...d,
+            budgetTransactions: [
+              ...insertedAll,
+              ...d.budgetTransactions.filter((tx) => !insertedIds.has(tx.id)),
+            ],
+          };
+        });
+        await refresh();
+        notify(`Імпортовано операцій: ${insertedAll.length}`);
+        return insertedAll.length;
+      } catch (err) {
+        if (isMissingBudgetTableError(err)) {
+          budgetLocalModeRef.current = true;
+          if (activeCoupleId) {
+            writeLocalBudgetState(activeCoupleId, userId, (prev) => ({
+              ...prev,
+              pendingSync: true,
+              transactions: [...rows, ...prev.transactions],
+            }));
+          }
+          setData((d) => ({
+            ...d,
+            budgetTransactions: [...rows, ...d.budgetTransactions],
+          }));
+          notify(`Імпортовано операцій: ${rows.length}`);
+          return rows.length;
+        }
+        notify(errorMessage(err));
+        return insertedAll.length;
+      } finally {
+        busy.current.delete("import-budget-tx");
+        setPending([...busy.current]);
+      }
+    }
+
+    const ok = await run(
+      "import-budget-tx",
+      async () => {
+        if (supabase && activeCoupleId) {
+          writeLocalBudgetState(activeCoupleId, userId, (prev) => ({
+            ...prev,
+            pendingSync: true,
+            transactions: [...rows, ...prev.transactions],
+          }));
+        }
+        setData((d) => ({
+          ...d,
+          budgetTransactions: [...rows, ...d.budgetTransactions],
+        }));
+      },
+      `Імпортовано операцій: ${rows.length}`,
+    );
+    return ok ? rows.length : 0;
+  };
+
   const updateBudgetTransaction = async (
     id: string,
     patch: Partial<
@@ -4077,6 +4155,7 @@ function useStore() {
     saveProfile,
     reserve,
     addBudgetTransaction,
+    importBudgetTransactions,
     updateBudgetTransaction,
     removeBudgetTransaction,
     categorizeBudgetTransaction,
