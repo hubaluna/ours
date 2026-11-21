@@ -18,6 +18,40 @@ function readPublicSupabaseUrl(): string {
   }
 }
 
+function oursBuildVersionPlugin(buildId: string) {
+  const payload = JSON.stringify({ buildId });
+  return {
+    name: "ours-build-version",
+    configureServer(server: {
+      middlewares: {
+        use: (
+          path: string,
+          handler: (
+            req: import("node:http").IncomingMessage,
+            res: import("node:http").ServerResponse,
+          ) => void,
+        ) => void;
+      };
+    }) {
+      server.middlewares.use("/version.json", (_req, res) => {
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Cache-Control", "no-store");
+        res.end(payload);
+      });
+    },
+    generateBundle(this: {
+      emitFile: (file: { type: "asset"; fileName: string; source: string }) => void;
+    }) {
+      this.emitFile({
+        type: "asset",
+        fileName: "version.json",
+        source: payload,
+      });
+    },
+  };
+}
+
 function devLinkPreviewPlugin(supabaseUrl: string) {
   return {
     name: "ours-dev-link-preview-proxy",
@@ -94,11 +128,17 @@ export default defineConfig(({ command, mode }) => {
     envSupabaseUrl && !/YOUR_PROJECT/i.test(envSupabaseUrl)
       ? envSupabaseUrl
       : readPublicSupabaseUrl();
+  const buildId =
+    env.GITHUB_SHA?.slice(0, 12) || new Date().toISOString();
   return {
     base,
+    define: {
+      __APP_BUILD_ID__: JSON.stringify(buildId),
+    },
     plugins: [
       react(),
       tailwindcss(),
+      oursBuildVersionPlugin(buildId),
       devLinkPreviewPlugin(supabaseUrl),
       VitePWA({
         registerType: "autoUpdate",
@@ -145,9 +185,10 @@ export default defineConfig(({ command, mode }) => {
         },
         workbox: {
           navigateFallback: "index.html",
-          navigateFallbackDenylist: [/^\/auth/, /supabase/],
+          navigateFallbackDenylist: [/^\/auth/, /supabase/, /version\.json/],
           importScripts: ["push-events.js"],
           globPatterns: ["**/*.{js,css,html,png,svg,woff2}", "art/*.webp"],
+          globIgnores: ["version.json"],
           runtimeCaching: [
             {
               urlPattern: /\/recipes\/.+\.(?:webp|png|jpe?g)$/,

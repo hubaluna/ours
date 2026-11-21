@@ -10,6 +10,15 @@ if (location.hash.startsWith("#invite=")) {
   );
   history.replaceState(null, "", location.pathname + location.search);
 }
+if (location.search.includes("_v=")) {
+  const cleaned = new URL(location.href);
+  cleaned.searchParams.delete("_v");
+  history.replaceState(
+    null,
+    "",
+    cleaned.pathname + cleaned.search + cleaned.hash,
+  );
+}
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <AppProvider>

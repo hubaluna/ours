@@ -418,7 +418,20 @@ export default function App() {
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
-  } = useRegisterSW();
+  } = useRegisterSW({
+    onRegisteredSW(_swUrl, registration) {
+      if (!registration) return;
+      let lastCheck = Date.now();
+      const checkOnForeground = () => {
+        if (document.visibilityState !== "visible") return;
+        const now = Date.now();
+        if (now - lastCheck < 60_000) return;
+        lastCheck = now;
+        void registration.update().catch(() => {});
+      };
+      document.addEventListener("visibilitychange", checkOnForeground);
+    },
+  });
   useEffect(() => {
     setSettings(false);
     setTab("home");

@@ -97,14 +97,54 @@ describe("pwa-update", () => {
     expect(deleted).not.toContain("user-images");
   });
 
+  it("detects a newer build via version.json even when SW reg.update finds no waiting worker", async () => {
+    const unregister = vi.fn().mockResolvedValue(true);
+    const update = vi.fn().mockResolvedValue(undefined);
+    const mockReg = {
+      waiting: null,
+      installing: null,
+      update,
+      unregister,
+    };
+
+    Object.defineProperty(window.navigator, "serviceWorker", {
+      value: {
+        getRegistration: vi.fn().mockResolvedValue(mockReg),
+      },
+      configurable: true,
+    });
+    Object.defineProperty(window.navigator, "onLine", {
+      value: true,
+      configurable: true,
+    });
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      headers: { get: () => "application/json" },
+      json: () => Promise.resolve({ buildId: "build-new-2" }),
+    } as unknown as Response);
+
+    const result = await forceAppUpdate({ currentBuildId: "build-old-1" });
+    expect(result).toBe("reloading");
+    expect(unregister).toHaveBeenCalledTimes(1);
+  });
+
   it("hardReloadApp calls updateServiceWorker or reloads window", async () => {
     const updateServiceWorker = vi.fn().mockResolvedValue(undefined);
+    const unregister = vi.fn().mockResolvedValue(true);
     Object.defineProperty(window.navigator, "serviceWorker", {
-      value: { getRegistration: vi.fn().mockResolvedValue(null) },
+      value: {
+        getRegistration: vi.fn().mockResolvedValue({
+          waiting: null,
+          installing: null,
+          update: vi.fn().mockResolvedValue(undefined),
+          unregister,
+        }),
+      },
       configurable: true,
     });
 
     await hardReloadApp({ updateServiceWorker });
     expect(updateServiceWorker).toHaveBeenCalledWith(true);
+    expect(unregister).toHaveBeenCalledTimes(1);
   });
 });
