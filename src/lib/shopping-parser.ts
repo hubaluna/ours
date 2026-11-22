@@ -247,3 +247,80 @@ export function isBatchShoppingInput(input: string): boolean {
   const items = parseBatchShoppingInput(input);
   return items.length > 1;
 }
+
+export const SHOPPING_DB_UNITS = new Set([
+  "шт.",
+  "кг",
+  "г",
+  "л",
+  "мл",
+  "уп.",
+  "зубчик",
+  "за смаком",
+  "за рецептом",
+]);
+
+const VALID_CATEGORIES = new Set<string>([
+  "Овочі та фрукти",
+  "М’ясо, риба та яйця",
+  "Молочне",
+  "Хліб і випічка",
+  "Бакалія",
+  "Заморожене",
+  "Напої",
+  "Солодощі та снеки",
+  "Побут і гігієна",
+  "Інше",
+]);
+
+/**
+ * Normalizes a shopping item so it always satisfies the Supabase
+ * `shopping_items_unit_check`, `shopping_items_quantity_check`,
+ * and `shopping_items_category_check` constraints.
+ */
+export function sanitizeShoppingItemForDb<
+  T extends {
+    name: string;
+    quantity: number | null;
+    unit: string;
+    category: string;
+    price: number | null;
+  },
+>(item: T): T {
+  const cleanName = item.name.trim().slice(0, 160);
+  const rawUnit = (item.unit || "").trim().toLowerCase();
+  const strippedUnit = rawUnit.replace(/\.+$/, "");
+  const mappedUnit =
+    UNIT_CANONICAL_MAP[rawUnit] ??
+    UNIT_CANONICAL_MAP[strippedUnit] ??
+    (item.unit || "").trim();
+  const unit = SHOPPING_DB_UNITS.has(mappedUnit) ? mappedUnit : "шт.";
+  const isSpecialUnit = unit === "за смаком" || unit === "за рецептом";
+  const numericQty =
+    item.quantity !== null &&
+    Number.isFinite(item.quantity) &&
+    item.quantity > 0 &&
+    item.quantity < 1_000_000
+      ? Math.round(item.quantity * 1000) / 1000
+      : 1;
+  const quantity = isSpecialUnit ? null : numericQty;
+  const category = VALID_CATEGORIES.has(item.category)
+    ? item.category
+    : groceryCatalogCategory(cleanName);
+  const price =
+    item.price !== null &&
+    Number.isFinite(item.price) &&
+    item.price >= 0 &&
+    item.price < 100_000_000
+      ? item.price
+      : null;
+
+  return {
+    ...item,
+    name: cleanName,
+    quantity,
+    unit,
+    category,
+    price,
+  };
+}

@@ -52,6 +52,16 @@ describe("ShoppingForm Batch Input", () => {
     await waitFor(() => {
       expect(onCloseSpy).toHaveBeenCalledTimes(1);
     });
+
+    const saved = JSON.parse(localStorage.getItem("ours-demo-v1") ?? "{}") as {
+      shopping?: { name: string; quantity: number | null; unit: string }[];
+    };
+    const avocado = saved.shopping?.find((i) => i.name === "Авокадо");
+    expect(avocado).toMatchObject({
+      name: "Авокадо",
+      quantity: 1,
+      unit: "шт.",
+    });
   });
 
   it("keeps normal single-item flow when adding a single product without delimiters", async () => {

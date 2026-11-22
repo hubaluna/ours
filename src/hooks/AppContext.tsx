@@ -66,6 +66,7 @@ import {
 } from "../lib/budget-queue";
 import { customRecipeView, syncDemoMenuShopping } from "../lib/recipe-catalog";
 import { isAtHomeIngredient, normalizePantryName } from "../lib/pantry";
+import { sanitizeShoppingItemForDb } from "../lib/shopping-parser";
 import {
   applyShoppingQueue,
   enqueueShoppingOp,
@@ -2038,24 +2039,32 @@ function useStore() {
           ],
         }));
     });
-  const addShoppingBatch = (
+  const addShoppingBatch = async (
     items: NewShopping[],
     options?: { skipPantryFilter?: boolean },
   ) => {
+    const sanitized = items
+      .map((item) => sanitizeShoppingItemForDb(item))
+      .filter((item) => item.name.length > 0);
     const products = options?.skipPantryFilter
-      ? items
-      : items.filter((item) => !isAtHomeIngredient(item.name, data.pantry));
+      ? sanitized
+      : sanitized.filter((item) => !isAtHomeIngredient(item.name, data.pantry));
     if (!products.length) {
-      notify("Усі потрібні продукти вже є вдома.");
-      return Promise.resolve(false);
+      notify(
+        options?.skipPantryFilter
+          ? "Додайте хоча б один товар."
+          : "Усі потрібні продукти вже є вдома.",
+      );
+      return false;
     }
+    const activeCoupleId = coupleId ?? coupleIdRef.current;
     if (!demo && (!online || !navigator.onLine)) {
       const now = new Date().toISOString();
       for (const value of products) {
         const item: ShoppingItem = {
           ...value,
           id: crypto.randomUUID(),
-          couple_id: coupleId ?? "",
+          couple_id: activeCoupleId ?? "",
           added_by: userId,
           purchased: false,
           session_id: null,
@@ -2074,37 +2083,93 @@ function useStore() {
           ? `Товари (${products.length}) збережено офлайн`
           : `Продукти (${products.length}) збережено офлайн`,
       );
-      return Promise.resolve(true);
+      return true;
     }
-    return run(
-      "recipe",
-      async () => {
-        if (supabase)
+    const busyKey = options?.skipPantryFilter ? "add-shopping-batch" : "recipe";
+    if (!demo && supabase) {
+      if (!activeCoupleId) {
+        notify("Зачекайте завершення синхронізації простору");
+        return false;
+      }
+      if (busy.current.has(busyKey)) return false;
+      busy.current.add(busyKey);
+      setPending([...busy.current]);
+      const now = new Date().toISOString();
+      const rows = products.map((value) => ({
+        id: crypto.randomUUID(),
+        couple_id: activeCoupleId,
+        added_by: userId,
+        purchased: false,
+        session_id: null,
+        created_at: now,
+        updated_at: now,
+        ...value,
+      }));
+      try {
+        if (options?.skipPantryFilter) {
+          await checked(
+            supabase.from("shopping_items").insert(rows).select("id"),
+          );
+        } else {
           await checked(
             supabase.rpc("add_shopping_batch", { p_items: products }),
           );
-        else
-          setData((d) => {
-            const rows = products.map((value) => ({
-              ...value,
-              id: crypto.randomUUID(),
-              couple_id: DEMO_COUPLE,
-              added_by: userId,
-              purchased: false,
-              session_id: null,
-              created_at: new Date().toISOString(),
-            }));
-            return demoActivity(
-              { ...d, shopping: [...d.shopping, ...rows] },
-              "shopping_items",
-              {
-                name: options?.skipPantryFilter
-                  ? `Покупки (${products.length})`
-                  : `Продукти з рецепта · ${products.length}`,
-              },
-              "added",
-            );
-          });
+        }
+        await refresh();
+        notify(
+          options?.skipPantryFilter
+            ? `Товари додано до списку (${products.length})`
+            : "Продукти додано до списку",
+        );
+        return true;
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          for (const item of rows) {
+            enqueueOfflineShopping({
+              op: "add",
+              id: item.id,
+              item,
+              queuedAt: now,
+            });
+          }
+          notify(
+            options?.skipPantryFilter
+              ? `Товари (${products.length}) збережено офлайн`
+              : `Продукти (${products.length}) збережено офлайн`,
+          );
+          return true;
+        }
+        notify(errorMessage(err));
+        return false;
+      } finally {
+        busy.current.delete(busyKey);
+        setPending([...busy.current]);
+      }
+    }
+    return run(
+      busyKey,
+      async () => {
+        setData((d) => {
+          const rows = products.map((value) => ({
+            ...value,
+            id: crypto.randomUUID(),
+            couple_id: DEMO_COUPLE,
+            added_by: userId,
+            purchased: false,
+            session_id: null,
+            created_at: new Date().toISOString(),
+          }));
+          return demoActivity(
+            { ...d, shopping: [...d.shopping, ...rows] },
+            "shopping_items",
+            {
+              name: options?.skipPantryFilter
+                ? `Покупки (${products.length})`
+                : `Продукти з рецепта · ${products.length}`,
+            },
+            "added",
+          );
+        });
       },
       options?.skipPantryFilter
         ? `Товари додано до списку (${products.length})`

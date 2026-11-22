@@ -4,6 +4,8 @@ import {
   isBatchShoppingInput,
   parseBatchShoppingInput,
   parseShoppingItemInput,
+  sanitizeShoppingItemForDb,
+  SHOPPING_DB_UNITS,
 } from "../src/lib/shopping-parser";
 
 describe("Shopping Parser - Single Item Parsing", () => {
@@ -165,5 +167,49 @@ describe("Shopping Parser - Batch Parsing and Detection", () => {
       unit: "шт.",
       category: "Овочі та фрукти",
     });
+  });
+
+  it("sanitizes bare items and unsupported units to satisfy Supabase check constraints", () => {
+    const bare = sanitizeShoppingItemForDb({
+      name: "Авокадо",
+      quantity: null,
+      unit: "шт.",
+      category: "Овочі та фрукти",
+      price: null,
+    });
+    expect(bare.quantity).toBe(1);
+    expect(bare.unit).toBe("шт.");
+    expect(SHOPPING_DB_UNITS.has(bare.unit)).toBe(true);
+
+    const bunch = sanitizeShoppingItemForDb({
+      name: "Кріп",
+      quantity: 2,
+      unit: "пучок",
+      category: "Овочі та фрукти",
+      price: null,
+    });
+    expect(bunch.quantity).toBe(2);
+    expect(bunch.unit).toBe("шт.");
+    expect(SHOPPING_DB_UNITS.has(bunch.unit)).toBe(true);
+
+    const dottedKg = sanitizeShoppingItemForDb({
+      name: "Картопля",
+      quantity: 1.5,
+      unit: "кг.",
+      category: "Овочі та фрукти",
+      price: null,
+    });
+    expect(dottedKg.unit).toBe("кг");
+    expect(dottedKg.quantity).toBe(1.5);
+
+    const toTaste = sanitizeShoppingItemForDb({
+      name: "Сіль",
+      quantity: 1,
+      unit: "за смаком",
+      category: "Бакалія",
+      price: null,
+    });
+    expect(toTaste.unit).toBe("за смаком");
+    expect(toTaste.quantity).toBeNull();
   });
 });

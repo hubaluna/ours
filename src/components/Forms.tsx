@@ -20,6 +20,7 @@ import {
   hasBatchDelimiter,
   isBatchShoppingInput,
   parseBatchShoppingInput,
+  sanitizeShoppingItemForDb,
   splitBatchTokens,
 } from "../lib/shopping-parser";
 import { quantityLabel } from "../lib/recipe-catalog";
@@ -136,7 +137,7 @@ export function ShoppingForm({
     }
     const f = new FormData(e.currentTarget);
     const effectiveUnit = singleFromBatch ? singleFromBatch.unit : unit;
-    const value = {
+    const rawValue = {
       name: parsed.data,
       quantity:
         singleFromBatch && singleFromBatch.quantity !== null
@@ -151,14 +152,15 @@ export function ShoppingForm({
       price: price(String(f.get("price"))),
     };
     if (
-      (value.quantity !== null &&
-        (!Number.isFinite(value.quantity) || value.quantity <= 0)) ||
-      (value.price !== null &&
-        (!Number.isFinite(value.price) || value.price < 0))
+      (rawValue.quantity !== null &&
+        (!Number.isFinite(rawValue.quantity) || rawValue.quantity <= 0)) ||
+      (rawValue.price !== null &&
+        (!Number.isFinite(rawValue.price) || rawValue.price < 0))
     ) {
       setError("Перевірте кількість і ціну.");
       return;
     }
+    const value = sanitizeShoppingItemForDb(rawValue);
     const ok = item
       ? await update("shopping_items", item.id, value, "Товар оновлено")
       : await addShopping(value);
@@ -210,7 +212,10 @@ export function ShoppingForm({
         <div className="sheet-actions form-save">
           <Button
             type="submit"
-            busy={pending.includes(item?.id ?? "add-shopping")}
+            busy={
+              pending.includes(item?.id ?? "add-shopping") ||
+              (!item && pending.includes("add-shopping-batch"))
+            }
           >
             <Plus size={18} />
             {item
