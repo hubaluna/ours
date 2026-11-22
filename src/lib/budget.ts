@@ -348,6 +348,7 @@ export function computeBudgetStats(params: {
   expenseRows: CategoryBreakdownRow[];
   incomeRows: CategoryBreakdownRow[];
   partnerSharesIncome: boolean;
+  partnerHidden: boolean;
 } {
   const {
     transactions,
@@ -407,6 +408,11 @@ export function computeBudgetStats(params: {
 
   const hidePartnerIncome =
     scope === "partner" && !partnerSharesIncome && income.total === 0;
+  const partnerHidden =
+    scope === "partner" &&
+    !partnerSharesIncome &&
+    expense.total === 0 &&
+    income.total === 0;
   const incomeTotal = hidePartnerIncome ? null : income.total;
   const balance =
     incomeTotal === null
@@ -435,6 +441,7 @@ export function computeBudgetStats(params: {
     expenseRows: expense.rows,
     incomeRows: income.rows,
     partnerSharesIncome,
+    partnerHidden,
   };
 }
 

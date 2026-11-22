@@ -276,13 +276,10 @@ export async function handleRequest(request: Request): Promise<Response> {
     const match = autoCategorizeMerchant(merchant, rules, kind);
     const status = match.category_key ? "confirmed" : "needs_review";
 
-    let isPrivate = false;
-    if (kind === "income") {
-      const settings = await rest<{ share_income_with_partner: boolean }[]>(
-        `budget_settings?user_id=eq.${identity.user_id}&select=share_income_with_partner&limit=1`,
-      );
-      isPrivate = !(settings[0]?.share_income_with_partner ?? false);
-    }
+    const settings = await rest<{ share_income_with_partner: boolean }[]>(
+      `budget_settings?user_id=eq.${identity.user_id}&select=share_income_with_partner&limit=1`,
+    );
+    const isPrivate = !(settings[0]?.share_income_with_partner ?? false);
 
     const inserted = await rest<
       {

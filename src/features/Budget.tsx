@@ -330,7 +330,7 @@ export default function Budget() {
             category_key: preset.category_key ?? null,
             status: "confirmed",
             source: "manual",
-            is_private: defaultKind === "income" ? !myShareIncome : false,
+            is_private: !myShareIncome,
             card_label: "",
             occurred_on: today,
             occurred_at: new Date().toISOString(),
@@ -350,7 +350,7 @@ export default function Budget() {
       category_key: tpl.category_key,
       status: "confirmed",
       source: "manual",
-      is_private: tpl.kind === "income" ? !myShareIncome : false,
+      is_private: !myShareIncome,
       occurred_on: today,
     });
     if (ok) setRepeatSheetOpen(false);
@@ -381,7 +381,9 @@ export default function Budget() {
 
   const heroAmountText =
     heroTab === "expense"
-      ? formatUAH(stats.expenseTotal)
+      ? stats.partnerHidden
+        ? "Приховано"
+        : formatUAH(stats.expenseTotal)
       : heroTab === "income"
         ? stats.incomeTotal === null
           ? "Приховано"
@@ -589,9 +591,17 @@ export default function Budget() {
             </strong>
             <div className="budget-hero-sub">
               <span>
-                Заробив{" "}
-                {stats.incomeTotal === null ? "—" : formatUAH(stats.incomeTotal)} ·
-                Витратив {formatUAH(stats.expenseTotal)}
+                {stats.partnerHidden ? (
+                  "Операції партнера приховані"
+                ) : (
+                  <>
+                    Заробив{" "}
+                    {stats.incomeTotal === null
+                      ? "—"
+                      : formatUAH(stats.incomeTotal)}{" "}
+                    · Витратив {formatUAH(stats.expenseTotal)}
+                  </>
+                )}
               </span>
               {stats.savingsRate !== null && (
                 <span className="budget-hero-rate">
@@ -737,7 +747,11 @@ export default function Budget() {
               <div className="budget-ratio-row">
                 <div>
                   <span>Витрати</span>
-                  <strong>{formatUAH(stats.expenseTotal)}</strong>
+                  <strong>
+                    {stats.partnerHidden
+                      ? "Приховано"
+                      : formatUAH(stats.expenseTotal)}
+                  </strong>
                 </div>
                 <div className="budget-skarbo-track">
                   <div
@@ -776,7 +790,12 @@ export default function Budget() {
             </button>
           </div>
 
-          {stats.expenseRows.length === 0 ? (
+          {stats.partnerHidden ? (
+            <div className="budget-empty-inline">
+              <Lock size={16} />
+              <span>Операції партнера приховані</span>
+            </div>
+          ) : stats.expenseRows.length === 0 ? (
             <div className="budget-empty-inline">
               <Wallet size={20} />
               <span>За обраний період витрат немає</span>
@@ -855,17 +874,18 @@ export default function Budget() {
             <button
               type="button"
               className="budget-privacy-chip"
+              aria-label="Показувати мої операції партнеру"
               onClick={() => void setBudgetIncomeSharing(!myShareIncome)}
             >
               {myShareIncome ? <Eye size={13} /> : <EyeOff size={13} />}
-              <span>{myShareIncome ? "Спільні" : "Тільки мої"}</span>
+              <span>{myShareIncome ? "Мої відкриті" : "Мої приховані"}</span>
             </button>
           </div>
 
           {scope === "partner" && stats.incomeTotal === null ? (
             <div className="budget-empty-inline">
               <Lock size={16} />
-              <span>Доходи партнера приховані</span>
+              <span>Операції партнера приховані</span>
             </div>
           ) : stats.incomeRows.length === 0 ? (
             <div className="budget-empty-inline">
@@ -983,12 +1003,21 @@ export default function Budget() {
 
             {displayedOperations.length === 0 ? (
               <div className="budget-empty-inline">
-                <Wallet size={18} />
-                <span>
-                  {searchQuery || categoryFilter
-                    ? "За цим фільтром операцій не знайдено"
-                    : "Операцій за обраний період ще немає"}
-                </span>
+                {stats.partnerHidden && !searchQuery && !categoryFilter ? (
+                  <>
+                    <Lock size={18} />
+                    <span>Операції партнера приховані</span>
+                  </>
+                ) : (
+                  <>
+                    <Wallet size={18} />
+                    <span>
+                      {searchQuery || categoryFilter
+                        ? "За цим фільтром операцій не знайдено"
+                        : "Операцій за обраний період ще немає"}
+                    </span>
+                  </>
+                )}
               </div>
             ) : (
               <>
@@ -1231,8 +1260,7 @@ export default function Budget() {
                       category_key: editingTx.category_key,
                       status: "confirmed",
                       source: "manual",
-                      is_private:
-                        editingTx.kind === "income" ? !myShareIncome : false,
+                      is_private: !myShareIncome,
                       occurred_on: today,
                     });
                     setTxSheetOpen(false);
@@ -1365,7 +1393,7 @@ export default function Budget() {
             expenseCategories={expenseCategories}
             incomeCategories={incomeCategories}
             merchantRules={data.budgetMerchantRules}
-            defaultIncomePrivate={!myShareIncome}
+            defaultPrivate={!myShareIncome}
             today={today}
             busy={pending.includes("import-budget-tx")}
             notify={notify}
@@ -1966,8 +1994,7 @@ function BudgetTxSheet({
     ),
   );
   const [isPrivate, setIsPrivate] = useState(
-    initial?.is_private ??
-      ((initial?.kind ?? "expense") === "income" ? !myShareIncome : false),
+    initial?.is_private ?? !myShareIncome,
   );
   const [manualCategoryPicked, setManualCategoryPicked] = useState(
     Boolean(initial?.category_key),
@@ -1979,7 +2006,6 @@ function BudgetTxSheet({
   const switchKind = (nextKind: BudgetKind) => {
     setKind(nextKind);
     setCategoryKey(nextKind === "income" ? "salary" : "groceries");
-    setIsPrivate(nextKind === "income" ? !myShareIncome : false);
     setManualCategoryPicked(false);
   };
 
@@ -2116,16 +2142,14 @@ function BudgetTxSheet({
           </Field>
         </div>
 
-        {kind === "income" && (
-          <label className="budget-rule-remember">
-            <input
-              type="checkbox"
-              checked={isPrivate}
-              onChange={(e) => setIsPrivate(e.target.checked)}
-            />
-            <span>Приватний запис (бачите тільки ви)</span>
-          </label>
-        )}
+        <label className="budget-rule-remember">
+          <input
+            type="checkbox"
+            checked={isPrivate}
+            onChange={(e) => setIsPrivate(e.target.checked)}
+          />
+          <span>Приватний запис (бачите тільки ви)</span>
+        </label>
 
         <div className="budget-sheet-sticky-actions">
           <Button type="submit" busy={busy}>
@@ -2463,7 +2487,7 @@ function BudgetSettingsSheet({
           <div className="budget-settings-panel" role="tabpanel">
             <section className="budget-settings-card">
               <h3>
-                <Lock size={15} /> Приватність доходів
+                <Lock size={15} /> Приватність операцій
               </h3>
               <label className="push-reminder-toggle">
                 <input
@@ -2473,10 +2497,11 @@ function BudgetSettingsSheet({
                   onChange={(e) => onToggleShareIncome(e.target.checked)}
                 />
                 <span>
-                  <strong>Показувати мої доходи партнеру</strong>
+                  <strong>Показувати мої операції партнеру</strong>
                   <small>
-                    За замовчуванням доходи бачите лише ви. Витрати завжди
-                    спільні.
+                    Керує видимістю всіх ваших витрат і доходів, включно з
+                    операціями по картці та Apple Pay. Якщо вимкнено — ваші
+                    операції бачите лише ви.
                   </small>
                 </span>
               </label>
@@ -2942,7 +2967,7 @@ function BudgetTransferSheet({
   expenseCategories,
   incomeCategories,
   merchantRules,
-  defaultIncomePrivate,
+  defaultPrivate,
   today,
   busy,
   notify,
@@ -2955,7 +2980,7 @@ function BudgetTransferSheet({
   expenseCategories: ReturnType<typeof resolveBudgetCategories>;
   incomeCategories: ReturnType<typeof resolveBudgetCategories>;
   merchantRules: BudgetMerchantRule[];
-  defaultIncomePrivate: boolean;
+  defaultPrivate: boolean;
   today: string;
   busy: boolean;
   notify: (text: string) => void;
@@ -3128,9 +3153,7 @@ function BudgetTransferSheet({
         is_private:
           typeof row.is_private === "boolean"
             ? row.is_private
-            : row.kind === "income"
-              ? defaultIncomePrivate
-              : false,
+            : defaultPrivate,
         card_label: row.card_label,
         occurred_on: row.occurred_on || today,
         occurred_at: row.occurred_at,

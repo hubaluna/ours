@@ -602,7 +602,7 @@ function renderReportPages(input: BudgetPdfInput): HTMLCanvasElement[] {
   ctx.font = `600 17px ${font}`;
   const statusLine =
     input.balance === null
-      ? "Доходи партнера приховані"
+      ? "Операції партнера приховані"
       : input.balance >= 0
         ? `Чистий плюс: +${formatUAH(input.balance)}${typeof input.savingsRate === "number" ? ` (${input.savingsRate}%)` : ""}`
         : `Перевитрата за період: ${formatUAH(input.balance)}`;

@@ -816,7 +816,7 @@ begin
 
   update public.budget_transactions
   set is_private = not p_share
-  where couple_id = v_couple and user_id = auth.uid() and kind = 'income';
+  where couple_id = v_couple and user_id = auth.uid();
 end $$;
 
 create or replace function public.delete_budget_category(p_category_id uuid)

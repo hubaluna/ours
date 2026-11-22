@@ -971,4 +971,111 @@ describe("budget module", () => {
       categorizedBy: "bank_category",
     });
   });
+
+  it("hides both partner expenses and incomes when partner disables sharing", () => {
+    const txs: BudgetTransaction[] = [
+      {
+        id: "tx-mine",
+        couple_id: "c1",
+        user_id: "u1",
+        kind: "expense",
+        amount: 420,
+        merchant: "Сільпо",
+        note: "",
+        category_key: "groceries",
+        status: "confirmed",
+        source: "apple_pay",
+        is_private: false,
+        occurred_on: "2026-11-10",
+        occurred_at: "2026-11-10T10:00:00Z",
+        created_at: "2026-11-10T10:00:00Z",
+      },
+      {
+        id: "tx-partner-expense",
+        couple_id: "c1",
+        user_id: "u2",
+        kind: "expense",
+        amount: 950,
+        merchant: "Кафе",
+        note: "",
+        category_key: "restaurants",
+        status: "confirmed",
+        source: "apple_pay",
+        is_private: true,
+        occurred_on: "2026-11-11",
+        occurred_at: "2026-11-11T12:00:00Z",
+        created_at: "2026-11-11T12:00:00Z",
+      },
+      {
+        id: "tx-partner-income",
+        couple_id: "c1",
+        user_id: "u2",
+        kind: "income",
+        amount: 35000,
+        merchant: "Зарплата",
+        note: "",
+        category_key: "salary",
+        status: "confirmed",
+        source: "manual",
+        is_private: true,
+        occurred_on: "2026-11-05",
+        occurred_at: "2026-11-05T10:00:00Z",
+        created_at: "2026-11-05T10:00:00Z",
+      },
+    ];
+    const hiddenSettings: BudgetSettings[] = [
+      { user_id: "u2", couple_id: "c1", share_income_with_partner: false },
+    ];
+
+    const partnerHiddenStats = computeBudgetStats({
+      transactions: txs,
+      customCategories: [],
+      budgetSettings: hiddenSettings,
+      scope: "partner",
+      userId: "u1",
+      from: "2026-11-01",
+      to: "2026-11-30",
+    });
+    expect(partnerHiddenStats.partnerHidden).toBe(true);
+    expect(partnerHiddenStats.expenseTotal).toBe(0);
+    expect(partnerHiddenStats.incomeTotal).toBeNull();
+    expect(partnerHiddenStats.balance).toBeNull();
+    expect(partnerHiddenStats.filteredTransactions).toHaveLength(0);
+
+    const allWithHiddenPartner = computeBudgetStats({
+      transactions: txs,
+      customCategories: [],
+      budgetSettings: hiddenSettings,
+      scope: "all",
+      userId: "u1",
+      from: "2026-11-01",
+      to: "2026-11-30",
+    });
+    expect(allWithHiddenPartner.partnerHidden).toBe(false);
+    expect(allWithHiddenPartner.expenseTotal).toBe(420);
+    expect(allWithHiddenPartner.incomeTotal).toBe(0);
+    expect(allWithHiddenPartner.filteredTransactions.map((t) => t.id)).toEqual([
+      "tx-mine",
+    ]);
+
+    const sharedTxs = txs.map((tx) =>
+      tx.user_id === "u2" ? { ...tx, is_private: false } : tx,
+    );
+    const sharedSettings: BudgetSettings[] = [
+      { user_id: "u2", couple_id: "c1", share_income_with_partner: true },
+    ];
+    const partnerVisibleStats = computeBudgetStats({
+      transactions: sharedTxs,
+      customCategories: [],
+      budgetSettings: sharedSettings,
+      scope: "partner",
+      userId: "u1",
+      from: "2026-11-01",
+      to: "2026-11-30",
+    });
+    expect(partnerVisibleStats.partnerHidden).toBe(false);
+    expect(partnerVisibleStats.expenseTotal).toBe(950);
+    expect(partnerVisibleStats.incomeTotal).toBe(35000);
+    expect(partnerVisibleStats.balance).toBe(34050);
+  });
 });

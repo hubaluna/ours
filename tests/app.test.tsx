@@ -805,6 +805,83 @@ describe("Compact seven-tab app", () => {
       ).not.toBeInTheDocument(),
     );
   });
+
+  it("toggles partner visibility for both expenses and incomes in Budget settings", async () => {
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Відкрити бюджет" }));
+    await screen.findByRole("heading", { name: "Бюджет" });
+
+    await user.click(
+      screen.getByRole("button", { name: "Налаштування бюджету та Apple Pay" }),
+    );
+    const settingsDialog = await screen.findByRole("dialog", {
+      name: "Налаштування бюджету",
+    });
+    const toggle = within(settingsDialog).getByRole("checkbox", {
+      name: /Показувати мої операції партнеру/,
+    });
+    expect(toggle).not.toBeChecked();
+
+    await user.click(toggle);
+    await waitFor(() => {
+      const txs = saved().budgetTransactions as {
+        id: string;
+        user_id: string;
+        kind: string;
+        is_private: boolean;
+      }[];
+      expect(txs.find((t) => t.id === "demo-tx-1")?.is_private).toBe(false);
+      expect(txs.find((t) => t.id === "demo-tx-3")?.is_private).toBe(false);
+      expect(txs.find((t) => t.id === "demo-tx-2")?.is_private).toBe(false);
+    });
+
+    await user.click(toggle);
+    await waitFor(() => {
+      const txs = saved().budgetTransactions as {
+        id: string;
+        user_id: string;
+        kind: string;
+        is_private: boolean;
+      }[];
+      // Both current user's expense AND income become private; partner's tx untouched
+      expect(txs.find((t) => t.id === "demo-tx-1")?.is_private).toBe(true);
+      expect(txs.find((t) => t.id === "demo-tx-3")?.is_private).toBe(true);
+      expect(txs.find((t) => t.id === "demo-tx-2")?.is_private).toBe(false);
+    });
+
+    await user.click(within(settingsDialog).getByRole("button", { name: "Закрити" }));
+    await closed();
+
+    // New expense created while sharing is OFF inherits is_private = true
+    await user.click(screen.getByRole("button", { name: "Додати операцію" }));
+    const txDialog = await screen.findByRole("dialog", { name: "Нова операція" });
+    const privateCheckbox = within(txDialog).getByRole("checkbox", {
+      name: /Приватний запис/,
+    });
+    expect(privateCheckbox).toBeChecked();
+
+    await user.type(within(txDialog).getByPlaceholderText("0,00"), "185");
+    await user.type(
+      within(txDialog).getByLabelText(/Де або на що/),
+      "Приватна кава",
+    );
+    await user.click(
+      within(txDialog).getByRole("button", { name: "Додати операцію" }),
+    );
+    await closed();
+
+    const created = (
+      saved().budgetTransactions as {
+        merchant: string;
+        kind: string;
+        is_private: boolean;
+      }[]
+    ).find((t) => t.merchant === "Приватна кава");
+    expect(created).toMatchObject({
+      kind: "expense",
+      is_private: true,
+    });
+  });
 });
 
 

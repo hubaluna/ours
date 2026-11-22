@@ -726,6 +726,13 @@ function useStore() {
                   p_share: mySetting.share_income_with_partner,
                 }),
               );
+              await checked(
+                supabase
+                  .from("budget_transactions")
+                  .update({ is_private: !mySetting.share_income_with_partner })
+                  .eq("couple_id", couple)
+                  .eq("user_id", userId),
+              );
             }
             markLocalBudgetSynced(couple);
             [
@@ -2375,7 +2382,7 @@ function useStore() {
         const myShareIncome =
           data.budgetSettings.find((s) => s.user_id === userId)
             ?.share_income_with_partner ?? false;
-        const isPrivate = kind === "income" ? !myShareIncome : false;
+        const isPrivate = !myShareIncome;
         ok = await run(
           `restore-${entry.id}`,
           async () => {
@@ -2483,8 +2490,7 @@ function useStore() {
     const myShareIncome =
       data.budgetSettings.find((s) => s.user_id === userId)
         ?.share_income_with_partner ?? false;
-    const isPrivate =
-      input.is_private ?? (input.kind === "income" ? !myShareIncome : false);
+    const isPrivate = input.is_private ?? !myShareIncome;
     const now = new Date().toISOString();
     const status = input.status ?? (input.category_key ? "confirmed" : "needs_review");
     const catMeta = findCategoryMeta(
@@ -2639,8 +2645,7 @@ function useStore() {
       if (!Number.isFinite(cleanAmount) || cleanAmount <= 0 || cleanAmount >= 100_000_000) {
         continue;
       }
-      const isPrivate =
-        input.is_private ?? (input.kind === "income" ? !myShareIncome : false);
+      const isPrivate = input.is_private ?? !myShareIncome;
       const status =
         input.status ?? (input.category_key ? "confirmed" : "needs_review");
       const catMeta = findCategoryMeta(
@@ -3425,9 +3430,7 @@ function useStore() {
             return {
               settings: nextSettings,
               transactions: transactions.map((tx) =>
-                tx.user_id === userId && tx.kind === "income"
-                  ? { ...tx, is_private: !share }
-                  : tx,
+                tx.user_id === userId ? { ...tx, is_private: !share } : tx,
               ),
             };
           };
@@ -3459,6 +3462,13 @@ function useStore() {
             await checked(
               supabase.rpc("set_budget_income_sharing", { p_share: share }),
             );
+            await checked(
+              supabase
+                .from("budget_transactions")
+                .update({ is_private: !share })
+                .eq("couple_id", activeCoupleId)
+                .eq("user_id", userId),
+            );
           } catch (err) {
             if (!isMissingBudgetTableError(err)) throw err;
             budgetLocalModeRef.current = true;
@@ -3468,7 +3478,9 @@ function useStore() {
           applyLocalSharing();
         }
       },
-      share ? "Доходи тепер видимі партнеру" : "Доходи приховано від партнера",
+      share
+        ? "Ваші операції тепер видимі партнеру"
+        : "Ваші операції приховано від партнера",
     );
   };
 
@@ -3798,9 +3810,10 @@ function useStore() {
       merchant: item.title,
       note: "Регулярний платіж",
       category_key: item.category_key,
-      is_private: item.kind === "income"
-        ? !(data.budgetSettings.find((s) => s.user_id === userId)?.share_income_with_partner ?? false)
-        : false,
+      is_private: !(
+        data.budgetSettings.find((s) => s.user_id === userId)
+          ?.share_income_with_partner ?? false
+      ),
       occurred_on: today,
     });
     if (!ok) return false;
