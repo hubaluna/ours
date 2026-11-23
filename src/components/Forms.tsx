@@ -815,15 +815,7 @@ export function EventForm({
       title={event ? "Ваш маленький план" : "Заплануємо щось хороше"}
       onClose={onClose}
     >
-      <form className="form event-form" onSubmit={submit}>
-        <div className="sheet-actions form-save">
-          <Button
-            type="submit"
-            busy={pending.includes(event?.id ?? "add-event")}
-          >
-            {event ? "Зберегти зміни" : "Додати план"}
-          </Button>
-        </div>
+      <form className="form event-form is-entry-sheet" onSubmit={submit}>
         <Field label="Назва">
           <input
             data-autofocus
@@ -853,26 +845,28 @@ export function EventForm({
             </Field>
           )}
         </div>
-        <label className="inline-check">
-          <input
-            type="checkbox"
-            checked={allDay}
-            onChange={(e) => setAllDay(e.target.checked)}
-          />
-          Увесь день
-        </label>
-        <Field label="Повтор">
-          <select
-            name="recurrence"
-            defaultValue={normalizeRecurrence(event?.recurrence)}
-          >
-            {recurrenceOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </Field>
+        <div className="event-row-options">
+          <label className="inline-check event-allday-check">
+            <input
+              type="checkbox"
+              checked={allDay}
+              onChange={(e) => setAllDay(e.target.checked)}
+            />
+            Увесь день
+          </label>
+          <Field label="Повтор">
+            <select
+              name="recurrence"
+              defaultValue={normalizeRecurrence(event?.recurrence)}
+            >
+              {recurrenceOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
         <Field label="Посилання · необов’язково">
           <input
             name="url"
@@ -882,7 +876,10 @@ export function EventForm({
             placeholder="https://"
           />
         </Field>
-        <details className="additional-fields">
+        <details
+          className="additional-fields"
+          open={Boolean(event?.description)}
+        >
           <summary>Довідково</summary>
           <div className="form">
             <Field label="Опис">
@@ -901,6 +898,14 @@ export function EventForm({
             {error}
           </p>
         )}
+        <div className="budget-sheet-sticky-actions is-compact-row">
+          <Button
+            type="submit"
+            busy={pending.includes(event?.id ?? "add-event")}
+          >
+            {event ? "Зберегти зміни" : "Додати план"}
+          </Button>
+        </div>
       </form>
       {event && (
         <ConfirmDelete

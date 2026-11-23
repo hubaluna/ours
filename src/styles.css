@@ -7693,6 +7693,43 @@ button.header-status-badge:active {
     grid-template-columns: 1fr;
   }
 }
+.event-row-options {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 8px;
+  align-items: end;
+}
+.event-allday-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--glass-subtle);
+  font-size: 13.5px;
+  margin: 0;
+  cursor: pointer;
+}
+.form.is-entry-sheet .additional-fields {
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--glass-subtle);
+  overflow: hidden;
+}
+.form.is-entry-sheet .additional-fields summary {
+  padding: 8px 10px;
+  min-height: 34px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+}
+.form.is-entry-sheet .additional-fields > .form {
+  padding: 6px 10px 10px;
+  gap: 6px;
+}
 
 .budget-form-row {
   display: grid;
