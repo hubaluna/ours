@@ -122,7 +122,7 @@ export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const base =
     env.VITE_BASE_PATH ||
-    (command === "build" && mode !== "test" ? "/Ours/" : "/");
+    (command === "build" && mode !== "test" ? "/ours/" : "/");
   const envSupabaseUrl = env.VITE_SUPABASE_URL;
   const supabaseUrl =
     envSupabaseUrl && !/YOUR_PROJECT/i.test(envSupabaseUrl)
@@ -145,10 +145,12 @@ export default defineConfig(({ command, mode }) => {
         includeAssets: [
           "favicon.png",
           "icon-192.png",
+          "icon-512.png",
           "icon-maskable.png",
           "apple-touch-icon.png",
         ],
         manifest: {
+          id: base,
           name: "ours. — простір для двох",
           short_name: "ours.",
           description: "Маленькі речі, які роблять життя разом простішим",
@@ -161,6 +163,7 @@ export default defineConfig(({ command, mode }) => {
           share_target: {
             action: base,
             method: "GET",
+            enctype: "application/x-www-form-urlencoded",
             params: {
               title: "title",
               text: "text",
@@ -168,7 +171,12 @@ export default defineConfig(({ command, mode }) => {
             },
           },
           icons: [
-            { src: "icon-192.png", sizes: "192x192", type: "image/png" },
+            {
+              src: "icon-192.png",
+              sizes: "192x192",
+              type: "image/png",
+              purpose: "any",
+            },
             {
               src: "icon-512.png",
               sizes: "512x512",

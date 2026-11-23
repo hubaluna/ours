@@ -7298,9 +7298,16 @@ button.header-status-badge:active {
   }
 }
 .budget-cat-grid.is-compact {
-  max-height: 222px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  max-height: clamp(148px, calc(100dvh - 430px), 296px);
   overflow-y: auto;
   padding-right: 2px;
+}
+@media (min-width: 460px) {
+  .budget-cat-grid.is-compact {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 .budget-cat-tile {
   display: flex;
@@ -7331,6 +7338,24 @@ button.header-status-badge:active {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.budget-cat-grid.is-compact .budget-cat-tile {
+  min-height: 32px;
+  padding: 4px 6px;
+  gap: 4px;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 1.15;
+}
+.budget-cat-grid.is-compact .budget-cat-tile > span:last-child {
+  display: block;
+  -webkit-line-clamp: unset;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.budget-cat-grid.is-compact .budget-cat-tile-emoji {
+  font-size: 13.5px;
+}
 .budget-cat-tile-dot {
   width: 6px;
   height: 6px;
@@ -7357,29 +7382,172 @@ button.header-status-badge:active {
 .budget-amount-input-wrap {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  min-height: 48px;
-  border-radius: 14px;
+  gap: 6px;
+  padding: 0 10px;
+  min-height: 44px;
+  border-radius: 13px;
   border: 1px solid var(--line);
   background: var(--input-bg);
 }
 .budget-amount-input-wrap input {
   flex: 1;
   min-width: 0;
+  min-height: 0 !important;
   border: 0 !important;
   background: transparent !important;
-  padding: 9px 0 !important;
-  font-size: 24px !important;
+  padding: 6px 0 !important;
+  font-size: 20px !important;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   outline: none;
 }
 .budget-amount-input-wrap span {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--muted);
 }
+
+/* Compact zero-scroll budget entry / edit sheet */
+.sheet:has(.budget-tx-form.is-entry-sheet) {
+  padding: 0 14px calc(14px + env(safe-area-inset-bottom));
+}
+.sheet:has(.budget-tx-form.is-entry-sheet) .sheet-handle-area {
+  height: 18px;
+}
+.sheet:has(.budget-tx-form.is-entry-sheet) .sheet-header {
+  margin: 0 -14px;
+  padding: 0 14px;
+}
+.sheet:has(.budget-tx-form.is-entry-sheet) .sheet-title {
+  margin: 0 0 8px;
+}
+.sheet:has(.budget-tx-form.is-entry-sheet) .sheet-title h2 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+.sheet:has(.budget-tx-form.is-entry-sheet) .sheet-title .icon-button {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+}
+.budget-tx-form.is-entry-sheet {
+  gap: 8px;
+}
+.budget-tx-form.is-entry-sheet .segmented {
+  padding: 3px;
+  min-height: 34px;
+}
+.budget-tx-form.is-entry-sheet .segmented > button {
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: 12.5px;
+}
+.budget-tx-form.is-entry-sheet .field {
+  gap: 3px;
+}
+.budget-tx-form.is-entry-sheet .field > span {
+  font-size: 10.5px;
+  line-height: 1.25;
+}
+.budget-tx-form.is-entry-sheet .field input {
+  min-height: 38px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  font-size: 16px;
+  line-height: 1.3;
+}
+.budget-tx-form.is-entry-sheet .budget-amount-input-wrap {
+  min-height: 38px;
+  padding: 0 10px;
+  border-radius: 12px;
+}
+.budget-tx-form.is-entry-sheet .budget-amount-input-wrap input {
+  padding: 4px 0 !important;
+  font-size: 18px !important;
+  line-height: 1.2;
+}
+.budget-tx-form.is-entry-sheet .budget-amount-input-wrap span {
+  font-size: 15px;
+}
+.budget-tx-top-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(126px, 0.9fr);
+  gap: 8px;
+  align-items: end;
+}
+.budget-tx-form.is-entry-sheet .field input.budget-tx-date-input {
+  font-size: 13.5px;
+  padding: 6px 8px;
+  font-variant-numeric: tabular-nums;
+}
+.budget-tx-cat-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.budget-tx-form.is-entry-sheet .budget-cat-picker-head {
+  font-size: 11px;
+  min-height: 22px;
+}
+.budget-tx-form.is-entry-sheet .budget-inline-link {
+  min-height: 24px;
+  padding: 2px 7px;
+  font-size: 11.5px;
+}
+.budget-tx-more {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.budget-tx-more-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+  padding: 5px 10px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: var(--glass-subtle);
+  color: var(--text);
+  font-size: 12.5px;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.budget-tx-more-toggle.is-open {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
+}
+.budget-tx-more-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.budget-tx-more-label strong {
+  font-size: 12.5px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.budget-tx-more-summary {
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.budget-tx-more-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  background: var(--glass-subtle);
+  border: 1px solid var(--glass-edge);
+}
+
 .budget-form-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -7403,6 +7571,39 @@ button.header-status-badge:active {
   width: 100%;
   min-height: 44px;
   margin: 0;
+}
+.budget-sheet-sticky-actions.is-compact-row {
+  margin-top: 2px;
+  padding-top: 8px;
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+}
+.budget-sheet-sticky-actions.is-compact-row .budget-tx-submit-btn {
+  flex: 1;
+  width: auto;
+  min-height: 42px;
+  margin: 0;
+}
+.budget-tx-action-icons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.budget-tx-icon-action {
+  width: 42px !important;
+  min-width: 42px;
+  min-height: 42px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.budget-tx-icon-action.danger.ghost {
+  border: 1px solid color-mix(in srgb, var(--danger, #dc2626) 32%, var(--line));
+  background: color-mix(in srgb, var(--danger, #dc2626) 8%, transparent);
 }
 .budget-sheet-secondary-actions {
   display: grid;
@@ -9328,6 +9529,86 @@ button.header-status-badge:active {
 .install-note p {
   font-size: var(--text-xs);
   line-height: 1.45;
+}
+.push-test-feedback {
+  margin-top: 8px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-edge);
+  background: var(--glass-subtle);
+}
+.push-test-feedback.is-ok {
+  color: var(--accent-ink, var(--text));
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--glass-edge));
+}
+.push-test-feedback.is-warn {
+  color: var(--text);
+}
+.share-sheet-setup {
+  margin-top: 8px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--glass-edge);
+  background: var(--glass-subtle);
+  overflow: hidden;
+}
+.share-sheet-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.share-sheet-toggle span {
+  flex: 1;
+}
+.share-sheet-toggle .settings-row-chevron.is-open {
+  transform: rotate(90deg);
+}
+.share-sheet-body {
+  padding: 0 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.share-sheet-body .settings-help {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--muted);
+}
+.share-sheet-steps {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+.share-sheet-copy-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.share-sheet-copy-row input {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  padding: 8px 10px;
+}
+.share-sheet-copy-row .button {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: var(--text-xs);
 }
 .subtle-note {
   font-size: var(--text-xs);

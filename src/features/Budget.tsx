@@ -1999,6 +1999,7 @@ function BudgetTxSheet({
   const [manualCategoryPicked, setManualCategoryPicked] = useState(
     Boolean(initial?.category_key),
   );
+  const [moreOpen, setMoreOpen] = useState(false);
   const amountInputRef = useRef<HTMLInputElement>(null);
 
   const categories = kind === "income" ? incomeCategories : expenseCategories;
@@ -2046,7 +2047,11 @@ function BudgetTxSheet({
       title={isEdit ? "Редагувати операцію" : "Нова операція"}
       onClose={onClose}
     >
-      <form className="form budget-tx-form" onSubmit={submit} noValidate>
+      <form
+        className="form budget-tx-form is-entry-sheet"
+        onSubmit={submit}
+        noValidate
+      >
         <div className="segmented" role="tablist">
           {(
             [
@@ -2067,118 +2072,147 @@ function BudgetTxSheet({
           ))}
         </div>
 
-        <Field label="Сума (₴)">
-          <div className="budget-amount-input-wrap">
+        <div className="budget-tx-top-row">
+          <Field label="Сума (₴)">
+            <div className="budget-amount-input-wrap">
+              <input
+                ref={amountInputRef}
+                data-autofocus={isEdit ? undefined : ""}
+                type="text"
+                inputMode="decimal"
+                placeholder="0,00"
+                value={amountStr}
+                onChange={(e) => setAmountStr(e.target.value)}
+              />
+              <span>₴</span>
+            </div>
+          </Field>
+
+          <Field label="Дата">
             <input
-              ref={amountInputRef}
-              data-autofocus={isEdit ? undefined : ""}
-              type="text"
-              inputMode="decimal"
-              placeholder="0,00"
-              value={amountStr}
-              onChange={(e) => setAmountStr(e.target.value)}
+              type="date"
+              className="budget-tx-date-input"
+              value={occurredOn}
+              onChange={(e) => setOccurredOn(e.target.value)}
             />
-            <span>₴</span>
-          </div>
-        </Field>
-
-        <div className="budget-cat-picker-head">
-          <span>Категорія</span>
-          <button
-            type="button"
-            className="budget-inline-link"
-            onClick={() => onOpenNewCategory(kind)}
-          >
-            + Власна
-          </button>
+          </Field>
         </div>
-        <div className="budget-cat-grid is-compact">
-          {categories.map((cat) => (
+
+        <div className="budget-tx-cat-block">
+          <div className="budget-cat-picker-head">
+            <span>Категорія</span>
             <button
-              key={cat.key}
               type="button"
-              className={`budget-cat-tile ${
-                categoryKey === cat.key ? "active" : ""
-              }`}
-              onClick={() => {
-                setCategoryKey(cat.key);
-                setManualCategoryPicked(true);
-              }}
+              className="budget-inline-link"
+              onClick={() => onOpenNewCategory(kind)}
             >
-              <span className="budget-cat-tile-emoji">{cat.emoji}</span>
-              <span>{cat.name}</span>
+              + Власна
             </button>
-          ))}
+          </div>
+          <div className="budget-cat-grid is-compact">
+            {categories.map((cat) => (
+              <button
+                key={cat.key}
+                type="button"
+                className={`budget-cat-tile ${
+                  categoryKey === cat.key ? "active" : ""
+                }`}
+                onClick={() => {
+                  setCategoryKey(cat.key);
+                  setManualCategoryPicked(true);
+                }}
+              >
+                <span className="budget-cat-tile-emoji">{cat.emoji}</span>
+                <span>{cat.name}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        <Field label={kind === "income" ? "Джерело (необов’язково)" : "Де або на що (необов’язково)"}>
+        <Field label={kind === "income" ? "Джерело" : "Де або на що"}>
           <input
             value={merchant}
             onChange={(e) => handleMerchantChange(e.target.value)}
             placeholder={
               kind === "income"
-                ? "Напр.: Зарплата, Фриланс"
-                : "Напр.: Сільпо, Fora, Кава"
+                ? "Напр.: Зарплата, Фриланс (необов’язково)"
+                : "Напр.: Сільпо, Fora, Кава (необов’язково)"
             }
             maxLength={160}
           />
         </Field>
 
-        <div className="budget-form-row">
-          <Field label="Дата">
-            <input
-              type="date"
-              value={occurredOn}
-              onChange={(e) => setOccurredOn(e.target.value)}
-            />
-          </Field>
-          <Field label="Нотатка">
-            <input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Коментар"
-              maxLength={500}
-            />
-          </Field>
+        <div className="budget-tx-more">
+          <button
+            type="button"
+            className={`budget-tx-more-toggle ${moreOpen ? "is-open" : ""}`}
+            aria-expanded={moreOpen}
+            onClick={() => setMoreOpen((v) => !v)}
+          >
+            <span className="budget-tx-more-label">
+              <strong>Ще</strong>
+              {!moreOpen && (
+                <span className="budget-tx-more-summary">
+                  {isPrivate ? "Приватний" : "Спільний"}
+                  {note.trim() ? " · є нотатка" : ""}
+                </span>
+              )}
+            </span>
+            {moreOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          </button>
+
+          {moreOpen && (
+            <div className="budget-tx-more-body">
+              <Field label="Нотатка">
+                <input
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Коментар"
+                  maxLength={500}
+                />
+              </Field>
+              <label className="budget-rule-remember">
+                <input
+                  type="checkbox"
+                  checked={isPrivate}
+                  onChange={(e) => setIsPrivate(e.target.checked)}
+                />
+                <span>Приватний запис (бачите тільки ви)</span>
+              </label>
+            </div>
+          )}
         </div>
 
-        <label className="budget-rule-remember">
-          <input
-            type="checkbox"
-            checked={isPrivate}
-            onChange={(e) => setIsPrivate(e.target.checked)}
-          />
-          <span>Приватний запис (бачите тільки ви)</span>
-        </label>
-
-        <div className="budget-sheet-sticky-actions">
-          <Button type="submit" busy={busy}>
-            {isEdit ? "Зберегти зміни" : "Додати операцію"}
-          </Button>
+        <div className="budget-sheet-sticky-actions is-compact-row">
           {(onRepeat || onDelete) && (
-            <div className="budget-sheet-secondary-actions">
+            <div className="budget-tx-action-icons">
               {onRepeat && (
                 <Button
                   type="button"
-                  className="secondary"
+                  className="secondary budget-tx-icon-action"
+                  aria-label="Повторити"
+                  title="Повторити сьогодні"
                   onClick={() => void onRepeat()}
                 >
-                  <Repeat2 size={15} />
-                  Повторити
+                  <Repeat2 size={16} />
                 </Button>
               )}
               {onDelete && (
                 <Button
                   type="button"
-                  className="danger ghost"
+                  className="danger ghost budget-tx-icon-action"
+                  aria-label="Видалити"
+                  title="Видалити операцію"
                   onClick={() => void onDelete()}
                 >
-                  <Trash2 size={15} />
-                  Видалити
+                  <Trash2 size={16} />
                 </Button>
               )}
             </div>
           )}
+          <Button type="submit" busy={busy} className="budget-tx-submit-btn">
+            {isEdit ? "Зберегти зміни" : "Додати операцію"}
+          </Button>
         </div>
       </form>
     </BottomSheet>

@@ -852,13 +852,24 @@ describe("Compact seven-tab app", () => {
     await user.click(within(settingsDialog).getByRole("button", { name: "Закрити" }));
     await closed();
 
-    // New expense created while sharing is OFF inherits is_private = true
+    // New expense created while sharing is OFF inherits is_private = true,
+    // with Note & Private tucked behind the "Ще" toggle by default
     await user.click(screen.getByRole("button", { name: "Додати операцію" }));
     const txDialog = await screen.findByRole("dialog", { name: "Нова операція" });
+    expect(
+      within(txDialog).queryByRole("checkbox", { name: /Приватний запис/ }),
+    ).not.toBeInTheDocument();
+    expect(within(txDialog).queryByLabelText("Нотатка")).not.toBeInTheDocument();
+
+    const moreToggle = within(txDialog).getByRole("button", { name: /Ще/ });
+    expect(moreToggle).toHaveTextContent(/Приватний/);
+    await user.click(moreToggle);
+
     const privateCheckbox = within(txDialog).getByRole("checkbox", {
       name: /Приватний запис/,
     });
     expect(privateCheckbox).toBeChecked();
+    expect(within(txDialog).getByLabelText("Нотатка")).toBeInTheDocument();
 
     await user.type(within(txDialog).getByPlaceholderText("0,00"), "185");
     await user.type(

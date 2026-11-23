@@ -48,10 +48,12 @@ export function detectShareTarget(url: string): ShareTargetDestination {
 
   // 1. Movie / cinema domains or path keywords
   if (
-    /(?:imdb\.com|themoviedb\.org|tmdb\.org|megogo\.net|sweet\.tv|netflix\.com|kinobaza|kinoafisha|letterboxd\.com|rottentomatoes\.com|trailers?\b|kino-teatr|tvmaze\.com)/i.test(
+    /(?:imdb\.com|themoviedb\.org|tmdb\.org|megogo\.net|sweet\.tv|netflix\.com|kinobaza|kinoafisha|letterboxd\.com|rottentomatoes\.com|trailers?\b|kino-teatr|tvmaze\.com|uakino|uaserials|uafix|uaflix|eneyida|hdrezka)/i.test(
       lower,
     ) ||
-    /\b(?:movie|film|trailer|cinema)\b/i.test(lower)
+    /(?:^|[/._-])(?:movie|film|filmy|serials?|seriesss|sezon|trailer|cinema)(?:$|[/._-])/i.test(
+      lower,
+    )
   ) {
     return "movie";
   }

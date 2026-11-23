@@ -59,6 +59,14 @@ describe("Auto-detection of import destination", () => {
     expect(detectShareTarget("https://www.netflix.com/title/800123")).toBe(
       "movie",
     );
+    expect(
+      detectShareTarget(
+        "https://uakino.best/seriesss/detective_series/17261--ne-lishilos-zhodnogo-1-sezon.html",
+      ),
+    ).toBe("movie");
+    expect(
+      detectShareTarget("https://uaserials.com/12861-nichna-zmina-2025.html"),
+    ).toBe("movie");
   });
 
   it("detects recipe and culinary domains or paths as menu", () => {

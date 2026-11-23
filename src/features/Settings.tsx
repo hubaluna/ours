@@ -12,6 +12,7 @@ import {
   Moon,
   RefreshCw,
   RotateCcw,
+  Share2,
   Smartphone,
   Sparkles,
   Sun,
@@ -727,6 +728,7 @@ export default function Settings({
             <Smartphone size={17} />
             <p>На iPhone: Safari → «Поширити» → «На початковий екран».</p>
           </div>
+          <ShareSheetSetup notify={notify} />
           {demo && (
             <p className="subtle-note">
               Деморежим. Дані зберігаються тільки в цьому браузері.
@@ -777,6 +779,10 @@ function PushSettings({
     getReminderPushEnabled(),
   );
   const [testing, setTesting] = useState(false);
+  const [testFeedback, setTestFeedback] = useState<{
+    ok: boolean;
+    text: string;
+  } | null>(null);
 
   const refreshDeviceState = async () => {
     if (typeof window === "undefined") return;
@@ -890,34 +896,41 @@ function PushSettings({
   };
   const testNotification = async () => {
     setTesting(true);
+    setTestFeedback(null);
     try {
       if (!demo && coupleId && !pushSupportMessage()) {
         const result = await sendTestServerPush(userId, coupleId);
         await refreshDeviceState();
         if (result.kind === "server") {
           setRemindersEnabled(true);
+          setTestFeedback({ ok: true, text: result.message });
           notify(result.message);
           return;
         }
         if (result.kind === "error") {
+          setTestFeedback({ ok: false, text: result.message });
           notify(result.message);
           return;
         }
         // Fallback when server push-dispatch hasn't been redeployed yet:
         await sendTestReminderNotification();
         setRemindersEnabled(true);
-        notify(`Локальне сповіщення працює. ${result.message}`);
+        const msg = `Локальне сповіщення працює, але серверний push ще не активний. ${result.message}`;
+        setTestFeedback({ ok: false, text: msg });
+        notify(msg);
         return;
       }
       await sendTestReminderNotification();
       setRemindersEnabled(true);
+      setTestFeedback({ ok: true, text: "Тестове локальне сповіщення надіслано." });
       notify("Тестове сповіщення надіслано.");
     } catch (error) {
-      notify(
+      const msg =
         error instanceof Error
           ? error.message
-          : "Не вдалося надіслати тестове сповіщення.",
-      );
+          : "Не вдалося надіслати тестове сповіщення.";
+      setTestFeedback({ ok: false, text: msg });
+      notify(msg);
     } finally {
       setTesting(false);
     }
@@ -1025,6 +1038,14 @@ function PushSettings({
           </Button>
         )}
       </div>
+      {testFeedback && (
+        <p
+          role="status"
+          className={`settings-help push-test-feedback${testFeedback.ok ? " is-ok" : " is-warn"}`}
+        >
+          {testFeedback.text}
+        </p>
+      )}
       {preferences.enabled && (
         <div className="push-kind-list">
           {(
@@ -1049,5 +1070,90 @@ function PushSettings({
         </div>
       )}
     </section>
+  );
+}
+
+function ShareSheetSetup({ notify }: { notify: (text: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const shareBaseUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}${import.meta.env.BASE_URL}?text=`
+      : "https://hubaluna.github.io/ours/?text=";
+
+  const copyShareUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(shareBaseUrl);
+      notify("Адресу для меню «Поширити» скопійовано");
+    } catch {
+      notify("Скопіюйте посилання вручну з поля нижче.");
+    }
+  };
+
+  return (
+    <div className="share-sheet-setup">
+      <button
+        type="button"
+        className="share-sheet-toggle"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Share2 size={15} />
+        <span>Як додати ours. у меню «Поширити»</span>
+        <ChevronRight
+          size={15}
+          className={`settings-row-chevron${open ? " is-open" : ""}`}
+        />
+      </button>
+      {open && (
+        <div className="share-sheet-body">
+          <p className="settings-help">
+            <strong>На iPhone:</strong> iOS не додає вебзастосунки в меню
+            «Поширити» автоматично, але це робиться за 30 секунд через
+            «Швидкі команди»:
+          </p>
+          <ol className="share-sheet-steps">
+            <li>
+              Відкрийте <strong>Швидкі команди</strong> → <strong>+</strong> →
+              назвіть команду <strong>Додати в ours.</strong>
+            </li>
+            <li>
+              Натисніть <strong>ⓘ</strong> внизу й увімкніть{" "}
+              <strong>Показати на аркуші поширення</strong> (Приймає: URL-адреси
+              та Текст).
+            </li>
+            <li>
+              Додайте дію <strong>Кодувати URL</strong> → виберіть{" "}
+              <em>Ввід швидкої команди</em>.
+            </li>
+            <li>
+              Додайте дію <strong>Відкрити URL-адреси</strong> та вставте
+              префікс нижче, а одразу після <code>?text=</code> підставте{" "}
+              <em>Кодований URL</em>:
+            </li>
+          </ol>
+          <div className="share-sheet-copy-row">
+            <input
+              readOnly
+              value={shareBaseUrl}
+              aria-label="Префікс адреси для швидкої команди"
+              onFocus={(e) => e.currentTarget.select()}
+            />
+            <Button
+              type="button"
+              className="secondary"
+              onClick={() => void copyShareUrl()}
+            >
+              <Copy size={14} />
+              Копіювати
+            </Button>
+          </div>
+          <p className="settings-help">
+            <strong>На Android:</strong> встановіть ours. через Chrome → меню
+            (⋮) → <strong>Встановити додаток</strong> (якщо ставили раніше,
+            перевстановіть іконку).
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
