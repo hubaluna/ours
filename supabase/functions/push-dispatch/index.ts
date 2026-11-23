@@ -264,6 +264,7 @@ async function dispatchToCoupleRecipients(
       if (!pref?.enabled) return false;
       if (kind === "plants") return pref.events;
       if (kind === "budget") return pref.budget ?? true;
+      if (kind === "calendar") return pref.events;
       return pref[kind];
     }),
   );
