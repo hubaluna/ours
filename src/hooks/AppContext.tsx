@@ -78,6 +78,13 @@ import {
   type ShoppingQueueOp,
 } from "../lib/shopping-queue";
 import {
+  enqueueOfflineMutation,
+  readOfflineMutationQueue,
+  writeOfflineMutationQueue,
+  type OfflineMutation,
+  type OfflineMutationTable,
+} from "../lib/offline-mutation-queue";
+import {
   deleteLocalRecurrence,
   normalizeRecurrence,
   readLocalRecurrences,
@@ -198,10 +205,15 @@ function useStore() {
   const [budgetQueue, setBudgetQueue] = useState<BudgetQueueOp[]>(() =>
     readBudgetQueue(demo ? "demo" : "anon"),
   );
+  const [mutationQueue, setMutationQueue] = useState<OfflineMutation[]>(() =>
+    readOfflineMutationQueue(demo ? "demo" : "anon"),
+  );
   const shoppingQueueRef = useRef<ShoppingQueueOp[]>(shoppingQueue),
     flushingQueue = useRef(false),
     budgetQueueRef = useRef<BudgetQueueOp[]>(budgetQueue),
     flushingBudgetQueue = useRef(false),
+    mutationQueueRef = useRef<OfflineMutation[]>(mutationQueue),
+    flushingMutationQueue = useRef(false),
     coupleIdRef = useRef<string | null>(coupleId),
     budgetLocalModeRef = useRef(false),
     budgetRecurringLocalRef = useRef(false);
@@ -218,6 +230,9 @@ function useStore() {
     const loadedBudgetQueue = readBudgetQueue(trashScope);
     budgetQueueRef.current = loadedBudgetQueue;
     setBudgetQueue(loadedBudgetQueue);
+    const loadedMutationQueue = readOfflineMutationQueue(trashScope);
+    mutationQueueRef.current = loadedMutationQueue;
+    setMutationQueue(loadedMutationQueue);
   }, [trashScope]);
   const notify = useCallback(
     (text: string, action?: () => void, label = "Скасувати") =>
@@ -475,6 +490,183 @@ function useStore() {
     },
     [demo, userId, commitBudgetQueue, notify],
   );
+  const commitMutationQueue = useCallback(
+    (updater: (prev: OfflineMutation[]) => OfflineMutation[]) => {
+      const next = updater(mutationQueueRef.current);
+      mutationQueueRef.current = next;
+      setMutationQueue(next);
+      writeOfflineMutationQueue(trashScope, next);
+      return next;
+    },
+    [trashScope],
+  );
+  const enqueueOfflineMutationOp = useCallback(
+    (mut: OfflineMutation) => {
+      commitMutationQueue((prev) => enqueueOfflineMutation(prev, mut));
+    },
+    [commitMutationQueue],
+  );
+  const flushMutationQueue = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (
+        demo ||
+        !supabase ||
+        !userId ||
+        !navigator.onLine ||
+        flushingMutationQueue.current ||
+        !mutationQueueRef.current.length
+      ) {
+        return 0;
+      }
+      flushingMutationQueue.current = true;
+      let syncedCount = 0;
+      try {
+        while (mutationQueueRef.current.length > 0 && navigator.onLine) {
+          const m = mutationQueueRef.current[0];
+          try {
+            if (m.op === "insert") {
+              if (m.table === "events") {
+                const wantedRec = normalizeRecurrence(
+                  typeof m.payload?.recurrence === "string"
+                    ? m.payload.recurrence
+                    : undefined,
+                );
+                try {
+                  await checked(
+                    supabase.from("events").insert(m.payload!).select("id").single(),
+                  );
+                } catch (err) {
+                  if (!isMissingRecurrenceColumn(err)) throw err;
+                  const { recurrence: _drop, ...withoutRecurrence } = m.payload!;
+                  void _drop;
+                  await checked(
+                    supabase
+                      .from("events")
+                      .insert(withoutRecurrence)
+                      .select("id")
+                      .single(),
+                  );
+                  saveLocalRecurrence(m.entityId, wantedRec);
+                }
+              } else if (m.table === "pantry") {
+                await checked(
+                  supabase
+                    .from("pantry_items")
+                    .insert(m.payload!)
+                    .select("id")
+                    .single(),
+                );
+              } else {
+                const { error } = await supabase
+                  .from(m.table)
+                  .insert(m.payload!)
+                  .select("id")
+                  .single();
+                if (error && (error as { code?: string }).code !== "23505") {
+                  throw error;
+                }
+              }
+            } else if (m.op === "update") {
+              if (m.table === "events" && m.payload && "recurrence" in m.payload) {
+                const wantedRec = normalizeRecurrence(
+                  typeof m.payload.recurrence === "string"
+                    ? m.payload.recurrence
+                    : undefined,
+                );
+                try {
+                  await checked(
+                    supabase
+                      .from("events")
+                      .update(m.payload)
+                      .eq("id", m.entityId)
+                      .select("id")
+                      .single(),
+                  );
+                } catch (err) {
+                  if (!isMissingRecurrenceColumn(err)) throw err;
+                  const { recurrence: _drop, ...withoutRecurrence } = m.payload;
+                  void _drop;
+                  await checked(
+                    supabase
+                      .from("events")
+                      .update(withoutRecurrence)
+                      .eq("id", m.entityId)
+                      .select("id")
+                      .single(),
+                  );
+                  saveLocalRecurrence(m.entityId, wantedRec);
+                }
+              } else if (m.table === "pantry") {
+                await checked(
+                  supabase
+                    .from("pantry_items")
+                    .update(m.payload!)
+                    .eq("id", m.entityId)
+                    .select("id")
+                    .single(),
+                );
+              } else {
+                await checked(
+                  supabase
+                    .from(m.table)
+                    .update(m.payload!)
+                    .eq("id", m.entityId)
+                    .select("id")
+                    .single(),
+                );
+              }
+            } else if (m.op === "delete") {
+              if (m.table === "wishes") {
+                await checked(
+                  supabase.rpc("delete_wish", { p_wish_id: m.entityId }),
+                );
+              } else if (m.table === "pantry") {
+                await checked(
+                  supabase
+                    .from("pantry_items")
+                    .delete()
+                    .eq("id", m.entityId)
+                    .select("id")
+                    .single(),
+                );
+              } else {
+                await checked(
+                  supabase
+                    .from(m.table)
+                    .delete()
+                    .eq("id", m.entityId)
+                    .select("id")
+                    .single(),
+                );
+              }
+            }
+            syncedCount++;
+            commitMutationQueue((prev) =>
+              prev.length && prev[0] === m
+                ? prev.slice(1)
+                : prev.filter((item) => item !== m),
+            );
+          } catch (err) {
+            if (isOfflineNetworkError(err)) {
+              break;
+            }
+            commitMutationQueue((prev) =>
+              prev.length && prev[0] === m
+                ? prev.slice(1)
+                : prev.filter((item) => item !== m),
+            );
+          }
+        }
+      } finally {
+        flushingMutationQueue.current = false;
+      }
+      if (syncedCount > 0 && !opts?.silent) {
+        notify("Офлайн-зміни синхронізовано");
+      }
+      return syncedCount;
+    },
+    [demo, userId, commitMutationQueue, notify],
+  );
   const refresh = useCallback(async () => {
     if (!supabase || !userId) return;
     const current = ++revision.current;
@@ -484,6 +676,9 @@ function useStore() {
       }
       if (navigator.onLine && budgetQueueRef.current.length > 0) {
         await flushBudgetQueue({ silent: false });
+      }
+      if (navigator.onLine && mutationQueueRef.current.length > 0) {
+        await flushMutationQueue({ silent: false });
       }
       const members = await checked(
         supabase
@@ -853,7 +1048,7 @@ function useStore() {
     } finally {
       if (current === revision.current) setLoading(false);
     }
-  }, [userId, notify, flushShoppingQueue, flushBudgetQueue, trashScope]);
+  }, [userId, notify, flushShoppingQueue, flushBudgetQueue, flushMutationQueue, trashScope]);
   useEffect(() => {
     if (demo) return;
     if (!userId) {
@@ -1054,17 +1249,55 @@ function useStore() {
     value: Record<string, unknown>,
     key: string,
     message: string,
-  ) =>
-    run(
+  ) => {
+    const isMutationTable =
+      table === "events" ||
+      table === "wishes" ||
+      table === "movies" ||
+      table === "recipes";
+    const now = new Date().toISOString();
+    const row: Record<string, unknown> & { id: string } = {
+      id: crypto.randomUUID(),
+      created_at: now,
+      updated_at: now,
+      ...value,
+    };
+    if (isMutationTable && !demo && (!online || !navigator.onLine)) {
+      if (table === "wishes") {
+        setData((d) => ({
+          ...d,
+          wishes: [row as unknown as Data["wishes"][number], ...d.wishes],
+        }));
+      } else if (table === "events") {
+        setData((d) => ({
+          ...d,
+          events: [row as unknown as Data["events"][number], ...d.events],
+        }));
+      } else if (table === "movies") {
+        setData((d) => ({
+          ...d,
+          movies: [row as unknown as Data["movies"][number], ...d.movies],
+        }));
+      } else if (table === "recipes") {
+        setData((d) => ({
+          ...d,
+          recipes: [row as unknown as Data["recipes"][number], ...d.recipes],
+        }));
+      }
+      enqueueOfflineMutationOp({
+        id: crypto.randomUUID(),
+        table,
+        op: "insert",
+        entityId: row.id,
+        payload: row,
+        queuedAt: now,
+      });
+      if (message) notify(message);
+      return true;
+    }
+    return run(
       key,
       async () => {
-        const now = new Date().toISOString();
-        const row: Record<string, unknown> & { id: string } = {
-          id: crypto.randomUUID(),
-          created_at: now,
-          updated_at: now,
-          ...value,
-        };
         if (supabase) {
           if (table === "events") {
             const wantedRec = normalizeRecurrence(
@@ -1073,6 +1306,25 @@ function useStore() {
             try {
               await checked(supabase.from(table).insert(row).select("id").single());
             } catch (err) {
+              if (isOfflineNetworkError(err)) {
+                setData((d) => ({
+                  ...d,
+                  events: [
+                    row as unknown as Data["events"][number],
+                    ...d.events,
+                  ],
+                }));
+                enqueueOfflineMutationOp({
+                  id: crypto.randomUUID(),
+                  table: "events",
+                  op: "insert",
+                  entityId: row.id,
+                  payload: row,
+                  queuedAt: now,
+                });
+                notify(message || "Збережено офлайн · синхронізується з мережею");
+                return;
+              }
               if (!isMissingRecurrenceColumn(err)) throw err;
               const { recurrence: _drop, ...withoutRecurrence } = row;
               void _drop;
@@ -1082,7 +1334,39 @@ function useStore() {
               saveLocalRecurrence(row.id, wantedRec);
             }
           } else {
-            await checked(supabase.from(table).insert(row).select("id").single());
+            try {
+              await checked(supabase.from(table).insert(row).select("id").single());
+            } catch (err) {
+              if (isMutationTable && isOfflineNetworkError(err)) {
+                if (table === "wishes") {
+                  setData((d) => ({
+                    ...d,
+                    wishes: [row as unknown as Data["wishes"][number], ...d.wishes],
+                  }));
+                } else if (table === "movies") {
+                  setData((d) => ({
+                    ...d,
+                    movies: [row as unknown as Data["movies"][number], ...d.movies],
+                  }));
+                } else if (table === "recipes") {
+                  setData((d) => ({
+                    ...d,
+                    recipes: [row as unknown as Data["recipes"][number], ...d.recipes],
+                  }));
+                }
+                enqueueOfflineMutationOp({
+                  id: crypto.randomUUID(),
+                  table: table as OfflineMutationTable,
+                  op: "insert",
+                  entityId: row.id,
+                  payload: row,
+                  queuedAt: now,
+                });
+                notify(message || "Збережено офлайн · синхронізується з мережею");
+                return;
+              }
+              throw err;
+            }
           }
         } else {
           const field = (
@@ -1107,6 +1391,7 @@ function useStore() {
       },
       message,
     );
+  };
   const update = async (
     table: Table,
     id: string,
@@ -1181,15 +1466,83 @@ function useStore() {
         setPending([...busy.current]);
       }
     }
+    const isMutationTable =
+      table === "events" ||
+      table === "wishes" ||
+      table === "movies" ||
+      table === "recipes";
+    const hasQueuedMutationOp =
+      isMutationTable &&
+      !demo &&
+      mutationQueueRef.current.some((m) => m.entityId === id);
+    if (
+      isMutationTable &&
+      !demo &&
+      (!online || !navigator.onLine || hasQueuedMutationOp)
+    ) {
+      const field = (
+        {
+          wishes: "wishes",
+          events: "events",
+          movies: "movies",
+          recipes: "recipes",
+        } as const
+      )[table];
+      setData((d) => ({
+        ...d,
+        [field]: d[field].map((row) =>
+          row.id === id
+            ? { ...row, ...patch, updated_at: new Date().toISOString() }
+            : row,
+        ),
+      }));
+      enqueueOfflineMutationOp({
+        id: crypto.randomUUID(),
+        table,
+        op: "update",
+        entityId: id,
+        payload: patch,
+        queuedAt: new Date().toISOString(),
+      });
+      if (online && navigator.onLine && supabase) {
+        void refresh();
+      }
+      if (message) notify(message);
+      return true;
+    }
     return run(
       id,
       async () => {
         if (supabase) {
-          if (table === "events" && "recurrence" in patch) {
-            const wantedRec = normalizeRecurrence(
-              typeof patch.recurrence === "string" ? patch.recurrence : undefined,
-            );
-            try {
+          try {
+            if (table === "events" && "recurrence" in patch) {
+              const wantedRec = normalizeRecurrence(
+                typeof patch.recurrence === "string" ? patch.recurrence : undefined,
+              );
+              try {
+                await checked(
+                  supabase
+                    .from(table)
+                    .update(patch)
+                    .eq("id", id)
+                    .select("id")
+                    .single(),
+                );
+              } catch (err) {
+                if (!isMissingRecurrenceColumn(err)) throw err;
+                const { recurrence: _drop, ...withoutRecurrence } = patch;
+                void _drop;
+                await checked(
+                  supabase
+                    .from(table)
+                    .update(withoutRecurrence)
+                    .eq("id", id)
+                    .select("id")
+                    .single(),
+                );
+                saveLocalRecurrence(id, wantedRec);
+              }
+            } else {
               await checked(
                 supabase
                   .from(table)
@@ -1198,29 +1551,21 @@ function useStore() {
                   .select("id")
                   .single(),
               );
-            } catch (err) {
-              if (!isMissingRecurrenceColumn(err)) throw err;
-              const { recurrence: _drop, ...withoutRecurrence } = patch;
-              void _drop;
-              await checked(
-                supabase
-                  .from(table)
-                  .update(withoutRecurrence)
-                  .eq("id", id)
-                  .select("id")
-                  .single(),
-              );
-              saveLocalRecurrence(id, wantedRec);
             }
-          } else {
-            await checked(
-              supabase
-                .from(table)
-                .update(patch)
-                .eq("id", id)
-                .select("id")
-                .single(),
-            );
+          } catch (err) {
+            if (isMutationTable && isOfflineNetworkError(err)) {
+              enqueueOfflineMutationOp({
+                id: crypto.randomUUID(),
+                table,
+                op: "update",
+                entityId: id,
+                payload: patch,
+                queuedAt: new Date().toISOString(),
+              });
+              notify(message || "Збережено офлайн · синхронізується з мережею");
+              return;
+            }
+            throw err;
           }
         } else {
           const field = (
@@ -1333,12 +1678,75 @@ function useStore() {
       }
       return true;
     }
+    const isMutationTable =
+      table === "wishes" ||
+      table === "events" ||
+      table === "movies" ||
+      table === "recipes";
+    const hasQueuedMutationOp =
+      isMutationTable &&
+      !demo &&
+      mutationQueueRef.current.some((m) => m.entityId === id);
+    if (
+      isMutationTable &&
+      !demo &&
+      (!online || !navigator.onLine || hasQueuedMutationOp)
+    ) {
+      const field = (
+        {
+          wishes: "wishes",
+          events: "events",
+          movies: "movies",
+          recipes: "recipes",
+        } as const
+      )[table];
+      setData((d) => ({
+        ...d,
+        [field]: d[field].filter((r) => r.id !== id),
+      }));
+      enqueueOfflineMutationOp({
+        id: crypto.randomUUID(),
+        table,
+        op: "delete",
+        entityId: id,
+        queuedAt: new Date().toISOString(),
+      });
+      if (online && navigator.onLine && supabase) {
+        void refresh();
+      }
+      if (snap) {
+        const res = pushTrash(table, snap, trashScope);
+        setTrash(res.entries);
+        notify(
+          "Переміщено в кошик (офлайн)",
+          () => void restoreFromTrash(res.entry.id),
+          "Відновити",
+        );
+      } else {
+        notify("Видалено (офлайн)");
+      }
+      return true;
+    }
     let trashedEntry: TrashEntry | null = null;
     const ok = await run(id, async () => {
       if (supabase) {
-        if (table === "wishes")
-          await checked(supabase.rpc("delete_wish", { p_wish_id: id }));
-        else {
+        if (table === "wishes") {
+          try {
+            await checked(supabase.rpc("delete_wish", { p_wish_id: id }));
+          } catch (err) {
+            if (isOfflineNetworkError(err)) {
+              enqueueOfflineMutationOp({
+                id: crypto.randomUUID(),
+                table: "wishes",
+                op: "delete",
+                entityId: id,
+                queuedAt: new Date().toISOString(),
+              });
+            } else {
+              throw err;
+            }
+          }
+        } else {
           try {
             await checked(
               supabase.from(table).delete().eq("id", id).select("id").single(),
@@ -1351,6 +1759,14 @@ function useStore() {
                 op: "remove",
                 id,
                 menuKey,
+                queuedAt: new Date().toISOString(),
+              });
+            } else if (isMutationTable && isOfflineNetworkError(err)) {
+              enqueueOfflineMutationOp({
+                id: crypto.randomUUID(),
+                table,
+                op: "delete",
+                entityId: id,
                 queuedAt: new Date().toISOString(),
               });
             } else {
@@ -1522,46 +1938,123 @@ function useStore() {
       "add-event",
       "План збережено",
     );
-  const addPlant = (value: NewPlant) =>
-    run(
+  const addPlant = (value: NewPlant) => {
+    const now = new Date().toISOString();
+    const row: Plant = {
+      id: crypto.randomUUID(),
+      couple_id: coupleId ?? DEMO_COUPLE,
+      added_by: userId,
+      created_at: now,
+      updated_at: now,
+      wet_checked_at: null,
+      ...value,
+    };
+    if (!demo && (!online || !navigator.onLine)) {
+      setData((d) => ({ ...d, plants: [row, ...d.plants] }));
+      enqueueOfflineMutationOp({
+        id: crypto.randomUUID(),
+        table: "plants",
+        op: "insert",
+        entityId: row.id,
+        payload: { ...value, couple_id: coupleId, added_by: userId },
+        queuedAt: now,
+      });
+      notify("Рослину збережено (офлайн)");
+      return Promise.resolve(true);
+    }
+    return run(
       "add-plant",
       async () => {
         if (supabase) {
-          await checked(
-            supabase
-              .from("plants")
-              .insert({ ...value, couple_id: coupleId, added_by: userId })
-              .select("id")
-              .single(),
-          );
+          try {
+            await checked(
+              supabase
+                .from("plants")
+                .insert({ ...value, couple_id: coupleId, added_by: userId })
+                .select("id")
+                .single(),
+            );
+          } catch (err) {
+            if (isOfflineNetworkError(err)) {
+              setData((d) => ({ ...d, plants: [row, ...d.plants] }));
+              enqueueOfflineMutationOp({
+                id: crypto.randomUUID(),
+                table: "plants",
+                op: "insert",
+                entityId: row.id,
+                payload: { ...value, couple_id: coupleId, added_by: userId },
+                queuedAt: now,
+              });
+              notify("Рослину збережено (офлайн)");
+              return;
+            }
+            throw err;
+          }
         } else {
-          const row: Plant = {
-            id: crypto.randomUUID(),
-            couple_id: coupleId ?? DEMO_COUPLE,
-            added_by: userId,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            wet_checked_at: null,
-            ...value,
-          };
           setData((d) => ({ ...d, plants: [row, ...d.plants] }));
         }
       },
       "Рослину збережено",
     );
-  const updatePlant = (id: string, patch: Partial<NewPlant>) =>
-    run(
+  };
+  const updatePlant = (id: string, patch: Partial<NewPlant>) => {
+    if (!demo && (!online || !navigator.onLine)) {
+      setData((d) => ({
+        ...d,
+        plants: d.plants.map((plant) =>
+          plant.id === id
+            ? { ...plant, ...patch, updated_at: new Date().toISOString() }
+            : plant,
+        ),
+      }));
+      enqueueOfflineMutationOp({
+        id: crypto.randomUUID(),
+        table: "plants",
+        op: "update",
+        entityId: id,
+        payload: patch,
+        queuedAt: new Date().toISOString(),
+      });
+      notify("Дані рослини оновлено (офлайн)");
+      return Promise.resolve(true);
+    }
+    return run(
       `plant-${id}`,
       async () => {
-        if (supabase)
-          await checked(
-            supabase
-              .from("plants")
-              .update(patch)
-              .eq("id", id)
-              .select("id")
-              .single(),
-          );
+        if (supabase) {
+          try {
+            await checked(
+              supabase
+                .from("plants")
+                .update(patch)
+                .eq("id", id)
+                .select("id")
+                .single(),
+            );
+          } catch (err) {
+            if (isOfflineNetworkError(err)) {
+              setData((d) => ({
+                ...d,
+                plants: d.plants.map((plant) =>
+                  plant.id === id
+                    ? { ...plant, ...patch, updated_at: new Date().toISOString() }
+                    : plant,
+                ),
+              }));
+              enqueueOfflineMutationOp({
+                id: crypto.randomUUID(),
+                table: "plants",
+                op: "update",
+                entityId: id,
+                payload: patch,
+                queuedAt: new Date().toISOString(),
+              });
+              notify("Дані рослини оновлено (офлайн)");
+              return;
+            }
+            throw err;
+          }
+        }
         setData((d) => ({
           ...d,
           plants: d.plants.map((plant) =>
@@ -1573,22 +2066,64 @@ function useStore() {
       },
       "Дані рослини оновлено",
     );
+  };
   const removePlant = async (id: string) => {
     const snap = data.plants.find((p) => p.id === id) as
       | Record<string, unknown>
       | undefined;
+    if (!demo && (!online || !navigator.onLine)) {
+      setData((d) => ({
+        ...d,
+        plants: d.plants.filter((plant) => plant.id !== id),
+        plantCare: d.plantCare.filter((entry) => entry.plant_id !== id),
+      }));
+      enqueueOfflineMutationOp({
+        id: crypto.randomUUID(),
+        table: "plants",
+        op: "delete",
+        entityId: id,
+        queuedAt: new Date().toISOString(),
+      });
+      if (snap) {
+        const res = pushTrash("plants", snap, trashScope);
+        setTrash(res.entries);
+        notify(
+          "Рослину переміщено в кошик (офлайн)",
+          () => void restoreFromTrash(res.entry.id),
+          "Відновити",
+        );
+      } else {
+        notify("Рослину видалено (офлайн)");
+      }
+      return true;
+    }
     let trashedEntry: TrashEntry | null = null;
     const ok = await run(`plant-${id}`, async () => {
-      if (supabase)
-        await checked(
-          supabase.from("plants").delete().eq("id", id).select("id").single(),
-        );
-      else
+      if (supabase) {
+        try {
+          await checked(
+            supabase.from("plants").delete().eq("id", id).select("id").single(),
+          );
+        } catch (err) {
+          if (isOfflineNetworkError(err)) {
+            enqueueOfflineMutationOp({
+              id: crypto.randomUUID(),
+              table: "plants",
+              op: "delete",
+              entityId: id,
+              queuedAt: new Date().toISOString(),
+            });
+          } else {
+            throw err;
+          }
+        }
+      } else {
         setData((d) => ({
           ...d,
           plants: d.plants.filter((plant) => plant.id !== id),
           plantCare: d.plantCare.filter((entry) => entry.plant_id !== id),
         }));
+      }
       if (snap) {
         const res = pushTrash("plants", snap, trashScope);
         trashedEntry = res.entry;
@@ -1863,36 +2398,111 @@ function useStore() {
       notify("Такий продукт уже є у списку «єВдома»");
       return Promise.resolve(false);
     }
+    const now = new Date().toISOString();
+    const row: PantryItem = {
+      id: crypto.randomUUID(),
+      couple_id: coupleId ?? DEMO_COUPLE,
+      name: cleanName,
+      normalized_name: norm,
+      quantity: (value.quantity ?? "").trim(),
+      is_basic: Boolean(value.is_basic),
+      added_by: userId,
+      created_at: now,
+      updated_at: now,
+    };
+    if (!demo && (!online || !navigator.onLine)) {
+      setData((d) => {
+        const pantry = [row, ...d.pantry];
+        return {
+          ...d,
+          pantry,
+          shopping: syncDemoMenuShopping(
+            d.mealPlan,
+            d.shopping,
+            d.menuExcludedKeys ?? [],
+            userId,
+            DEMO_COUPLE,
+            pantry,
+          ),
+        };
+      });
+      enqueueOfflineMutationOp({
+        id: crypto.randomUUID(),
+        table: "pantry",
+        op: "insert",
+        entityId: row.id,
+        payload: {
+          id: row.id,
+          couple_id: coupleId,
+          name: row.name,
+          normalized_name: row.normalized_name,
+          quantity: row.quantity,
+          is_basic: row.is_basic,
+          added_by: userId,
+        },
+        queuedAt: now,
+      });
+      notify("Додано до «єВдома» (офлайн)");
+      return Promise.resolve(true);
+    }
     return run(
       "pantry",
       async () => {
-        const now = new Date().toISOString();
-        const row: PantryItem = {
-          id: crypto.randomUUID(),
-          couple_id: coupleId ?? DEMO_COUPLE,
-          name: cleanName,
-          normalized_name: norm,
-          quantity: (value.quantity ?? "").trim(),
-          is_basic: Boolean(value.is_basic),
-          added_by: userId,
-          created_at: now,
-          updated_at: now,
-        };
         if (supabase) {
-          await checked(
-            supabase
-              .from("pantry_items")
-              .insert({
-                couple_id: coupleId,
-                name: row.name,
-                normalized_name: row.normalized_name,
-                quantity: row.quantity,
-                is_basic: row.is_basic,
-                added_by: userId,
-              })
-              .select("id")
-              .single(),
-          );
+          try {
+            await checked(
+              supabase
+                .from("pantry_items")
+                .insert({
+                  id: row.id,
+                  couple_id: coupleId,
+                  name: row.name,
+                  normalized_name: row.normalized_name,
+                  quantity: row.quantity,
+                  is_basic: row.is_basic,
+                  added_by: userId,
+                })
+                .select("id")
+                .single(),
+            );
+          } catch (err) {
+            if (isOfflineNetworkError(err)) {
+              setData((d) => {
+                const pantry = [row, ...d.pantry];
+                return {
+                  ...d,
+                  pantry,
+                  shopping: syncDemoMenuShopping(
+                    d.mealPlan,
+                    d.shopping,
+                    d.menuExcludedKeys ?? [],
+                    userId,
+                    DEMO_COUPLE,
+                    pantry,
+                  ),
+                };
+              });
+              enqueueOfflineMutationOp({
+                id: crypto.randomUUID(),
+                table: "pantry",
+                op: "insert",
+                entityId: row.id,
+                payload: {
+                  id: row.id,
+                  couple_id: coupleId,
+                  name: row.name,
+                  normalized_name: row.normalized_name,
+                  quantity: row.quantity,
+                  is_basic: row.is_basic,
+                  added_by: userId,
+                },
+                queuedAt: now,
+              });
+              notify("Додано до «єВдома» (офлайн)");
+              return;
+            }
+            throw err;
+          }
         } else {
           setData((d) => {
             const pantry = [row, ...d.pantry];
@@ -1914,32 +2524,122 @@ function useStore() {
       "Додано до «єВдома»",
     );
   };
-  const updatePantryItem = (id: string, patch: Partial<NewPantryItem>) =>
-    run(
+  const updatePantryItem = (id: string, patch: Partial<NewPantryItem>) => {
+    const nextName = patch.name?.trim();
+    const nextNorm = nextName ? normalizePantryName(nextName) : undefined;
+    const dbPatch: Record<string, unknown> = {};
+    if (nextName && nextNorm) {
+      dbPatch.name = nextName;
+      dbPatch.normalized_name = nextNorm;
+    }
+    if (patch.quantity !== undefined) {
+      dbPatch.quantity = patch.quantity.trim();
+    }
+    if (patch.is_basic !== undefined) {
+      dbPatch.is_basic = patch.is_basic;
+    }
+    if (!demo && (!online || !navigator.onLine)) {
+      setData((d) => {
+        const pantry = d.pantry.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                ...(nextName && nextNorm
+                  ? { name: nextName, normalized_name: nextNorm }
+                  : {}),
+                ...(patch.quantity !== undefined
+                  ? { quantity: patch.quantity.trim() }
+                  : {}),
+                ...(patch.is_basic !== undefined
+                  ? { is_basic: patch.is_basic }
+                  : {}),
+                updated_at: new Date().toISOString(),
+              }
+            : item,
+        );
+        return {
+          ...d,
+          pantry,
+          shopping: syncDemoMenuShopping(
+            d.mealPlan,
+            d.shopping,
+            d.menuExcludedKeys ?? [],
+            userId,
+            DEMO_COUPLE,
+            pantry,
+          ),
+        };
+      });
+      enqueueOfflineMutationOp({
+        id: crypto.randomUUID(),
+        table: "pantry",
+        op: "update",
+        entityId: id,
+        payload: dbPatch,
+        queuedAt: new Date().toISOString(),
+      });
+      notify("Оновлено (офлайн)");
+      return Promise.resolve(true);
+    }
+    return run(
       "pantry",
       async () => {
-        const nextName = patch.name?.trim();
-        const nextNorm = nextName ? normalizePantryName(nextName) : undefined;
-        const dbPatch: Record<string, unknown> = {};
-        if (nextName && nextNorm) {
-          dbPatch.name = nextName;
-          dbPatch.normalized_name = nextNorm;
-        }
-        if (patch.quantity !== undefined) {
-          dbPatch.quantity = patch.quantity.trim();
-        }
-        if (patch.is_basic !== undefined) {
-          dbPatch.is_basic = patch.is_basic;
-        }
         if (supabase) {
-          await checked(
-            supabase
-              .from("pantry_items")
-              .update(dbPatch)
-              .eq("id", id)
-              .select("id")
-              .single(),
-          );
+          try {
+            await checked(
+              supabase
+                .from("pantry_items")
+                .update(dbPatch)
+                .eq("id", id)
+                .select("id")
+                .single(),
+            );
+          } catch (err) {
+            if (isOfflineNetworkError(err)) {
+              setData((d) => {
+                const pantry = d.pantry.map((item) =>
+                  item.id === id
+                    ? {
+                        ...item,
+                        ...(nextName && nextNorm
+                          ? { name: nextName, normalized_name: nextNorm }
+                          : {}),
+                        ...(patch.quantity !== undefined
+                          ? { quantity: patch.quantity.trim() }
+                          : {}),
+                        ...(patch.is_basic !== undefined
+                          ? { is_basic: patch.is_basic }
+                          : {}),
+                        updated_at: new Date().toISOString(),
+                      }
+                    : item,
+                );
+                return {
+                  ...d,
+                  pantry,
+                  shopping: syncDemoMenuShopping(
+                    d.mealPlan,
+                    d.shopping,
+                    d.menuExcludedKeys ?? [],
+                    userId,
+                    DEMO_COUPLE,
+                    pantry,
+                  ),
+                };
+              });
+              enqueueOfflineMutationOp({
+                id: crypto.randomUUID(),
+                table: "pantry",
+                op: "update",
+                entityId: id,
+                payload: dbPatch,
+                queuedAt: new Date().toISOString(),
+              });
+              notify("Оновлено (офлайн)");
+              return;
+            }
+            throw err;
+          }
         } else {
           setData((d) => {
             const pantry = d.pantry.map((item) =>
@@ -1976,19 +2676,76 @@ function useStore() {
       },
       "Оновлено",
     );
-  const removePantryItem = (id: string) =>
-    run(
+  };
+  const removePantryItem = (id: string) => {
+    if (!demo && (!online || !navigator.onLine)) {
+      setData((d) => {
+        const pantry = d.pantry.filter((item) => item.id !== id);
+        return {
+          ...d,
+          pantry,
+          shopping: syncDemoMenuShopping(
+            d.mealPlan,
+            d.shopping,
+            d.menuExcludedKeys ?? [],
+            userId,
+            DEMO_COUPLE,
+            pantry,
+          ),
+        };
+      });
+      enqueueOfflineMutationOp({
+        id: crypto.randomUUID(),
+        table: "pantry",
+        op: "delete",
+        entityId: id,
+        queuedAt: new Date().toISOString(),
+      });
+      notify("Прибрано з «єВдома» (офлайн)");
+      return Promise.resolve(true);
+    }
+    return run(
       "pantry",
       async () => {
         if (supabase) {
-          await checked(
-            supabase
-              .from("pantry_items")
-              .delete()
-              .eq("id", id)
-              .select("id")
-              .single(),
-          );
+          try {
+            await checked(
+              supabase
+                .from("pantry_items")
+                .delete()
+                .eq("id", id)
+                .select("id")
+                .single(),
+            );
+          } catch (err) {
+            if (isOfflineNetworkError(err)) {
+              setData((d) => {
+                const pantry = d.pantry.filter((item) => item.id !== id);
+                return {
+                  ...d,
+                  pantry,
+                  shopping: syncDemoMenuShopping(
+                    d.mealPlan,
+                    d.shopping,
+                    d.menuExcludedKeys ?? [],
+                    userId,
+                    DEMO_COUPLE,
+                    pantry,
+                  ),
+                };
+              });
+              enqueueOfflineMutationOp({
+                id: crypto.randomUUID(),
+                table: "pantry",
+                op: "delete",
+                entityId: id,
+                queuedAt: new Date().toISOString(),
+              });
+              notify("Прибрано з «єВдома» (офлайн)");
+              return;
+            }
+            throw err;
+          }
         } else {
           setData((d) => {
             const pantry = d.pantry.filter((item) => item.id !== id);
@@ -2009,6 +2766,7 @@ function useStore() {
       },
       "Прибрано з «єВдома»",
     );
+  };
   const toggleBasicPantryItem = async (name: string) => {
     const norm = normalizePantryName(name);
     const existing = data.pantry.find((item) => item.normalized_name === norm);
@@ -4194,8 +4952,10 @@ function useStore() {
     online,
     queuedShoppingCount: shoppingQueue.length,
     queuedBudgetCount: budgetQueue.length,
+    queuedMutationCount: mutationQueue.length,
     flushShoppingQueue,
     flushBudgetQueue,
+    flushMutationQueue,
     sync,
     notice,
     setNotice,

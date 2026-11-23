@@ -358,6 +358,7 @@ export default function App() {
     online,
     queuedShoppingCount,
     queuedBudgetCount,
+    queuedMutationCount,
     sync,
     refresh,
   } = useApp();
@@ -383,7 +384,8 @@ export default function App() {
         tx.status === "needs_review" &&
         (!tx.is_private || tx.user_id === userId),
     ).length + dueRecurringCount;
-  const totalQueuedCount = queuedShoppingCount + queuedBudgetCount;
+  const totalQueuedCount =
+    queuedShoppingCount + queuedBudgetCount + (queuedMutationCount ?? 0);
   const [sharedUrl, setSharedUrl] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     const extracted = extractShareTargetUrl(window.location.search);

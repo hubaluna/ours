@@ -2,6 +2,7 @@ import { buildPdfFromJpegPages } from "./budget-pdf";
 import { formatUAH } from "./budget";
 import type { Wish } from "./types";
 import { kyivDate } from "./utils";
+import { getWishCleanNote, getWishOccasion } from "./wishes";
 
 function fitText(
   ctx: CanvasRenderingContext2D,
@@ -216,8 +217,11 @@ export async function generateWishesPdfBlob(
     // Priority + price row
     ctx.fillStyle = "#385E43";
     ctx.font = `600 16px ${font}`;
+    const occasion = getWishOccasion(wish);
+    const cleanNote = getWishCleanNote(wish);
     const metaLabel = [
       wish.priority || "Бажання",
+      occasion ? `Свято: ${occasion}` : "",
       wish.fulfilled ? "Виконано" : "",
     ]
       .filter(Boolean)
@@ -252,10 +256,10 @@ export async function generateWishesPdfBlob(
     }
 
     // Note
-    if (wish.note?.trim()) {
+    if (cleanNote?.trim()) {
       ctx.fillStyle = "#536359";
       ctx.font = `400 17px ${font}`;
-      const noteLines = wrapLines(ctx, wish.note.trim(), textW, 2);
+      const noteLines = wrapLines(ctx, cleanNote.trim(), textW, 2);
       noteLines.forEach((line) => {
         ctx.fillText(line, textX, lineY);
         lineY += 24;

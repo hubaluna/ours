@@ -15,6 +15,11 @@ import {
 import type { Wish, NewWish } from "../lib/types";
 import { useApp } from "../hooks/AppContext";
 import {
+  getWishOccasion,
+  getWishCleanNote,
+  extractUniqueOccasions,
+} from "../lib/wishes";
+import {
   optimizeExternalImageUrl,
   recoverImage,
   useImage,
@@ -152,6 +157,7 @@ export default function Wishes() {
     [sort, setSort] = useState<"newest" | "priority" | "price-asc" | "price-desc">("newest"),
     [showFulfilled, setShowFulfilled] = useState(false),
     [onlyReserved, setOnlyReserved] = useState(false),
+    [occasionFilter, setOccasionFilter] = useState("all"),
     [detail, setDetail] = useState<Wish | null>(null),
     [form, setForm] = useState<Wish | "new" | null>(null),
     [initial, setInitial] = useState<Partial<NewWish>>(),
@@ -181,13 +187,27 @@ export default function Wishes() {
     reservationByWish.has(w.id),
   ).length;
 
+  const availableOccasions = extractUniqueOccasions(
+    view === "mine" ? ownAll : partnerAll,
+  );
+
   const wishes = (view === "mine" ? ownAll : partnerAll)
     .filter((w) => {
       if (view === "mine") {
-        return showFulfilled ? Boolean(w.fulfilled) : !w.fulfilled;
+        if (showFulfilled ? !w.fulfilled : w.fulfilled) return false;
+      } else {
+        if (onlyReserved && !reservationByWish.has(w.id)) return false;
+        if (w.fulfilled) return false;
       }
-      if (onlyReserved) return reservationByWish.has(w.id);
-      return !w.fulfilled;
+      if (occasionFilter !== "all") {
+        const occ = getWishOccasion(w);
+        if (occasionFilter === "none") {
+          if (occ) return false;
+        } else if (occ !== occasionFilter) {
+          return false;
+        }
+      }
+      return true;
     })
     .sort((a, b) => {
       if (sort === "priority") {
@@ -348,6 +368,7 @@ export default function Wishes() {
         value={view}
         onChange={(next) => {
           setView(next);
+          setOccasionFilter("all");
           if (next === "mine") setOnlyReserved(false);
           else setShowFulfilled(false);
         }}
@@ -371,6 +392,22 @@ export default function Wishes() {
           <option value="price-asc">Дешевші спочатку</option>
           <option value="price-desc">Дорожчі спочатку</option>
         </select>
+        {availableOccasions.length > 0 && (
+          <select
+            aria-label="Фільтр за приводом"
+            className="wishes-occasion-select"
+            value={occasionFilter}
+            onChange={(e) => setOccasionFilter(e.target.value)}
+          >
+            <option value="all">Усі приводи</option>
+            <option value="none">Без приводу</option>
+            {availableOccasions.map((occ) => (
+              <option key={occ} value={occ}>
+                {occ}
+              </option>
+            ))}
+          </select>
+        )}
         {view === "mine" && (fulfilledCount > 0 || showFulfilled) && (
           <button
             type="button"
@@ -398,7 +435,7 @@ export default function Wishes() {
       </div>
       <div className="screen-panel media-panel">
         <PagedList
-          key={`${view}-${sort}-${showFulfilled}-${onlyReserved}`}
+          key={`${view}-${sort}-${showFulfilled}-${onlyReserved}-${occasionFilter}`}
           items={wishes}
           empty={
             <EmptyState
@@ -425,6 +462,7 @@ export default function Wishes() {
           render={(wish) => {
             const reservation =
               view === "partner" ? reservationByWish.get(wish.id) : undefined;
+            const occasion = getWishOccasion(wish);
             return (
               <button
                 className={`media-row wish-row${wish.fulfilled ? " wish-row-fulfilled" : ""}`}
@@ -442,6 +480,12 @@ export default function Wishes() {
                         : " · Заплановано вами"
                       : ""}
                   </span>
+                  {occasion && (
+                    <span className="wish-occasion-tag">
+                      <Gift size={11} aria-hidden="true" />
+                      {occasion}
+                    </span>
+                  )}
                   {wish.is_private && (
                     <span className="private-wish-badge">
                       <LockKeyhole size={11} /> Лише я
@@ -555,13 +599,22 @@ export default function Wishes() {
                   ? `${liveDetail.priority} · Виконано`
                   : liveDetail.priority}
               </span>
+              {(() => {
+                const occ = getWishOccasion(liveDetail);
+                return occ ? (
+                  <span className="wish-detail-occasion">
+                    <Gift size={13} aria-hidden="true" />
+                    До свята: <strong>{occ}</strong>
+                  </span>
+                ) : null;
+              })()}
               <strong className="detail-price">
                 {liveDetail.price !== null
                   ? money(liveDetail.price)
                   : "Ціна не вказана"}
               </strong>
               <p className="full-description">
-                {liveDetail.note || "Маленька ідея для хорошої миті."}
+                {getWishCleanNote(liveDetail) || "Маленька ідея для хорошої миті."}
               </p>
               <p className="subtle-note">
                 Додано{" "}

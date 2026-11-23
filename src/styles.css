@@ -8293,12 +8293,83 @@ button.header-status-badge:active {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
   color: var(--accent-strong);
 }
+.wishes-occasion-select {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 13px;
+  border: 1px solid var(--glass-edge);
+  background: var(--glass-subtle);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+  max-width: 150px;
+}
 .wish-row-fulfilled {
   opacity: 0.72;
 }
 .wish-row-fulfilled strong {
   text-decoration: line-through;
   text-decoration-thickness: 1.5px;
+}
+.wish-occasion-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 550;
+  color: var(--accent-strong);
+  background: var(--accent-light);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: 7px;
+  padding: 2px 6px;
+  margin-top: 2px;
+  margin-right: 6px;
+  width: fit-content;
+}
+.wish-detail-occasion {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--accent-strong);
+  background: var(--accent-light);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: 10px;
+  padding: 6px 12px;
+  margin: 4px 0 10px;
+  width: fit-content;
+}
+.wish-occasion-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.wish-occasion-chip {
+  padding: 5px 11px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-edge);
+  background: var(--glass-subtle);
+  color: var(--ink-subtle);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+.wish-occasion-chip:hover {
+  background: var(--glass-hover);
+  color: var(--ink);
+}
+.wish-occasion-chip.selected {
+  background: var(--accent-light);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+.wish-custom-occasion-input {
+  margin-top: 8px;
+  width: 100%;
 }
 
 /* Settings JSON backup restore preview */

@@ -26,6 +26,11 @@ import {
 import { quantityLabel } from "../lib/recipe-catalog";
 import { publicUrl } from "../../supabase/functions/_shared/urls";
 import { normalizeRecurrence, recurrenceOptions } from "../lib/recurrence";
+import {
+  COMMON_OCCASIONS,
+  buildWishNote,
+  parseWishOccasion,
+} from "../lib/wishes";
 import { BottomSheet, Button, ConfirmDelete, Field } from "./ui";
 const textSchema = z
   .string()
@@ -447,9 +452,23 @@ export function WishForm({
 }) {
   const { addWish, update, remove, pending, userId, coupleId } = useApp();
   const seed = wish ?? initial;
+  const initialParsed = parseWishOccasion(seed?.note);
   const [error, setError] = useState(""),
     [uploading, setUploading] = useState(false),
     [image, setImage] = useState(seed?.image_path ?? null);
+  const [occasion, setOccasion] = useState<string>(initialParsed.occasion ?? "");
+  const [isCustomOccasion, setIsCustomOccasion] = useState<boolean>(
+    Boolean(
+      initialParsed.occasion &&
+        !(COMMON_OCCASIONS as readonly string[]).includes(initialParsed.occasion),
+    ),
+  );
+  const [customOccasion, setCustomOccasion] = useState<string>(
+    initialParsed.occasion &&
+      !(COMMON_OCCASIONS as readonly string[]).includes(initialParsed.occasion)
+      ? initialParsed.occasion
+      : "",
+  );
   const file = useRef<HTMLInputElement>(null);
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -477,12 +496,17 @@ export function WishForm({
       setError("Перевірте ціну.");
       return;
     }
+    const selectedOcc = isCustomOccasion
+      ? customOccasion.trim()
+      : occasion.trim();
+    const cleanNote = String(f.get("note") ?? "").trim();
+    const finalNote = buildWishNote(selectedOcc || null, cleanNote);
     const value = {
       name: parsed.data,
       price: parsedPrice,
       url,
       priority: String(f.get("priority")),
-      note: String(f.get("note")),
+      note: finalNote,
       size,
       image_path: image,
       image_url: seed?.image_url ?? "",
@@ -571,6 +595,61 @@ export function WishForm({
             </select>
           </Field>
         </div>
+        <div className="field">
+          <label className="field-label">До якого свята або приводу?</label>
+          <div className="wish-occasion-chips" role="radiogroup" aria-label="Привід">
+            <button
+              type="button"
+              className={`wish-occasion-chip${!occasion && !isCustomOccasion ? " selected" : ""}`}
+              onClick={() => {
+                setOccasion("");
+                setIsCustomOccasion(false);
+              }}
+            >
+              Без приводу
+            </button>
+            {COMMON_OCCASIONS.map((occ) => (
+              <button
+                type="button"
+                key={occ}
+                className={`wish-occasion-chip${occasion === occ && !isCustomOccasion ? " selected" : ""}`}
+                onClick={() => {
+                  setOccasion(occ);
+                  setIsCustomOccasion(false);
+                }}
+              >
+                {occ}
+              </button>
+            ))}
+            <button
+              type="button"
+              className={`wish-occasion-chip${isCustomOccasion ? " selected" : ""}`}
+              onClick={() => {
+                setIsCustomOccasion(true);
+                if (
+                  !customOccasion &&
+                  occasion &&
+                  !(COMMON_OCCASIONS as readonly string[]).includes(occasion)
+                ) {
+                  setCustomOccasion(occasion);
+                }
+              }}
+            >
+              + Інший привід
+            </button>
+          </div>
+          {isCustomOccasion && (
+            <input
+              type="text"
+              className="wish-custom-occasion-input"
+              placeholder="Наприклад: Новосілля, Випускний, Весілля…"
+              value={customOccasion}
+              maxLength={60}
+              onChange={(e) => setCustomOccasion(e.target.value)}
+              autoFocus
+            />
+          )}
+        </div>
         <label className="private-wish-setting">
           <input
             type="checkbox"
@@ -601,7 +680,7 @@ export function WishForm({
         <Field label="Кілька слів">
           <textarea
             name="note"
-            defaultValue={seed?.note}
+            defaultValue={initialParsed.cleanNote}
             maxLength={2000}
             placeholder="Колір, розмір або маленька підказка…"
             rows={3}
