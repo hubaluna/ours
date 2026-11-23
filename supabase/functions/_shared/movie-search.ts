@@ -165,9 +165,43 @@ function translitLatinToCyrillic(slug: string): string {
   return out;
 }
 
+/**
+ * Ukrainian DLE streaming sites (uakino, uaserials, etc.) often transliterate both `і` and `и`
+ * as `i` and drop soft signs (`ь`) in reflexive verb endings (`-лось`, `-лась`, `-лись`, `-тись`).
+ */
+function translitUkDleVariant(slug: string): string {
+  const pre = slug
+    .toLowerCase()
+    .replace(/([bcdfghjklmnpqrstvwxz])i(?=[bcdfghjklmnpqrstvwxz])/g, "$1и")
+    .replace(/(?:shch|sh|zh|ch)i/g, (m) => `${m.slice(0, -1)}и`);
+  let out = translitLatinToCyrillic(pre);
+  out = out.replace(/([а-яіїєґ]{2})(лос|лас|лис|тис)(?=\s|$)/gi, "$1$2ь");
+  return out;
+}
+
 function capitalizeFirst(value: string): string {
   const trimmed = value.trim();
   return trimmed ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1) : "";
+}
+
+const SLUG_SEASON_SUFFIX =
+  /[-_]+(?:\d+(?:[-_]+\d+)*[-_]+)?(?:sezon|season|сезон)(?:[-_]+\d+(?:[-_]+\d+)*)?$/i;
+
+/** Detect whether a streaming URL explicitly points to a TV series or season page. */
+export function isSeriesUrl(url: string): boolean {
+  try {
+    const path = decodeURIComponent(new URL(url).pathname).toLowerCase();
+    return (
+      /(?:^|\/)(?:seriesss|serials?|series|tv[-_]?series|miniseries|multserials?|anime[-_]?serials?)(?:\/|$)/i.test(
+        path,
+      ) ||
+      /(?:[-_/])(?:\d+(?:[-_]\d+)*[-_])?(?:sezon|season|сезон)(?:[-_]\d+)?(?:\.html?|\/|$)/i.test(
+        path,
+      )
+    );
+  } catch {
+    return false;
+  }
 }
 
 /** Extract a 4-digit release year suffix from a movie URL slug (e.g. 12861-nichna-zmina-2025.html -> 2025). */
@@ -179,7 +213,9 @@ export function movieYearFromUrl(url: string): number | null {
       .map((s) => decodeURIComponent(s).trim())
       .filter(Boolean);
     for (let i = segments.length - 1; i >= 0; i--) {
-      const seg = segments[i].replace(/\.(?:html?|php|aspx?)$/i, "");
+      const seg = segments[i]
+        .replace(/\.(?:html?|php|aspx?)$/i, "")
+        .replace(SLUG_SEASON_SUFFIX, "");
       const yearMatch = seg.match(/[-_]((?:19|20)\d{2})$/);
       if (yearMatch) {
         const y = Number(yearMatch[1]);
@@ -204,7 +240,7 @@ export function movieTitleFromUrl(url: string): string[] {
     )
       return [];
     const generic =
-      /^(?:filmy|films?|movies?|serials?|series|tv|watch|video|genre[-_a-z]*|category|catalog|titles?|wiki|index|ua|en|ru)$/i;
+      /^(?:filmy|films?|movies?|seriesss|serials?|series|tv|watch|video|genre[-_a-z]*|category|catalog|titles?|wiki|index|ua|en|ru)$/i;
     const segments = parsed.pathname
       .split("/")
       .map((s) => decodeURIComponent(s).trim())
@@ -213,6 +249,8 @@ export function movieTitleFromUrl(url: string): string[] {
       let seg = segments[i]
         .replace(/\.(?:html?|php|aspx?)$/i, "")
         .replace(/^\d+[-_]+/, "")
+        .replace(/[-_]+(?:19|20)\d{2}$/, "")
+        .replace(SLUG_SEASON_SUFFIX, "")
         .replace(/[-_]+\d+$/, "")
         .trim();
       if (!seg || /^tt\d+$/i.test(seg) || /^\d+$/.test(seg) || generic.test(seg))
@@ -225,8 +263,16 @@ export function movieTitleFromUrl(url: string): string[] {
       if (seg.length < 2) continue;
       if (/^[a-z0-9\s']+$/i.test(seg)) {
         const cyr = capitalizeFirst(translitLatinToCyrillic(seg));
+        const hasDleUkCue =
+          /(?:shch|sh|zh|ch)i/i.test(seg) ||
+          /[a-z]{2}(?:los|las|lis|tis)(?:\s|$)/i.test(seg);
+        const dleCyr = hasDleUkCue
+          ? capitalizeFirst(translitUkDleVariant(seg))
+          : "";
         const yVariant = /i$/i.test(seg) ? seg.replace(/i$/i, "y") : "";
-        return [...new Set([cyr, yVariant, seg])].filter((s) => s.length >= 2);
+        return [...new Set([dleCyr, cyr, yVariant, seg])].filter(
+          (s) => s.length >= 2,
+        );
       }
       return [capitalizeFirst(seg)];
     }
@@ -248,6 +294,10 @@ export function movieSearchTerms(text: string): string {
     .replace(/\s+онлайн\s+українською[\s\S]*$/i, "")
     .replace(/\s+українською\s+онлайн[\s\S]*$/i, "")
     .replace(
+      /\s+(?:\d+(?:\s*[-–,]\s*\d+)*(?:-?[йя])?\s+(?:сезон|season)|(?:сезон|season)\s+\d+(?:\s*[-–,]\s*\d+)*)(?=\s|$|[),.!?:;])/gi,
+      " ",
+    )
+    .replace(
       /\b(?:official|final|teaser|trailer|movie|film|review|netflix|hd|4k|tiktok|uakino|uafix|uaflix|hdrezka|eneyida)\b|офіційний|трейлер|огляд|безкоштовно|українською|онлайн|дивитис[яь]|серіал(?:у|ом)?|мультфільм(?:у|ом)?|фільм(?:у|ом)?/gi,
       " ",
     )
@@ -263,6 +313,26 @@ const normalized = (value: string) =>
     .toLocaleLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
+const stripLeadingParticle = (value: string) => {
+  const stripped = value.replace(/^(?:[ійувзо]|the|a|an)\s+/i, "");
+  return stripped.length >= 4 ? stripped : value;
+};
+const titlesMatch = (a: string, b: string) => {
+  const na = normalized(a);
+  const nb = normalized(b);
+  return (
+    Boolean(na && nb) &&
+    (na === nb || stripLeadingParticle(na) === stripLeadingParticle(nb))
+  );
+};
+/** Detect whether a movie candidate represents a TV series / miniseries rather than a feature film. */
+export function isSeriesCandidate(candidate: MovieCandidate): boolean {
+  if (candidate.url.includes("tvmaze.com")) return true;
+  const intro = candidate.description.slice(0, 320);
+  return /серіал|телесеріал|мінісеріал|ситком|\btelevision series\b|\bminiseries\b|\bsitcom\b/i.test(
+    intro,
+  );
+}
 const filmTitle = (value: string) =>
   value.replace(
     /\s*\((?:[^)]*(?:фільм|film|серіал|series)[^)]*|\d{4})\)$/i,
@@ -296,6 +366,7 @@ const genreLabels = (genres: string[]): string[] => {
     ["Драма", /драм|drama/i],
     ["Комедія", /комед|comedy/i],
     ["Трилер", /трилер|thriller/i],
+    ["Детектив", /детектив|mystery|detective/i],
     ["Кримінальний", /кримінал|crime/i],
     ["Фантастика", /науково.фантаст|science.fiction|sci-fi|fantasy/i],
     ["Пригоди", /пригод|adventure/i],
@@ -312,6 +383,19 @@ const extractYear = (title: string, text: string): number | null =>
   ) || null;
 const sameYear = (candidateYear: number | null, targetYear: number | null | undefined) =>
   !targetYear || !candidateYear || Math.abs(candidateYear - targetYear) <= 1;
+
+function buildFuzzyWikiQuery(term: string): string {
+  const words = term.trim().split(/\s+/).filter(Boolean);
+  let changed = false;
+  const fuzzy = words.map((word) => {
+    if (word.length >= 4 && !word.endsWith("~")) {
+      changed = true;
+      return `${word}~`;
+    }
+    return word;
+  });
+  return changed ? fuzzy.join(" ") : "";
+}
 
 export async function movieCandidates(
   query: string,
@@ -364,6 +448,10 @@ export async function movieCandidates(
           !isFilmPage(title, text)
         )
           continue;
+        const categoryTitles = (page.categories || []).map(
+          (c: { title: string }) => c.title,
+        );
+        const extractedGenres = genreLabels(categoryTitles);
         pushCandidate({
           title: filmTitle(title),
           url: `https://${language}.wikipedia.org/?curid=${Number(page.pageid)}`,
@@ -372,9 +460,9 @@ export async function movieCandidates(
           ),
           description: text.slice(0, 1800),
           year: extractYear(title, text),
-          genres: genreLabels(
-            (page.categories || []).map((c: { title: string }) => c.title),
-          ),
+          genres: extractedGenres.length
+            ? extractedGenres
+            : genreLabels([text.slice(0, 320)]),
         });
       }
     } catch {
@@ -390,6 +478,21 @@ export async function movieCandidates(
     if (year) await searchWikipedia(language, `${query} ${year}`);
     if (!found.some((c) => sameYear(c.year, year)))
       await searchWikipedia(language, query);
+    // Fuzzy CirrusSearch fallback catches missing soft signs or DLE `і`↔`и` mismatches when exact search returns 0 hits.
+    if (!found.length && language === "uk" && !hasLatin) {
+      const fuzzy = buildFuzzyWikiQuery(query);
+      if (fuzzy) await searchWikipedia(language, fuzzy);
+      if (!found.length && /[а-яіїєґ]і[а-яіїєґ]/i.test(query)) {
+        const ySwap = query.replace(/([а-яіїєґ])і(?=[а-яіїєґ])/gi, "$1и");
+        if (ySwap !== query) {
+          await searchWikipedia(language, ySwap);
+          if (!found.length) {
+            const fuzzySwap = buildFuzzyWikiQuery(ySwap);
+            if (fuzzySwap) await searchWikipedia(language, fuzzySwap);
+          }
+        }
+      }
+    }
     if (language === "en" && hasLatin && found.length < 2)
       await searchWikipedia(language, `${query} film`);
     if (!found.length) {
@@ -414,7 +517,7 @@ export async function movieCandidates(
             ),
             description: text.slice(0, 1800),
             year: extractYear(String(page.title || ""), text),
-            genres: [],
+            genres: genreLabels([text.slice(0, 320)]),
           });
           break;
         } catch {
@@ -719,18 +822,31 @@ export async function enrichMovie(
       break;
   }
   // When release year is known from the link or page, filter out completely wrong decades (e.g. 1982/1990 for a 2025 film).
+  const preferSeries = isSeriesUrl(metadata.source_url);
   const yearFiltered = effectiveYear
     ? merged.filter((c) => !c.year || Math.abs(c.year - effectiveYear) <= 1)
     : merged;
-  const candidates = yearFiltered.slice(0, 5);
+  const ranked = preferSeries
+    ? [
+        ...yearFiltered.filter((c) => isSeriesCandidate(c)),
+        ...yearFiltered.filter((c) => !isSeriesCandidate(c)),
+      ]
+    : yearFiltered;
+  const candidates = ranked.slice(0, 5);
   if (!candidates.length)
     return { ...metadata, movie_query: terms || altTerms, candidates: [] };
   const exact = candidates.filter((c) =>
-    searchList.some((t) => normalized(c.title) === normalized(t)),
+    searchList.some((t) => titlesMatch(c.title, t)),
   );
   const match =
+    (effectiveYear && preferSeries
+      ? exact.find((c) => c.year === effectiveYear && isSeriesCandidate(c))
+      : undefined) ??
     (effectiveYear ? exact.find((c) => c.year === effectiveYear) : undefined) ??
-    exact.find((c) => !effectiveYear || !c.year || Math.abs(c.year - effectiveYear) <= 1);
+    (preferSeries ? exact.find((c) => isSeriesCandidate(c)) : undefined) ??
+    exact.find(
+      (c) => !effectiveYear || !c.year || Math.abs(c.year - effectiveYear) <= 1,
+    );
   if (!match)
     return { ...metadata, movie_query: terms || altTerms, candidates };
   const fetchedPlot = movieSynopsis(await moviePlot(match, load));

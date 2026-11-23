@@ -123,7 +123,11 @@ export function parseMetadata(
       .replace(/\s+онлайн\s+українською[\s\S]*$/i, "")
       .replace(/\s+українською\s+онлайн[\s\S]*$/i, "")
       .replace(
-        /\s*\((?:(?:19|20)\d{2}[^)]*|фільм|серіал|film|movie|tv series)\)\s*$/i,
+        /\s*\((?:(?:19|20)\d{2}[^)]*|фільм|серіал|film|movie|tv series|\d+(?:\s*[-–,]\s*\d+)*\s*сезон)\)\s*$/i,
+        "",
+      )
+      .replace(
+        /\s+(?:\d+(?:\s*[-–,]\s*\d+)*(?:-?[йя])?\s+(?:сезон|season)|(?:сезон|season)\s+\d+(?:\s*[-–,]\s*\d+)*)\s*$/i,
         "",
       )
       .replace(

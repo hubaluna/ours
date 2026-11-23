@@ -2,6 +2,8 @@ import { parseMetadata, type LinkMetadata } from "../../supabase/functions/_shar
 import {
   enrichMovie,
   isGenericTikTokTitle,
+  isSeriesCandidate,
+  isSeriesUrl,
   movieTitleFromUrl,
   movieYearFromUrl,
   resolveTikTokUrl,
@@ -72,6 +74,21 @@ export function needsClientMovieRefresh(
   sourceUrl: string,
 ): boolean {
   if (/(?:дивитися|дивитись|смотреть)\s+онлайн|онлайн\s+українською/i.test(payload.title))
+    return true;
+  if (
+    /(?:^|\s)(?:\d+(?:\s*[-–,]\s*\d+)*\s*(?:сезон|season)|(?:сезон|season)\s*\d+)(?=\s|$|[),.!?:;])/i.test(
+      payload.title,
+    )
+  )
+    return true;
+  if (
+    sourceUrl &&
+    !payload.metadata_url &&
+    !payload.description &&
+    !payload.image_url &&
+    !(payload.candidates?.length) &&
+    movieTitleFromUrl(sourceUrl).length > 0
+  )
     return true;
   const urlYear = movieYearFromUrl(sourceUrl);
   if (urlYear && !payload.metadata_url && payload.candidates?.length) {
@@ -176,21 +193,40 @@ export async function resolveMovieClientSide(
   }
 
   const guesses = movieTitleFromUrl(cleanUrl);
+  const preferSeries = isSeriesUrl(cleanUrl);
   const mergedCandidates: NonNullable<LinkMetadata["candidates"]> = [];
-  for (const guess of guesses.slice(0, 2)) {
+  let firstMatched: LinkMetadata | null = null;
+  for (const guess of guesses.slice(0, 3)) {
     const enriched = await enrichMovie(
       { ...metadata, title: guess, year: urlYear },
       browserLoad,
       guess,
     );
-    if (urlYear && enriched.metadata_url) return enriched;
+    if (enriched.metadata_url && !firstMatched) firstMatched = enriched;
+    if (
+      enriched.metadata_url &&
+      (urlYear ||
+        (preferSeries &&
+          enriched.candidates?.some(
+            (c) => c.url === enriched.metadata_url && isSeriesCandidate(c),
+          )))
+    ) {
+      return enriched;
+    }
     for (const c of enriched.candidates || []) {
       if (!mergedCandidates.some((existing) => existing.url === c.url)) {
         mergedCandidates.push(c);
       }
     }
   }
-  mergedCandidates.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+  if (firstMatched && mergedCandidates.length === 1) return firstMatched;
+  mergedCandidates.sort((a, b) => {
+    if (preferSeries) {
+      const diff = Number(isSeriesCandidate(b)) - Number(isSeriesCandidate(a));
+      if (diff !== 0) return diff;
+    }
+    return (b.year ?? 0) - (a.year ?? 0);
+  });
 
   if (guesses.length) {
     return {

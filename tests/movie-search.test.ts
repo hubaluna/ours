@@ -4,12 +4,16 @@ import {
   movieSearchTerms,
   movieTitleFromUrl,
   movieYearFromUrl,
+  isSeriesUrl,
   enrichMovie,
   tiktokMetadata,
 } from "../supabase/functions/_shared/movie-search";
 import { parseMetadata } from "../supabase/functions/_shared/metadata";
 import { groceryCategory } from "../supabase/functions/_shared/grocery-category";
-import { resolveMovieClientSide } from "../src/lib/client-movie-search";
+import {
+  needsClientMovieRefresh,
+  resolveMovieClientSide,
+} from "../src/lib/client-movie-search";
 it("extracts an actual film title from Ukrainian pages and public video captions", () => {
   expect(movieSearchTerms("Фільм «Початок» 2010 українською онлайн")).toBe(
     "Початок",
@@ -444,6 +448,118 @@ it("resolves movie links client-side cleanly for TikTok, Cloudflare-blocked site
     );
     expect(uakino?.image_url).toBe("");
     expect(uakino?.candidates?.some((c) => c.year === 2025 && c.title === "Fanny")).toBe(true);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
+it("strips season suffixes, transliterates Ukrainian DLE slugs, and auto-resolves series links like uakino.best", async () => {
+  const seriesUrl =
+    "https://uakino.best/seriesss/detective_series/17261--ne-lishilos-zhodnogo-1-sezon.html";
+  expect(isSeriesUrl(seriesUrl)).toBe(true);
+  expect(isSeriesUrl("https://uakino.best/filmy/genre_adventure/36211-fanni.html")).toBe(false);
+  expect(movieTitleFromUrl(seriesUrl)).toEqual([
+    "Не лишилось жодного",
+    "Не лішілос жодного",
+    "ne lishilos zhodnogo",
+  ]);
+  expect(
+    movieSearchTerms("І не лишилось жодного 1 сезон дивитися онлайн українською"),
+  ).toBe("І не лишилось жодного");
+  expect(
+    needsClientMovieRefresh(
+      {
+        source_url: seriesUrl,
+        title: "Не лішілос жодного 1 сезон",
+        description: "",
+        image_url: "",
+        year: null,
+        genres: [],
+        price: null,
+        currency: "",
+        ingredients: [],
+        provider: "uakino.best",
+        candidates: [],
+      },
+      seriesUrl,
+    ),
+  ).toBe(true);
+
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const u = String(input);
+    if (u.includes("api.microlink.io")) {
+      return new Response(JSON.stringify({ status: "fail", code: "EPROXYNEEDED" }), {
+        status: 400,
+      });
+    }
+    if (u.includes("uk.wikipedia.org/w/api.php") && u.includes("action=parse")) {
+      return new Response(JSON.stringify({ parse: { sections: [] } }), { status: 200 });
+    }
+    if (u.includes("uk.wikipedia.org/w/api.php") && u.includes("action=query")) {
+      const search = new URL(u).searchParams.get("gsrsearch") || "";
+      if (search.includes("лишилось")) {
+        return new Response(
+          JSON.stringify({
+            query: {
+              pages: [
+                {
+                  pageid: 101,
+                  index: 1,
+                  title: "І не лишилось жодного (фільм, 1945)",
+                  extract: "«І не лишилось жодного» — кінофільм режисера Рене Клера 1945 року.",
+                  thumbnail: { source: "https://upload.wikimedia.org/1945.jpg" },
+                },
+                {
+                  pageid: 102,
+                  index: 2,
+                  title: "І не лишилось жодного (серіал, 2015)",
+                  extract:
+                    "І не лишилось жодного (англ. And Then There Were None) — британський драматичний трилер мінісеріал 2015 року.",
+                  thumbnail: { source: "https://upload.wikimedia.org/2015-series.jpg" },
+                },
+              ],
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      if (search.includes("калмара~")) {
+        return new Response(
+          JSON.stringify({
+            query: {
+              pages: [
+                {
+                  pageid: 201,
+                  index: 1,
+                  title: "Гра в кальмара",
+                  extract: "«Гра в кальмара» — південнокорейський телесеріал 2021 року у жанрі трилер.",
+                  thumbnail: { source: "https://upload.wikimedia.org/squid.jpg" },
+                },
+              ],
+            },
+          }),
+          { status: 200 },
+        );
+      }
+    }
+    return new Response(JSON.stringify({ query: { pages: [] } }), { status: 200 });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  try {
+    const resolved = await resolveMovieClientSide(seriesUrl);
+    expect(resolved?.title).toBe("І не лишилось жодного");
+    expect(resolved?.year).toBe(2015);
+    expect(resolved?.image_url).toBe("https://upload.wikimedia.org/2015-series.jpg");
+    expect(resolved?.metadata_url).toContain("curid=102");
+    expect(resolved?.genres).toContain("Драма");
+    expect(resolved?.genres).toContain("Трилер");
+    expect(resolved?.candidates?.[0]?.year).toBe(2015);
+
+    const fuzzySeries = await resolveMovieClientSide(
+      "https://uakino.best/seriesss/thriller_series/999-gra-v-kalmara-1-sezon.html",
+    );
+    expect(fuzzySeries?.candidates?.[0]?.title).toBe("Гра в кальмара");
+    expect(fuzzySeries?.candidates?.[0]?.year).toBe(2021);
   } finally {
     vi.unstubAllGlobals();
   }

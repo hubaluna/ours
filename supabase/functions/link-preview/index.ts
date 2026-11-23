@@ -8,6 +8,8 @@ import {
 } from "../_shared/metadata.ts";
 import {
   enrichMovie,
+  isSeriesCandidate,
+  isSeriesUrl,
   movieTitleFromUrl,
   movieYearFromUrl,
   resolveTikTokUrl,
@@ -155,20 +157,41 @@ Deno.serve(
         } catch {
           const guesses = movieTitleFromUrl(url);
           const urlYear = movieYearFromUrl(url);
+          const preferSeries = isSeriesUrl(url);
           const merged: NonNullable<typeof metadata.candidates> = [];
-          for (const guess of guesses.slice(0, 2)) {
+          let firstMatched: typeof metadata | null = null;
+          for (const guess of guesses.slice(0, 3)) {
             const enriched = await enrichMovie(
               { ...metadata, title: guess, year: urlYear },
               read,
               guess,
             );
-            if (urlYear && enriched.metadata_url) return enriched;
+            if (enriched.metadata_url && !firstMatched) firstMatched = enriched;
+            if (
+              enriched.metadata_url &&
+              (urlYear ||
+                (preferSeries &&
+                  enriched.candidates?.some(
+                    (c) =>
+                      c.url === enriched.metadata_url && isSeriesCandidate(c),
+                  )))
+            ) {
+              return enriched;
+            }
             for (const item of enriched.candidates || []) {
               if (!merged.some((existing) => existing.url === item.url))
                 merged.push(item);
             }
           }
-          merged.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+          if (firstMatched && merged.length === 1) return firstMatched;
+          merged.sort((a, b) => {
+            if (preferSeries) {
+              const diff =
+                Number(isSeriesCandidate(b)) - Number(isSeriesCandidate(a));
+              if (diff !== 0) return diff;
+            }
+            return (b.year ?? 0) - (a.year ?? 0);
+          });
           return {
             ...metadata,
             title: guesses[0] || "",

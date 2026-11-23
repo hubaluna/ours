@@ -585,7 +585,9 @@ export function LinkImport({
                         {candidate.title}
                         {candidate.year ? ` (${candidate.year})` : ""}
                       </span>
-                      {candidate.genres && <small>{candidate.genres}</small>}
+                      {candidate.genres.length > 0 && (
+                        <small>{candidate.genres.join(", ")}</small>
+                      )}
                     </button>
                   ))}
                 </div>

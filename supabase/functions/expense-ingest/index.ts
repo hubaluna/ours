@@ -277,8 +277,14 @@ export async function handleRequest(request: Request): Promise<Response> {
     const status = match.category_key ? "confirmed" : "needs_review";
 
     const settings = await rest<{ share_income_with_partner: boolean }[]>(
-      `budget_settings?user_id=eq.${identity.user_id}&select=share_income_with_partner&limit=1`,
-    );
+      `budget_settings?user_id=eq.${encodeURIComponent(identity.user_id)}&select=share_income_with_partner&limit=1`,
+    ).catch((err) => {
+      console.warn(
+        "[expense-ingest] budget_settings lookup failed, defaulting to private:",
+        err,
+      );
+      return [] as { share_income_with_partner: boolean }[];
+    });
     const isPrivate = !(settings[0]?.share_income_with_partner ?? false);
 
     const inserted = await rest<
