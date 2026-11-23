@@ -18,6 +18,7 @@ type ActivityKind =
   | "wishes"
   | "movies"
   | "events"
+  | "calendar"
   | "recipes"
   | "plants"
   | "budget";
@@ -74,6 +75,7 @@ const labels: Record<ActivityKind, string> = {
   wishes: "Бажання",
   movies: "Кіно",
   events: "Календар",
+  calendar: "Календар",
   recipes: "Меню",
   plants: "Рослини",
   budget: "Бюджет",

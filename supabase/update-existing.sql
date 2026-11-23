@@ -1070,7 +1070,7 @@ begin
 
     alter table public.pending_push_digest
       add constraint pending_push_digest_kind_check
-      check (kind in ('shopping', 'wishes', 'movies', 'events', 'recipes', 'plants', 'budget'));
+      check (kind in ('shopping', 'calendar', 'events', 'wishes', 'movies', 'recipes', 'plants', 'budget'));
   end if;
 end $$;
 
