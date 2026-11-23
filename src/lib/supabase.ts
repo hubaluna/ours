@@ -84,12 +84,14 @@ export async function readAll<T>(
   filters: Record<string, string> = {},
   order = "created_at",
   ascending = true,
+  limit?: number,
 ): Promise<T[]> {
   if (!supabase) return [];
   const result: T[] = [];
   const hasIdColumn =
     table !== "budget_settings" && table !== "budget_ingest_tokens";
-  for (let offset = 0; ; offset += 500) {
+  const batchSize = limit ? Math.min(500, limit) : 500;
+  for (let offset = 0; ; offset += batchSize) {
     let query = supabase
       .from(table)
       .select("*")
@@ -97,11 +99,16 @@ export async function readAll<T>(
     if (hasIdColumn && order !== "id") {
       query = query.order("id");
     }
-    query = query.range(offset, offset + 499);
+    const end = limit
+      ? Math.min(offset + batchSize - 1, limit - 1)
+      : offset + batchSize - 1;
+    query = query.range(offset, end);
     for (const [key, value] of Object.entries(filters))
       query = query.eq(key, value);
     const page = (await checked(query)) as unknown as T[];
     result.push(...page);
-    if (page.length < 500) return result;
+    if (page.length < batchSize || (limit && result.length >= limit)) {
+      return limit ? result.slice(0, limit) : result;
+    }
   }
 }

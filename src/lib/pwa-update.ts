@@ -27,30 +27,60 @@ function getBasePath(): string {
 
 async function fetchRemoteBuildId(): Promise<string | null> {
   if (typeof fetch !== "function") return null;
-  try {
-    const url = `${getBasePath()}version.json?t=${Date.now()}`;
-    const res = await fetch(url, {
-      cache: "no-store",
-      headers: { "Cache-Control": "no-cache" },
-    });
-    if (!res.ok) return null;
-    const contentType = res.headers.get("content-type") || "";
-    if (!contentType.includes("json")) return null;
-    const data = (await res.json()) as { buildId?: unknown };
-    return typeof data?.buildId === "string" && data.buildId
-      ? data.buildId
-      : null;
-  } catch {
-    return null;
+  const urls = [`${getBasePath()}version.json?t=${Date.now()}`];
+  if (typeof window !== "undefined" && window.location) {
+    try {
+      urls.push(
+        new URL("version.json", window.location.href).href + `?t=${Date.now()}`,
+      );
+    } catch {
+      /* ignore */
+    }
   }
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, {
+        cache: "no-store",
+        headers: {
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          Pragma: "no-cache",
+        },
+      });
+      if (!res.ok) continue;
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("json")) continue;
+      const data = (await res.json()) as { buildId?: unknown };
+      if (typeof data?.buildId === "string" && data.buildId) {
+        return data.buildId;
+      }
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
 }
 
 async function bustSwScriptHttpCache(): Promise<void> {
   if (typeof fetch !== "function") return;
-  try {
-    await fetch(`${getBasePath()}sw.js`, { cache: "reload" });
-  } catch {
-    /* ignore */
+  const urls = [`${getBasePath()}sw.js?t=${Date.now()}`];
+  if (typeof window !== "undefined" && window.location) {
+    try {
+      urls.push(
+        new URL("sw.js", window.location.href).href + `?t=${Date.now()}`,
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+  for (const url of urls) {
+    try {
+      await fetch(url, {
+        cache: "reload",
+        headers: { "Cache-Control": "no-cache, no-store" },
+      });
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -158,13 +188,31 @@ export async function forceAppUpdate(options?: {
         reg.waiting.postMessage({ type: "SKIP_WAITING" });
       }
 
+      // Attach updatefound listener BEFORE triggering update to capture installing worker reliably
+      const updateFoundPromise = new Promise<ServiceWorker | null>((resolve) => {
+        if (typeof reg.addEventListener !== "function") {
+          resolve(reg.installing ?? null);
+          return;
+        }
+        const onUpdate = () => {
+          reg.removeEventListener?.("updatefound", onUpdate);
+          resolve(reg.installing ?? null);
+        };
+        reg.addEventListener("updatefound", onUpdate);
+        window.setTimeout(() => {
+          reg.removeEventListener?.("updatefound", onUpdate);
+          resolve(reg.installing ?? null);
+        }, 2500);
+      });
+
       // Bust browser HTTP cache for sw.js (especially on GitHub Pages max-age=600)
       await bustSwScriptHttpCache();
       await reg.update().catch(() => {});
 
-      if (reg.installing) {
+      const installing = reg.installing || (await updateFoundPromise);
+      if (installing) {
         hasSwUpdate = true;
-        await waitForInstallingWorker(reg.installing);
+        await waitForInstallingWorker(installing, 8000);
       }
 
       if (reg.waiting) {
@@ -179,7 +227,35 @@ export async function forceAppUpdate(options?: {
       return "up_to_date";
     }
 
-    // If server has a newer build but Safari's SW still didn't detect it, clear stale SW & precaches
+    // Wait for the new controller if a SW was waiting or installing
+    if (
+      hasSwUpdate &&
+      !controllerChanged &&
+      typeof navigator.serviceWorker?.addEventListener === "function"
+    ) {
+      await new Promise<void>((resolve) => {
+        const onCtrl = () => {
+          navigator.serviceWorker.removeEventListener?.(
+            "controllerchange",
+            onCtrl,
+          );
+          resolve();
+        };
+        navigator.serviceWorker.addEventListener?.(
+          "controllerchange",
+          onCtrl,
+        );
+        window.setTimeout(() => {
+          navigator.serviceWorker.removeEventListener?.(
+            "controllerchange",
+            onCtrl,
+          );
+          resolve();
+        }, 1500);
+      });
+    }
+
+    // If server has a newer build but SW didn't detect it, clear stale SW & precaches
     if (remoteIsNewer && !hasSwUpdate && !controllerChanged) {
       await purgeStaticAssetCaches();
       if (reg && !(await hasActivePushSubscription(reg))) {
@@ -193,10 +269,6 @@ export async function forceAppUpdate(options?: {
       } catch {
         /* fall through to cache-busted reload */
       }
-      // In autoUpdate mode updateServiceWorker(true) can resolve without reloading;
-      // schedule a guaranteed cache-busted reload fallback.
-      window.setTimeout(() => navigateCacheBusted(), 250);
-      return "reloading";
     }
 
     await purgeStaticAssetCaches();

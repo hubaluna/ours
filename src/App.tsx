@@ -49,6 +49,8 @@ import {
   type MascotLevel,
 } from "./lib/cat-sound";
 import { extractShareTargetUrl } from "./lib/share-target";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { hardReloadApp } from "./lib/pwa-update";
 const UniversalShareImport = lazy(() =>
   import("./components/UniversalShareImport").then((m) => ({
     default: m.UniversalShareImport,
@@ -667,27 +669,29 @@ export default function App() {
               {loading ? (
                 <Skeleton />
               ) : (
-                <Suspense fallback={<Skeleton />}>
-                  <motion.div className="tab-view" key={tab} {...tabEnter}>
-                    {tab === "home" ? (
-                      <Home navigate={setTab} />
-                    ) : tab === "budget" ? (
-                      <Budget />
-                    ) : tab === "shopping" ? (
-                      <Shopping />
-                    ) : tab === "menu" ? (
-                      <Menu />
-                    ) : tab === "movies" ? (
-                      <Movies />
-                    ) : tab === "wishes" ? (
-                      <Wishes />
-                    ) : tab === "plans" ? (
-                      <Plans />
-                    ) : (
-                      <Plants />
-                    )}
-                  </motion.div>
-                </Suspense>
+                <ErrorBoundary key={tab}>
+                  <Suspense fallback={<Skeleton />}>
+                    <motion.div className="tab-view" key={tab} {...tabEnter}>
+                      {tab === "home" ? (
+                        <Home navigate={setTab} />
+                      ) : tab === "budget" ? (
+                        <Budget />
+                      ) : tab === "shopping" ? (
+                        <Shopping />
+                      ) : tab === "menu" ? (
+                        <Menu />
+                      ) : tab === "movies" ? (
+                        <Movies />
+                      ) : tab === "wishes" ? (
+                        <Wishes />
+                      ) : tab === "plans" ? (
+                        <Plans />
+                      ) : (
+                        <Plants />
+                      )}
+                    </motion.div>
+                  </Suspense>
+                </ErrorBoundary>
               )}
             </main>
             <AnimatePresence>
@@ -767,7 +771,7 @@ export default function App() {
                 <span>Нова версія ours.</span>
                 <Button
                   className="ghost"
-                  onClick={() => void updateServiceWorker(true)}
+                  onClick={() => void hardReloadApp({ updateServiceWorker })}
                 >
                   Оновити
                 </Button>

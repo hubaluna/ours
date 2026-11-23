@@ -64,7 +64,14 @@ export function writeBudgetCache(
   try {
     localStorage.setItem(cacheKey(scope), JSON.stringify(items));
   } catch {
-    /* ignore storage quota errors */
+    try {
+      localStorage.setItem(
+        cacheKey(scope),
+        JSON.stringify(items.slice(0, 100)),
+      );
+    } catch {
+      /* ignore storage quota errors */
+    }
   }
 }
 

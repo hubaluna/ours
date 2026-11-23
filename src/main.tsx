@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { AppProvider } from "./hooks/AppContext";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import "./styles.css";
 if (location.hash.startsWith("#invite=")) {
   sessionStorage.setItem(
@@ -21,8 +22,10 @@ if (location.search.includes("_v=")) {
 }
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <AppProvider>
-      <App />
-    </AppProvider>
+    <ErrorBoundary>
+      <AppProvider>
+        <App />
+      </AppProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 );

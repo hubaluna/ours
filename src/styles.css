@@ -127,8 +127,8 @@
   --glass: rgba(23, 29, 25, 0.66);
   --glass-strong: rgba(27, 34, 30, 0.86);
   --glass-subtle: rgba(31, 39, 34, 0.46);
-  --glass-border: rgba(235, 245, 238, 0.095);
-  --glass-edge: rgba(235, 245, 238, 0.065);
+  --glass-border: rgba(235, 245, 238, 0.15);
+  --glass-edge: rgba(235, 245, 238, 0.11);
   --glass-specular: rgba(255, 255, 255, 0.12);
   --glass-shadow: 0 1px 2px rgba(0, 0, 0, 0.14);
   --glass-dock-shadow:
@@ -181,7 +181,7 @@
   --surface-2: rgba(235, 226, 214, 0.72);
   --text: #2e241b;
   --text-secondary: #4a3c2f;
-  --muted: #705e4e;
+  --muted: #5c4b3d;
   --accent: #825d3e;
   --accent-strong: #67472c;
   --accent-end: #9e7552;
@@ -239,7 +239,7 @@
   --surface-2: rgba(240, 225, 232, 0.72);
   --text: #301f26;
   --text-secondary: #4e353f;
-  --muted: #745762;
+  --muted: #5e434e;
   --accent: #944d66;
   --accent-strong: #783b51;
   --accent-end: #b06780;
@@ -1087,9 +1087,10 @@ button.header-status-badge:active {
     inset 0 1px 0 var(--glass-specular);
 }
 .button.icon-button {
-  height: 42px;
-  width: 42px;
-  min-height: 42px;
+  height: 44px;
+  width: 44px;
+  min-height: 44px;
+  min-width: 44px;
   padding: 0;
   border-radius: 14px;
   background: var(--glass-subtle);
@@ -1102,9 +1103,10 @@ button.header-status-badge:active {
     inset 0 1px 0 var(--glass-specular);
 }
 .button.add-small {
-  height: 42px;
-  width: 42px;
-  min-height: 42px;
+  height: 44px;
+  width: 44px;
+  min-height: 44px;
+  min-width: 44px;
   padding: 0;
   border-radius: 14px;
 }
@@ -5415,15 +5417,15 @@ button.header-status-badge:active {
   width: 30px;
   height: 30px;
   place-items: center;
-  border: 1px solid #ffffffa8;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 10px;
-  background: #fffdf8ed;
-  color: var(--accent);
+  background: #fffdf8;
+  color: #172e20;
   box-shadow: 0 2px 8px #0000001a;
 }
 .catalog-card-add:disabled {
   background: var(--accent-light);
-  color: var(--accent);
+  color: #172e20;
   box-shadow: none;
 }
 .catalog-card-favorite {
@@ -10217,11 +10219,9 @@ button.header-status-badge:active {
 }
 .recipe-steps li {
   padding: 4px 0;
-  text-align: justify;
-  text-justify: inter-word;
+  text-align: start;
   hyphens: auto;
   -webkit-hyphens: auto;
-  text-indent: 0.75em;
 }
 .recipe-note,
 .full-description,
@@ -10231,11 +10231,9 @@ button.header-status-badge:active {
 .pairing-card p {
   font-size: var(--text-xs);
   line-height: 1.46;
-  text-align: justify;
-  text-justify: inter-word;
+  text-align: start;
   hyphens: auto;
   -webkit-hyphens: auto;
-  text-indent: 1.35em;
 }
 .recipe-note {
   padding: 10px 12px 10px 16px;
@@ -10264,8 +10262,7 @@ button.header-status-badge:active {
 }
 .budget-shortcut-guide li,
 .budget-guide-note {
-  text-align: justify;
-  text-justify: inter-word;
+  text-align: start;
   hyphens: auto;
   -webkit-hyphens: auto;
 }
@@ -10353,17 +10350,23 @@ button.header-status-badge:active {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
-  min-height: 28px;
+  position: relative;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
   padding: 0;
-  border-radius: 7px;
+  border-radius: 8px;
   color: var(--muted);
   flex-shrink: 0;
   transition:
     background 0.14s ease,
     color 0.14s ease;
+}
+.batch-chip-remove::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
 }
 .batch-chip-remove:hover,
 .batch-chip-remove:active {

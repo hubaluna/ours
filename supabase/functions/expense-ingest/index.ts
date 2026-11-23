@@ -363,8 +363,8 @@ export async function handleRequest(request: Request): Promise<Response> {
       body.date ?? body.дата ?? body.time ?? body.час,
     );
 
-    // Prevent accidental double-triggers from iOS Shortcuts within 45 seconds.
-    const cutoff = new Date(Date.now() - 45_000).toISOString();
+    // Prevent accidental double-triggers from iOS Shortcuts within 120 seconds.
+    const cutoff = new Date(Date.now() - 120_000).toISOString();
     const recent = await rest<
       {
         id: string;

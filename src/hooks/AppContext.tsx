@@ -569,6 +569,7 @@ function useStore() {
           { couple_id: couple },
           "created_at",
           false,
+          300,
         ),
         readAll<Data["reads"][number]>("activity_reads", { user_id: userId }),
         readAll<Data["recipes"][number]>("recipes", { couple_id: couple }),

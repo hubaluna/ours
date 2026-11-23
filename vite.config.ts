@@ -250,14 +250,18 @@ export default defineConfig(({ command, mode }) => {
     build: {
       rollupOptions: {
         output: {
-          manualChunks: (id: string) =>
-            id.includes("@supabase")
-              ? "supabase"
-              : id.includes("/motion") || id.includes("/framer-motion")
-                ? "motion"
-                : id.includes("lucide-react")
-                  ? "icons"
-                  : undefined,
+          manualChunks: (id: string) => {
+            if (id.includes("@supabase")) return "supabase";
+            if (id.includes("/motion") || id.includes("/framer-motion"))
+              return "motion";
+            if (id.includes("lucide-react")) return "icons";
+            if (
+              id.includes("/data/ours-goods-uk") ||
+              id.includes("/data/ours-recipes")
+            )
+              return "catalogs";
+            return undefined;
+          },
         },
       },
     },

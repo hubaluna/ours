@@ -74,7 +74,15 @@ export function writeShoppingCache(
   try {
     localStorage.setItem(cacheKey(scope), JSON.stringify(items));
   } catch {
-    /* ignore storage limit */
+    try {
+      const active = items.filter((i) => !i.purchased && !i.session_id);
+      localStorage.setItem(
+        cacheKey(scope),
+        JSON.stringify(active.slice(0, 100)),
+      );
+    } catch {
+      /* ignore storage limit */
+    }
   }
 }
 
