@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import type { Movie, NewMovie } from "../lib/types";
 import { useApp } from "../hooks/AppContext";
 import { BottomSheet, Button, ConfirmDelete, Field } from "./ui";
 import { publicUrl } from "../../supabase/functions/_shared/urls";
 import { movieSynopsis } from "../../supabase/functions/_shared/movie-synopsis";
+
 export function MovieForm({
   movie,
   initial,
@@ -16,15 +18,26 @@ export function MovieForm({
   const { addMovie, update, remove, pending } = useApp();
   const seed = movie ?? initial;
   const [error, setError] = useState("");
-  const [status, setStatus] = useState(seed?.status ?? "planned");
+  const [status, setStatus] = useState<Movie["status"]>(seed?.status ?? "planned");
+  const [description, setDescription] = useState(movieSynopsis(seed?.description ?? ""));
+  const [url, setUrl] = useState(seed?.url ?? "");
+  const [poster, setPoster] = useState(seed?.poster_url ?? "");
+
+  const hasSecondaryData = Boolean(
+    seed?.description || seed?.url || seed?.poster_url,
+  );
+  const [moreOpen, setMoreOpen] = useState(hasSecondaryData);
+
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
-    const title = String(f.get("title")).trim(),
-      url = String(f.get("url")),
-      poster = String(f.get("poster")),
-      year = String(f.get("year"));
-    if (!title || (url && !publicUrl(url)) || (poster && !publicUrl(poster))) {
+    const title = String(f.get("title")).trim();
+    const cleanUrl = (f.get("url") !== null ? String(f.get("url")) : url).trim();
+    const cleanPoster = (f.get("poster") !== null ? String(f.get("poster")) : poster).trim();
+    const cleanDesc = (f.get("description") !== null ? String(f.get("description")) : description).trim();
+    const year = String(f.get("year") ?? "");
+
+    if (!title || (cleanUrl && !publicUrl(cleanUrl)) || (cleanPoster && !publicUrl(cleanPoster))) {
       setError("Перевірте назву та HTTPS-посилання.");
       return;
     }
@@ -41,11 +54,11 @@ export function MovieForm({
     }
     const value: NewMovie = {
       title,
-      url,
-      poster_url: poster,
+      url: cleanUrl,
+      poster_url: cleanPoster,
       year: parsedYear,
-      genres: String(f.get("genres")),
-      description: movieSynopsis(String(f.get("description"))),
+      genres: String(f.get("genres") ?? ""),
+      description: movieSynopsis(cleanDesc),
       status: String(f.get("status")) as Movie["status"],
       rating: rawRating,
       metadata_url: seed?.metadata_url ?? "",
@@ -55,20 +68,13 @@ export function MovieForm({
       : await addMovie(value);
     if (ok) onClose();
   };
+
   return (
     <BottomSheet
       title={movie ? "Фільм для нас" : "Що подивимось?"}
       onClose={onClose}
     >
-      <form className="form" onSubmit={submit}>
-        <div className="sheet-actions form-save">
-          <Button
-            type="submit"
-            busy={pending.includes(movie?.id ?? "add-movie")}
-          >
-            Зберегти фільм
-          </Button>
-        </div>
+      <form className="form is-entry-sheet" onSubmit={submit}>
         <Field label="Назва">
           <input
             data-autofocus
@@ -80,16 +86,6 @@ export function MovieForm({
           />
         </Field>
         <div className="form-grid">
-          <Field label="Рік">
-            <input
-              name="year"
-              type="number"
-              inputMode="numeric"
-              min={1888}
-              max={2200}
-              defaultValue={seed?.year ?? ""}
-            />
-          </Field>
           <Field label="Статус">
             <select
               name="status"
@@ -100,57 +96,124 @@ export function MovieForm({
               <option value="watched">Переглянули</option>
             </select>
           </Field>
-        </div>
-        {status === "watched" && (
-          <Field label="Оцінка від 1 до 10">
+          <Field label="Рік">
             <input
-              name="rating"
+              name="year"
               type="number"
-              min={1}
-              max={10}
-              step={1}
-              required
-              defaultValue={seed?.rating ?? ""}
+              inputMode="numeric"
+              min={1888}
+              max={2200}
+              defaultValue={seed?.year ?? ""}
+              placeholder="Рік випуску"
+            />
+          </Field>
+        </div>
+
+        {status === "watched" ? (
+          <div className="form-grid">
+            <Field label="Оцінка від 1 до 10">
+              <input
+                name="rating"
+                type="number"
+                min={1}
+                max={10}
+                step={1}
+                required
+                defaultValue={seed?.rating ?? ""}
+                placeholder="1–10"
+              />
+            </Field>
+            <Field label="Жанр">
+              <input
+                name="genres"
+                maxLength={300}
+                defaultValue={seed?.genres}
+                placeholder="Фантастика, драма…"
+              />
+            </Field>
+          </div>
+        ) : (
+          <Field label="Жанр">
+            <input
+              name="genres"
+              maxLength={300}
+              defaultValue={seed?.genres}
+              placeholder="Фантастика, драма…"
             />
           </Field>
         )}
-        <Field label="Жанр">
-          <input
-            name="genres"
-            maxLength={300}
-            defaultValue={seed?.genres}
-            placeholder="Фантастика, драма…"
-          />
-        </Field>
-        <Field label="Опис">
-          <textarea
-            name="description"
-            rows={4}
-            maxLength={650}
-            defaultValue={movieSynopsis(seed?.description ?? "")}
-          />
-        </Field>
-        <Field label="Фільм або трейлер">
-          <input
-            type="url"
-            name="url"
-            defaultValue={seed?.url}
-            placeholder="https://…"
-          />
-        </Field>
-        <Field label="Посилання на постер">
-          <input
-            type="url"
-            name="poster"
-            defaultValue={seed?.poster_url}
-            placeholder="https://…"
-          />
-        </Field>
+
+        <div className="entry-sheet-more">
+          <button
+            type="button"
+            className={`entry-sheet-more-toggle ${moreOpen ? "is-open" : ""}`}
+            aria-expanded={moreOpen}
+            onClick={() => setMoreOpen((v) => !v)}
+          >
+            <span className="entry-sheet-more-label">
+              <strong>Ще деталі</strong>
+              {!moreOpen && (
+                <span className="entry-sheet-more-summary">
+                  {[
+                    description.trim() ? "Є опис" : null,
+                    url.trim() ? "Є трейлер" : null,
+                    poster.trim() ? "Є постер" : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || "Опис, трейлер, постер"}
+                </span>
+              )}
+            </span>
+            {moreOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          </button>
+          {moreOpen && (
+            <div className="entry-sheet-more-body">
+              <Field label="Опис">
+                <textarea
+                  name="description"
+                  rows={2}
+                  maxLength={650}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Короткий сюжет або чому варто глянути…"
+                />
+              </Field>
+              <Field label="Фільм або трейлер">
+                <input
+                  type="url"
+                  name="url"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://…"
+                />
+              </Field>
+              <Field label="Посилання на постер">
+                <input
+                  type="url"
+                  name="poster"
+                  value={poster}
+                  onChange={(e) => setPoster(e.target.value)}
+                  placeholder="https://…"
+                />
+              </Field>
+            </div>
+          )}
+        </div>
+
         {error && (
           <p className="form-error" role="alert">
             {error}
           </p>
         )}
+
+        <div className="budget-sheet-sticky-actions is-compact-row">
+          <Button
+            type="submit"
+            busy={pending.includes(movie?.id ?? "add-movie")}
+          >
+            Зберегти фільм
+          </Button>
+        </div>
       </form>
       {movie && (
         <ConfirmDelete

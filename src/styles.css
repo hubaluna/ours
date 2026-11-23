@@ -7409,67 +7409,81 @@ button.header-status-badge:active {
   color: var(--muted);
 }
 
-/* Compact zero-scroll budget entry / edit sheet */
-.sheet:has(.budget-tx-form.is-entry-sheet) {
+/* Compact zero-scroll entry / edit sheets (Budget, Wishes, Movies, Recipes) */
+.sheet:has(.is-entry-sheet) {
   padding: 0 14px calc(14px + env(safe-area-inset-bottom));
 }
-.sheet:has(.budget-tx-form.is-entry-sheet) .sheet-handle-area {
+.sheet:has(.is-entry-sheet) .sheet-handle-area {
   height: 18px;
 }
-.sheet:has(.budget-tx-form.is-entry-sheet) .sheet-header {
+.sheet:has(.is-entry-sheet) .sheet-header {
   margin: 0 -14px;
   padding: 0 14px;
 }
-.sheet:has(.budget-tx-form.is-entry-sheet) .sheet-title {
+.sheet:has(.is-entry-sheet) .sheet-title {
   margin: 0 0 8px;
 }
-.sheet:has(.budget-tx-form.is-entry-sheet) .sheet-title h2 {
+.sheet:has(.is-entry-sheet) .sheet-title h2 {
   font-size: 17px;
   font-weight: 600;
   letter-spacing: -0.3px;
 }
-.sheet:has(.budget-tx-form.is-entry-sheet) .sheet-title .icon-button {
+.sheet:has(.is-entry-sheet) .sheet-title .icon-button {
   width: 36px;
   height: 36px;
   min-height: 36px;
 }
-.budget-tx-form.is-entry-sheet {
+.form.is-entry-sheet {
   gap: 8px;
 }
-.budget-tx-form.is-entry-sheet .segmented {
+.form.is-entry-sheet .segmented {
   padding: 3px;
   min-height: 34px;
 }
-.budget-tx-form.is-entry-sheet .segmented > button {
+.form.is-entry-sheet .segmented > button {
   min-height: 28px;
   padding: 4px 10px;
   font-size: 12.5px;
 }
-.budget-tx-form.is-entry-sheet .field {
+.form.is-entry-sheet .field {
   gap: 3px;
 }
-.budget-tx-form.is-entry-sheet .field > span {
+.form.is-entry-sheet .field > span,
+.form.is-entry-sheet .field > label.field-label {
   font-size: 10.5px;
   line-height: 1.25;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
 }
-.budget-tx-form.is-entry-sheet .field input {
+.form.is-entry-sheet .field input,
+.form.is-entry-sheet .field select {
   min-height: 38px;
   padding: 6px 10px;
   border-radius: 12px;
   font-size: 16px;
   line-height: 1.3;
 }
-.budget-tx-form.is-entry-sheet .budget-amount-input-wrap {
+.form.is-entry-sheet .field textarea {
+  min-height: 48px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.35;
+  resize: vertical;
+}
+.form.is-entry-sheet .budget-amount-input-wrap {
   min-height: 38px;
   padding: 0 10px;
   border-radius: 12px;
 }
-.budget-tx-form.is-entry-sheet .budget-amount-input-wrap input {
+.form.is-entry-sheet .budget-amount-input-wrap input {
   padding: 4px 0 !important;
   font-size: 18px !important;
   line-height: 1.2;
 }
-.budget-tx-form.is-entry-sheet .budget-amount-input-wrap span {
+.form.is-entry-sheet .budget-amount-input-wrap span {
   font-size: 15px;
 }
 .budget-tx-top-row {
@@ -7498,12 +7512,14 @@ button.header-status-badge:active {
   padding: 2px 7px;
   font-size: 11.5px;
 }
-.budget-tx-more {
+.budget-tx-more,
+.entry-sheet-more {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-.budget-tx-more-toggle {
+.budget-tx-more-toggle,
+.entry-sheet-more-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -7517,30 +7533,36 @@ button.header-status-badge:active {
   color: var(--text);
   font-size: 12.5px;
   text-align: left;
+  cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
-.budget-tx-more-toggle.is-open {
+.budget-tx-more-toggle.is-open,
+.entry-sheet-more-toggle.is-open {
   border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
 }
-.budget-tx-more-label {
+.budget-tx-more-label,
+.entry-sheet-more-label {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
-.budget-tx-more-label strong {
+.budget-tx-more-label strong,
+.entry-sheet-more-label strong {
   font-size: 12.5px;
   font-weight: 500;
   flex-shrink: 0;
 }
-.budget-tx-more-summary {
+.budget-tx-more-summary,
+.entry-sheet-more-summary {
   font-size: 11.5px;
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.budget-tx-more-body {
+.budget-tx-more-body,
+.entry-sheet-more-body {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -7548,6 +7570,128 @@ button.header-status-badge:active {
   border-radius: 12px;
   background: var(--glass-subtle);
   border: 1px solid var(--glass-edge);
+}
+
+/* Compact additions for WishForm, MovieForm, RecipeForm */
+.compact-photo-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.compact-photo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 5px 10px;
+  border-radius: 10px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: var(--glass-subtle);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.compact-photo-btn:hover {
+  background: var(--glass-hover);
+  border-color: var(--accent);
+}
+.compact-photo-thumb-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent-light);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: 10px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--accent-strong);
+}
+.compact-photo-remove {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+.compact-photo-remove:hover {
+  color: var(--danger);
+}
+.wish-occasion-chips.is-compact {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 6px;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.wish-occasion-chips.is-compact::-webkit-scrollbar {
+  display: none;
+}
+.wish-occasion-chips.is-compact .wish-occasion-chip {
+  flex-shrink: 0;
+  padding: 4px 9px;
+  font-size: 11.5px;
+}
+.private-wish-setting.is-compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: var(--glass-subtle);
+  margin-top: 2px;
+}
+.private-wish-setting.is-compact strong {
+  font-size: 12px;
+}
+.private-wish-setting.is-compact small {
+  font-size: 10.5px;
+  display: block;
+  color: var(--muted);
+}
+.recipe-meta-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.8fr) minmax(0, 0.9fr);
+  gap: 8px;
+}
+@media (max-width: 380px) {
+  .recipe-meta-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.recipe-photo-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.recipe-photo-input-wrap input {
+  flex: 1;
+  min-width: 0;
+}
+.form.is-entry-sheet .recipe-preview-image,
+.recipe-preview-thumbnail {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  max-height: 38px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--glass-edge);
+}
+.recipe-textareas-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+@media (max-width: 540px) {
+  .recipe-textareas-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .budget-form-row {

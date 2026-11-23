@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from "react";
-import { Camera, Plus, X } from "lucide-react";
+import { Camera, ChevronDown, ChevronUp, Plus, X } from "lucide-react";
 import { z } from "zod";
 import { useApp } from "../hooks/AppContext";
 import { uploadImage } from "../lib/supabase";
@@ -469,6 +469,16 @@ export function WishForm({
       ? initialParsed.occasion
       : "",
   );
+  const [url, setUrl] = useState<string>(seed?.url ?? "");
+  const [size, setSize] = useState<string>(seed?.size ?? "");
+  const [note, setNote] = useState<string>(initialParsed.cleanNote ?? "");
+  const [isPrivate, setIsPrivate] = useState<boolean>(seed?.is_private ?? false);
+
+  const hasSecondaryData = Boolean(
+    seed?.url || seed?.size || seed?.is_private || initialParsed.cleanNote,
+  );
+  const [moreOpen, setMoreOpen] = useState(hasSecondaryData);
+
   const file = useRef<HTMLInputElement>(null);
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -478,13 +488,13 @@ export function WishForm({
       setError(parsed.error.issues[0].message);
       return;
     }
-    const url = String(f.get("url"));
-    const size = String(f.get("size") ?? "").trim();
-    if (url && !z.url({ protocol: /^https?$/ }).safeParse(url).success) {
+    const cleanUrl = (f.get("url") !== null ? String(f.get("url")) : url).trim();
+    const cleanSize = (f.get("size") !== null ? String(f.get("size")) : size).trim();
+    if (cleanUrl && !z.url({ protocol: /^https?$/ }).safeParse(cleanUrl).success) {
       setError("Додайте повне посилання, що починається з https://");
       return;
     }
-    if (size.length > 120) {
+    if (cleanSize.length > 120) {
       setError("Розмір або варіант має бути до 120 символів.");
       return;
     }
@@ -499,18 +509,22 @@ export function WishForm({
     const selectedOcc = isCustomOccasion
       ? customOccasion.trim()
       : occasion.trim();
-    const cleanNote = String(f.get("note") ?? "").trim();
-    const finalNote = buildWishNote(selectedOcc || null, cleanNote);
+    const cleanNoteText = (f.get("note") !== null ? String(f.get("note")) : note).trim();
+    const finalNote = buildWishNote(selectedOcc || null, cleanNoteText);
+    const privateValue =
+      f.get("is_private") !== null
+        ? f.get("is_private") === "on"
+        : isPrivate;
     const value = {
       name: parsed.data,
       price: parsedPrice,
-      url,
+      url: cleanUrl,
       priority: String(f.get("priority")),
       note: finalNote,
-      size,
+      size: cleanSize,
       image_path: image,
       image_url: seed?.image_url ?? "",
-      is_private: f.get("is_private") === "on",
+      is_private: privateValue,
     };
     const ok = wish
       ? await update("wishes", wish.id, value, "Бажання збережено")
@@ -522,15 +536,7 @@ export function WishForm({
       title={wish ? "Моє бажання" : "Ще одна хороша ідея"}
       onClose={onClose}
     >
-      <form className="form" onSubmit={submit}>
-        <div className="sheet-actions form-save">
-          <Button
-            type="submit"
-            busy={uploading || pending.includes(wish?.id ?? "add-wish")}
-          >
-            {wish ? "Зберегти" : "Зберегти бажання"}
-          </Button>
-        </div>
+      <form className="form is-entry-sheet" onSubmit={submit}>
         <Field label="Назва">
           <input
             data-autofocus
@@ -541,37 +547,6 @@ export function WishForm({
             placeholder="Про що мрієте?"
           />
         </Field>
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          hidden
-          ref={file}
-          onChange={async (e) => {
-            const selected = e.target.files?.[0];
-            if (!selected) return;
-            setUploading(true);
-            try {
-              setImage(await uploadImage(selected, userId, coupleId!));
-              setError("");
-            } catch (e) {
-              setError(
-                e instanceof Error ? e.message : "Не вдалося завантажити фото.",
-              );
-            } finally {
-              setUploading(false);
-            }
-          }}
-        />
-        <Button
-          type="button"
-          className="photo-upload"
-          busy={uploading}
-          onClick={() => file.current?.click()}
-        >
-          <Camera size={22} />
-          {image ? "Фото додано · замінити" : "Додати фотографію"}
-          <small>JPEG, PNG, WebP · до 12 МБ</small>
-        </Button>
         <div className="form-grid">
           <Field label="Ціна, ₴">
             <input
@@ -597,7 +572,11 @@ export function WishForm({
         </div>
         <div className="field">
           <label className="field-label">До якого свята або приводу?</label>
-          <div className="wish-occasion-chips" role="radiogroup" aria-label="Привід">
+          <div
+            className="wish-occasion-chips is-compact"
+            role="radiogroup"
+            aria-label="Привід"
+          >
             <button
               type="button"
               className={`wish-occasion-chip${!occasion && !isCustomOccasion ? " selected" : ""}`}
@@ -650,47 +629,134 @@ export function WishForm({
             />
           )}
         </div>
-        <label className="private-wish-setting">
-          <input
-            type="checkbox"
-            name="is_private"
-            defaultChecked={seed?.is_private ?? false}
-          />
-          <span>
-            <strong>Лише для мене</strong>
-            <small>Партнер не побачить це бажання чи його фотографію.</small>
-          </span>
-        </label>
-        <Field label="Посилання на товар">
-          <input
-            name="url"
-            type="url"
-            defaultValue={seed?.url}
-            placeholder="https://"
-          />
-        </Field>
-        <Field label="Розмір / варіант">
-          <input
-            name="size"
-            maxLength={120}
-            defaultValue={seed?.size ?? ""}
-            placeholder="Наприклад, M, 38 або 250 мл"
-          />
-        </Field>
-        <Field label="Кілька слів">
-          <textarea
-            name="note"
-            defaultValue={initialParsed.cleanNote}
-            maxLength={2000}
-            placeholder="Колір, розмір або маленька підказка…"
-            rows={3}
-          />
-        </Field>
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          hidden
+          ref={file}
+          onChange={async (e) => {
+            const selected = e.target.files?.[0];
+            if (!selected) return;
+            setUploading(true);
+            try {
+              setImage(await uploadImage(selected, userId, coupleId!));
+              setError("");
+            } catch (e) {
+              setError(
+                e instanceof Error ? e.message : "Не вдалося завантажити фото.",
+              );
+            } finally {
+              setUploading(false);
+            }
+          }}
+        />
+        <div className="compact-photo-row">
+          <button
+            type="button"
+            className="compact-photo-btn"
+            disabled={uploading}
+            onClick={() => file.current?.click()}
+          >
+            <Camera size={15} />
+            <span>{image ? "Змінити фото" : "Додати фото"}</span>
+          </button>
+          {image && (
+            <div className="compact-photo-thumb-wrap">
+              <span>📷 Фото додано</span>
+              <button
+                type="button"
+                className="compact-photo-remove"
+                onClick={() => setImage(null)}
+                title="Прибрати фото"
+                aria-label="Прибрати фото"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="entry-sheet-more">
+          <button
+            type="button"
+            className={`entry-sheet-more-toggle ${moreOpen ? "is-open" : ""}`}
+            aria-expanded={moreOpen}
+            onClick={() => setMoreOpen((v) => !v)}
+          >
+            <span className="entry-sheet-more-label">
+              <strong>Ще деталі</strong>
+              {!moreOpen && (
+                <span className="entry-sheet-more-summary">
+                  {[
+                    isPrivate ? "Лише для мене" : "Спільне",
+                    size.trim() ? `Розмір: ${size}` : null,
+                    url.trim() ? "Є посилання" : null,
+                    note.trim() ? "Є примітка" : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              )}
+            </span>
+            {moreOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          </button>
+          {moreOpen && (
+            <div className="entry-sheet-more-body">
+              <Field label="Посилання на товар">
+                <input
+                  name="url"
+                  type="url"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://"
+                />
+              </Field>
+              <Field label="Розмір / варіант">
+                <input
+                  name="size"
+                  maxLength={120}
+                  value={size}
+                  onChange={(e) => setSize(e.target.value)}
+                  placeholder="Наприклад, M, 38 або 250 мл"
+                />
+              </Field>
+              <Field label="Кілька слів">
+                <textarea
+                  name="note"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  maxLength={2000}
+                  placeholder="Колір, розмір або маленька підказка…"
+                  rows={2}
+                />
+              </Field>
+              <label className="private-wish-setting is-compact">
+                <input
+                  type="checkbox"
+                  name="is_private"
+                  checked={isPrivate}
+                  onChange={(e) => setIsPrivate(e.target.checked)}
+                />
+                <span>
+                  <strong>Лише для мене</strong>
+                  <small>Партнер не побачить це бажання.</small>
+                </span>
+              </label>
+            </div>
+          )}
+        </div>
         {error && (
           <p role="alert" className="form-error">
             {error}
           </p>
         )}
+        <div className="budget-sheet-sticky-actions is-compact-row">
+          <Button
+            type="submit"
+            busy={uploading || pending.includes(wish?.id ?? "add-wish")}
+          >
+            {wish ? "Зберегти" : "Зберегти бажання"}
+          </Button>
+        </div>
       </form>
       {wish && (
         <ConfirmDelete
