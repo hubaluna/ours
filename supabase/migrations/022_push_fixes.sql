@@ -46,4 +46,7 @@ begin
   end if;
 end $$;
 
+-- 3. Ensure authenticated can update wishes.fulfilled
+grant update(fulfilled) on public.wishes to authenticated;
+
 commit;

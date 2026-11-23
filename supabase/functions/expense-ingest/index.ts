@@ -2,13 +2,15 @@ import {
   autoCategorizeMerchant,
   normalizeMerchantName,
   parseApplePayAmount,
+  SKARBO_EXPENSE_CATEGORIES,
+  SKARBO_INCOME_CATEGORIES,
   type BudgetKind,
   type MerchantRuleLike,
 } from "../_shared/budget-categorizer.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers":
     "authorization, content-type, x-ours-budget-token",
 };
@@ -48,7 +50,7 @@ async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (await response.json()) as T;
 }
 
-function extractToken(request: Request, body: Record<string, unknown>): string {
+function extractToken(request: Request, body?: Record<string, unknown>): string {
   const auth = request.headers.get("authorization") ?? "";
   let token = "";
   if (auth) {
@@ -63,8 +65,17 @@ function extractToken(request: Request, body: Record<string, unknown>): string {
   if (!token) {
     token = request.headers.get("x-ours-budget-token")?.trim() ?? "";
   }
-  if (!token && typeof body.token === "string") {
+  if (!token && body && typeof body.token === "string") {
     token = body.token.trim();
+  }
+  if (!token) {
+    try {
+      const url = new URL(request.url);
+      const qToken = url.searchParams.get("token");
+      if (qToken) token = qToken.trim();
+    } catch {
+      // ignore
+    }
   }
   return token.replace(/^["']|["']$/g, "").trim();
 }
@@ -159,20 +170,84 @@ function jsonResponse(payload: unknown, status = 200): Response {
   });
 }
 
+type CustomCategoryRow = {
+  id: string;
+  name: string;
+  emoji: string;
+  sort_order?: number;
+};
+
+export function findCategoryMatch(
+  rawInput: string,
+  kind: BudgetKind,
+  customCats: CustomCategoryRow[],
+): string | null {
+  const trimmed = rawInput.trim();
+  if (!trimmed) return null;
+
+  // 1. Direct ID match (custom UUID or standard ID)
+  const byCustomId = customCats.find((c) => c.id === trimmed);
+  if (byCustomId) return byCustomId.id;
+
+  const standardCats =
+    kind === "income" ? SKARBO_INCOME_CATEGORIES : SKARBO_EXPENSE_CATEGORIES;
+  const byStandardId = standardCats.find(
+    (c) => c.id.toLowerCase() === trimmed.toLowerCase(),
+  );
+  if (byStandardId) return byStandardId.id;
+
+  // 2. Exact match with emoji + name (e.g. "🥑 Продукти")
+  const trimmedLower = trimmed.toLowerCase();
+  for (const c of customCats) {
+    const formatted = `${c.emoji || "📦"} ${c.name}`.trim().toLowerCase();
+    if (trimmedLower === formatted) return c.id;
+  }
+  for (const c of standardCats) {
+    const formatted = `${c.emoji} ${c.name}`.trim().toLowerCase();
+    if (trimmedLower === formatted) return c.id;
+  }
+
+  // 3. Strip leading emojis, symbols, whitespace to get just the text
+  const cleanInput = trimmed
+    .replace(/^[\p{Extended_Pictographic}\p{Emoji_Presentation}\p{Emoji}\uFE0F\u200D\s]+/u, "")
+    .trim()
+    .toLowerCase();
+
+  if (cleanInput) {
+    for (const c of customCats) {
+      if (cleanInput === c.name.trim().toLowerCase()) return c.id;
+    }
+    for (const c of standardCats) {
+      if (cleanInput === c.name.trim().toLowerCase()) return c.id;
+    }
+  }
+
+  // 4. Exact emoji-only match (if input is just an emoji)
+  for (const c of customCats) {
+    if (c.emoji && trimmed === c.emoji.trim()) return c.id;
+  }
+  for (const c of standardCats) {
+    if (c.emoji && trimmed === c.emoji.trim()) return c.id;
+  }
+
+  return null;
+}
+
 export async function handleRequest(request: Request): Promise<Response> {
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
-  if (request.method !== "POST") {
+  if (request.method !== "GET" && request.method !== "POST") {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
-  const rawBody = await parseRequestBody(request);
+  const rawBody = request.method === "POST" ? await parseRequestBody(request) : {};
   const body = normalizeBody(rawBody);
 
   const token = extractToken(request, body);
   if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
     console.error("[expense-ingest] 401 Unauthorized: token malformed or missing", {
+      method: request.method,
       hasAuth: Boolean(request.headers.get("authorization")),
       tokenLength: token.length,
       tokenHint: token ? token.slice(-4) : "empty",
@@ -196,6 +271,36 @@ export async function handleRequest(request: Request): Promise<Response> {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
+    if (request.method === "GET") {
+      let customCategories: CustomCategoryRow[] = [];
+      try {
+        customCategories = await rest<CustomCategoryRow[]>(
+          `budget_categories?couple_id=eq.${identity.couple_id}&kind=eq.expense&select=id,name,emoji,sort_order&order=sort_order.asc,name.asc`,
+        );
+      } catch (e) {
+        console.warn("[expense-ingest] Failed to fetch custom categories for GET:", e);
+      }
+
+      const categorySet = new Set<string>();
+      const categories: string[] = [];
+      for (const c of SKARBO_EXPENSE_CATEGORIES) {
+        const label = `${c.emoji} ${c.name}`.trim();
+        if (!categorySet.has(label)) {
+          categorySet.add(label);
+          categories.push(label);
+        }
+      }
+      for (const c of customCategories ?? []) {
+        const label = `${c.emoji || "📦"} ${c.name}`.trim();
+        if (!categorySet.has(label)) {
+          categorySet.add(label);
+          categories.push(label);
+        }
+      }
+
+      return jsonResponse({ categories }, 200);
+    }
+
     const rawAmount =
       body.amount ??
       body.сума ??
@@ -212,16 +317,6 @@ export async function handleRequest(request: Request): Promise<Response> {
       return jsonResponse({ error: "Invalid amount" }, 400);
     }
 
-    const rawMerchant =
-      body.merchant ??
-      body.name ??
-      body.продавець ??
-      body.назва ??
-      body.store ??
-      body.магазин ??
-      body.payee ??
-      "Apple Pay";
-    const merchant = String(rawMerchant).trim().slice(0, 160) || "Apple Pay";
     const cardLabel = String(
       body.card ?? body.картка ?? body.card_label ?? body.account ?? "",
     )
@@ -232,6 +327,35 @@ export async function handleRequest(request: Request): Promise<Response> {
     )
       .trim()
       .slice(0, 500);
+
+    const isManual =
+      cardLabel.toLowerCase() === "вручну" ||
+      cardLabel.toLowerCase() === "manual";
+
+    const rawMerchant =
+      body.merchant ??
+      body.name ??
+      body.продавець ??
+      body.назва ??
+      body.store ??
+      body.магазин ??
+      body.payee;
+
+    let merchant = "";
+    if (rawMerchant !== undefined && rawMerchant !== null && String(rawMerchant).trim() !== "") {
+      merchant = String(rawMerchant).trim().slice(0, 160);
+    }
+
+    if (!merchant) {
+      if (isManual) {
+        merchant = note ? note.slice(0, 160) : "Вручну";
+      } else {
+        merchant = "Apple Pay";
+      }
+    } else if (isManual && merchant.toLowerCase() === "apple pay") {
+      merchant = note ? note.slice(0, 160) : "Вручну";
+    }
+
     const kind: BudgetKind =
       body.kind === "income" || body.тип === "income" ? "income" : "expense";
     const { occurredOn, occurredAt } = parseOccurredDate(
@@ -250,7 +374,8 @@ export async function handleRequest(request: Request): Promise<Response> {
       }[]
     >(
       `budget_transactions?couple_id=eq.${identity.couple_id}&user_id=eq.${identity.user_id}&source=eq.apple_pay&amount=eq.${amount}&created_at=gte.${encodeURIComponent(cutoff)}&select=id,merchant,amount,status,category_key&limit=5`,
-    );
+    ).catch(() => []);
+
     const normMerchant = normalizeMerchantName(merchant);
     const duplicate = recent.find(
       (row) => normalizeMerchantName(row.merchant) === normMerchant,
@@ -270,22 +395,69 @@ export async function handleRequest(request: Request): Promise<Response> {
       });
     }
 
-    const rules = await rest<MerchantRuleLike[]>(
-      `budget_merchant_rules?couple_id=eq.${identity.couple_id}&select=merchant_pattern,normalized_pattern,category_key,kind`,
-    );
-    const match = autoCategorizeMerchant(merchant, rules, kind);
-    const status = match.category_key ? "confirmed" : "needs_review";
+    let customCategories: CustomCategoryRow[] = [];
+    try {
+      customCategories = await rest<CustomCategoryRow[]>(
+        `budget_categories?couple_id=eq.${identity.couple_id}&kind=eq.${kind}&select=id,name,emoji,sort_order`,
+      );
+    } catch (e) {
+      console.warn("[expense-ingest] Failed to fetch custom categories for matching:", e);
+    }
 
-    const settings = await rest<{ share_income_with_partner: boolean }[]>(
-      `budget_settings?user_id=eq.${encodeURIComponent(identity.user_id)}&select=share_income_with_partner&limit=1`,
-    ).catch((err) => {
+    const rawCategory =
+      body.category ??
+      body.категорія ??
+      body.cat ??
+      body.category_key;
+
+    let matchedCategoryKey: string | null = null;
+    let matchedBy: string = "unmatched";
+
+    if (rawCategory && typeof rawCategory === "string" && rawCategory.trim()) {
+      const explicitKey = findCategoryMatch(rawCategory, kind, customCategories);
+      if (explicitKey) {
+        matchedCategoryKey = explicitKey;
+        matchedBy = "user_choice";
+      }
+    }
+
+    if (!matchedCategoryKey) {
+      const rules = await rest<MerchantRuleLike[]>(
+        `budget_merchant_rules?couple_id=eq.${identity.couple_id}&select=merchant_pattern,normalized_pattern,category_key,kind`,
+      ).catch((e) => {
+        console.warn("[expense-ingest] Failed to fetch merchant rules:", e);
+        return [];
+      });
+      const match = autoCategorizeMerchant(merchant, rules, kind);
+      if (match.category_key) {
+        matchedCategoryKey = match.category_key;
+        matchedBy = match.matched_by;
+      }
+    }
+
+    const status = matchedCategoryKey ? "confirmed" : "needs_review";
+
+    // Privacy logic: is_private = not share_income_with_partner for ALL transactions (both expenses and incomes),
+    // default to true if settings missing or error occurs.
+    let isPrivate = true;
+    try {
+      const settings = await rest<{ share_income_with_partner: boolean }[]>(
+        `budget_settings?user_id=eq.${identity.user_id}&select=share_income_with_partner&limit=1`,
+      );
+      if (
+        settings &&
+        settings.length > 0 &&
+        typeof settings[0].share_income_with_partner === "boolean"
+      ) {
+        isPrivate = !settings[0].share_income_with_partner;
+      }
+    } catch (err) {
       console.warn(
-        "[expense-ingest] budget_settings lookup failed, defaulting to private:",
+        "[expense-ingest] Failed to fetch budget_settings, defaulting is_private to true:",
         err,
       );
-      return [] as { share_income_with_partner: boolean }[];
-    });
-    const isPrivate = !(settings[0]?.share_income_with_partner ?? false);
+      isPrivate = true;
+    }
 
     const inserted = await rest<
       {
@@ -303,7 +475,7 @@ export async function handleRequest(request: Request): Promise<Response> {
         amount,
         merchant,
         note,
-        category_key: match.category_key,
+        category_key: matchedCategoryKey,
         status,
         source: "apple_pay",
         is_private: isPrivate,
@@ -319,7 +491,9 @@ export async function handleRequest(request: Request): Promise<Response> {
       merchant,
       amount,
       status: created?.status ?? status,
-      matched_by: match.matched_by,
+      matched_by: matchedBy,
+      category_key: created?.category_key ?? matchedCategoryKey,
+      is_private: isPrivate,
     });
 
     return jsonResponse(
@@ -328,8 +502,8 @@ export async function handleRequest(request: Request): Promise<Response> {
         duplicate: false,
         id: created?.id ?? null,
         status: created?.status ?? status,
-        category_key: created?.category_key ?? match.category_key,
-        matched_by: match.matched_by,
+        category_key: created?.category_key ?? matchedCategoryKey,
+        matched_by: matchedBy,
       },
       201,
     );
