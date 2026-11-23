@@ -1,5 +1,6 @@
 import {
   autoCategorizeMerchant,
+  isGenericOrEmptyMerchant,
   normalizeMerchantName,
   parseApplePayAmount,
   SKARBO_EXPENSE_CATEGORIES,
@@ -421,14 +422,32 @@ export async function handleRequest(request: Request): Promise<Response> {
       }
     }
 
-    if (!matchedCategoryKey) {
-      const rules = await rest<MerchantRuleLike[]>(
-        `budget_merchant_rules?couple_id=eq.${identity.couple_id}&select=merchant_pattern,normalized_pattern,category_key,kind`,
+    if (!matchedCategoryKey && !isGenericOrEmptyMerchant(merchant)) {
+      const rules = await rest<(MerchantRuleLike & { id?: string })[]>(
+        `budget_merchant_rules?couple_id=eq.${identity.couple_id}&select=id,merchant_pattern,normalized_pattern,category_key,kind`,
       ).catch((e) => {
         console.warn("[expense-ingest] Failed to fetch merchant rules:", e);
         return [];
       });
-      const match = autoCategorizeMerchant(merchant, rules, kind);
+
+      // Filter out and delete any bogus rules for empty pattern or "Apple Pay"
+      const bogusRules = (rules || []).filter(
+        (r) => isGenericOrEmptyMerchant(r.normalized_pattern || r.merchant_pattern),
+      );
+      if (bogusRules.length > 0) {
+        const ids = bogusRules.map((r) => r.id).filter(Boolean);
+        if (ids.length > 0) {
+          rest(`budget_merchant_rules?id=in.(${ids.join(",")})`, {
+            method: "DELETE",
+          }).catch(() => {});
+        }
+      }
+
+      const validRules = (rules || []).filter(
+        (r) => !isGenericOrEmptyMerchant(r.normalized_pattern || r.merchant_pattern),
+      );
+
+      const match = autoCategorizeMerchant(merchant, validRules, kind);
       if (match.category_key) {
         matchedCategoryKey = match.category_key;
         matchedBy = match.matched_by;

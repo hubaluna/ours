@@ -2277,22 +2277,50 @@ export function parseApplePayAmount(raw: unknown): number | null {
   return Math.round(value * 100) / 100;
 }
 
+export function isGenericOrEmptyMerchant(
+  merchant: string | null | undefined,
+): boolean {
+  if (!merchant) return true;
+  const norm = normalizeMerchantName(merchant);
+  if (!norm) return true;
+  return (
+    norm === "apple pay" ||
+    norm === "applepay" ||
+    norm === "apple" ||
+    norm === "вручну" ||
+    norm === "manual" ||
+    norm === "оплата" ||
+    norm === "платіж" ||
+    norm === "покупка" ||
+    norm === "транзакція" ||
+    norm === "витрата"
+  );
+}
+
 export function matchMerchantRule(
   merchant: string,
   rules: MerchantRuleLike[],
   kind: BudgetKind = "expense",
 ): MerchantRuleLike | null {
+  if (isGenericOrEmptyMerchant(merchant)) return null;
   const norm = normalizeMerchantName(merchant);
   if (!norm) return null;
 
-  const filtered = rules.filter((r) => !r.kind || r.kind === kind);
+  const filtered = rules.filter((r) => {
+    if (r.kind && r.kind !== kind) return false;
+    const pat = r.normalized_pattern || r.merchant_pattern;
+    if (isGenericOrEmptyMerchant(pat)) return false;
+    return true;
+  });
+
   let bestMatch: { rule: MerchantRuleLike; score: number } | null = null;
 
   for (const rule of filtered) {
     const pattern = normalizeMerchantName(
       rule.normalized_pattern || rule.merchant_pattern,
     );
-    if (!pattern) continue;
+    if (!pattern || isGenericOrEmptyMerchant(pattern)) continue;
+
     if (norm === pattern) {
       const score = 10_000 + pattern.length;
       if (!bestMatch || score > bestMatch.score) {
@@ -2300,10 +2328,14 @@ export function matchMerchantRule(
       }
       continue;
     }
-    if (norm.includes(pattern) || pattern.includes(norm)) {
-      const score = Math.min(norm.length, pattern.length);
-      if (!bestMatch || score > bestMatch.score) {
-        bestMatch = { rule, score };
+
+    if (pattern.length >= 3) {
+      const wordBoundaryRe = makeWordBoundaryRegExp(pattern);
+      if (wordBoundaryRe.test(norm)) {
+        const score = pattern.length;
+        if (!bestMatch || score > bestMatch.score) {
+          bestMatch = { rule, score };
+        }
       }
     }
   }
@@ -2413,6 +2445,7 @@ export function categorizeMerchantFromDictionary(
   merchant: string,
   kind: BudgetKind = "expense",
 ): string | null {
+  if (isGenericOrEmptyMerchant(merchant)) return null;
   const norm = normalizeMerchantName(merchant);
   if (!norm) return null;
   const relaxed = relaxMerchantPunctuation(norm);
@@ -2470,8 +2503,11 @@ export function autoCategorizeMerchant(
   category_key: string | null;
   matched_by: "rule" | "dictionary" | "none";
 } {
+  if (isGenericOrEmptyMerchant(merchant)) {
+    return { category_key: null, matched_by: "none" };
+  }
   const ruleMatch = matchMerchantRule(merchant, rules, kind);
-  if (ruleMatch) {
+  if (ruleMatch && ruleMatch.category_key) {
     return {
       category_key: normalizeCategoryKey(ruleMatch.category_key, kind),
       matched_by: "rule",
