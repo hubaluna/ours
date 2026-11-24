@@ -32,6 +32,8 @@ export function GuestWishlistView({
     return initial;
   });
 
+  const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
+
   const loadReservations = useCallback(async () => {
     if (itemIds.length === 0) return;
     const res = await fetchGuestReservations(itemIds);
@@ -138,51 +140,77 @@ export function GuestWishlistView({
                         : ""
                   }`}
                 >
-                  {item.image_url && (
-                    <div className="guest-wish-card-img-wrap">
+                  <div className="guest-wish-card-img-wrap">
+                    {item.image_url ? (
                       <img
                         src={item.image_url}
                         alt={item.name}
                         className="guest-wish-card-img"
                         referrerPolicy="no-referrer"
                       />
-                    </div>
-                  )}
+                    ) : (
+                      <Gift size={26} className="guest-thumb-fallback" />
+                    )}
+                  </div>
 
                   <div className="guest-wish-card-body">
-                    <div className="guest-wish-badges">
-                      {item.priority && (
-                        <span
-                          className={`guest-priority-badge ${
-                            item.priority === "Мрія"
-                              ? "is-dream"
-                              : item.priority === "Дуже хочу"
-                                ? "is-high"
-                                : "is-normal"
-                          }`}
-                        >
-                          {item.priority === "Мрія" ? "✨ Мрія" : item.priority}
-                        </span>
-                      )}
-                      {item.size && (
-                        <span className="guest-size-badge">
-                          Розмір: {item.size}
-                        </span>
-                      )}
+                    <div className="guest-wish-card-top">
+                      <div className="guest-wish-badges">
+                        {item.priority && (
+                          <span
+                            className={`guest-priority-badge ${
+                              item.priority === "Мрія"
+                                ? "is-dream"
+                                : item.priority === "Дуже хочу"
+                                  ? "is-high"
+                                  : "is-normal"
+                            }`}
+                          >
+                            {item.priority === "Мрія" ? "✨ Мрія" : item.priority}
+                          </span>
+                        )}
+                        {item.size && (
+                          <span className="guest-size-badge">
+                            {item.size}
+                          </span>
+                        )}
+                      </div>
+
+                      {item.price !== null &&
+                        item.price !== undefined &&
+                        item.price > 0 && (
+                          <div className="guest-wish-card-price">
+                            {money(item.price)}
+                          </div>
+                        )}
                     </div>
 
                     <h2 className="guest-wish-card-title">{item.name}</h2>
 
-                    {item.price !== null &&
-                      item.price !== undefined &&
-                      item.price > 0 && (
-                        <div className="guest-wish-card-price">
-                          {money(item.price)}
-                        </div>
-                      )}
-
                     {item.note && (
-                      <p className="guest-wish-card-note">{item.note}</p>
+                      <div className="guest-wish-card-note-wrap">
+                        <p
+                          className={`guest-wish-card-note${
+                            expandedNotes[item.id] ? " is-expanded" : ""
+                          }`}
+                        >
+                          {item.note}
+                        </p>
+                        {item.note.length > 90 && (
+                          <button
+                            type="button"
+                            className="guest-note-toggle"
+                            onClick={() =>
+                              setExpandedNotes((prev) => ({
+                                ...prev,
+                                [item.id]: !prev[item.id],
+                              }))
+                            }
+                          >
+                            {expandedNotes[item.id] ? "Згорнути" : "Детальніше"}
+                          </button>
+                        )}
+                      </div>
                     )}
 
                     <div className="guest-wish-card-actions">
@@ -193,7 +221,7 @@ export function GuestWishlistView({
                           rel="noopener noreferrer"
                           className="guest-store-btn button secondary"
                         >
-                          <ExternalLink size={15} />
+                          <ExternalLink size={13} />
                           <span>Де купити</span>
                         </a>
                       )}
@@ -202,8 +230,8 @@ export function GuestWishlistView({
                         {isReservedByMe ? (
                           <div className="guest-reserved-pill-group">
                             <span className="guest-reserved-pill">
-                              <Check size={15} />
-                              Заброньовано вами
+                              <Check size={14} />
+                              Заброньовано
                             </span>
                             <button
                               type="button"
@@ -215,8 +243,8 @@ export function GuestWishlistView({
                           </div>
                         ) : isReservedByOther ? (
                           <div className="guest-reserved-by-other-pill">
-                            <Lock size={15} />
-                            <span>Вже заброньовано</span>
+                            <Lock size={14} />
+                            <span>Заброньовано</span>
                           </div>
                         ) : (
                           <button
@@ -224,7 +252,7 @@ export function GuestWishlistView({
                             className="guest-reserve-btn button"
                             onClick={() => handleToggle(item.id)}
                           >
-                            <Gift size={16} />
+                            <Gift size={14} />
                             <span>Забронювати</span>
                           </button>
                         )}
