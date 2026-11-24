@@ -439,6 +439,21 @@ export default function App() {
       return null;
     });
 
+  const isGuestWishlistAttempt =
+    typeof window !== "undefined" &&
+    (new URLSearchParams(window.location.search).has("w") ||
+      new URLSearchParams(window.location.search).has("shared_wishlist") ||
+      window.location.hash.includes("w=") ||
+      window.location.hash.includes("shared_wishlist=") ||
+      Boolean(
+        typeof sessionStorage !== "undefined" &&
+          sessionStorage.getItem("ours_guest_wishlist"),
+      ));
+
+  const [guestLoading, setGuestLoading] = useState<boolean>(
+    () => isGuestWishlistAttempt && !guestWishlistPayload,
+  );
+
   // Load wishlist if short id provided via ?w=
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -450,17 +465,22 @@ export default function App() {
         : null);
 
     if (shortId) {
-      void fetchSharedWishlistById(shortId).then((res) => {
-        if (res) {
-          setGuestWishlistPayload(res);
-          try {
-            sessionStorage.setItem("ours_guest_wishlist", JSON.stringify(res));
-            window.history.replaceState(null, "", window.location.pathname);
-          } catch {
-            // ignore
+      setGuestLoading(true);
+      void fetchSharedWishlistById(shortId)
+        .then((res) => {
+          if (res) {
+            setGuestWishlistPayload(res);
+            try {
+              sessionStorage.setItem("ours_guest_wishlist", JSON.stringify(res));
+              window.history.replaceState(null, "", window.location.pathname);
+            } catch {
+              // ignore
+            }
           }
-        }
-      });
+        })
+        .finally(() => {
+          setGuestLoading(false);
+        });
     }
   }, []);
   const [sharedUrl, setSharedUrl] = useState<string | null>(() => {
@@ -630,6 +650,17 @@ export default function App() {
             }
           />
         </Suspense>
+      ) : guestLoading ? (
+        <div className="app-shell">
+          <Skeleton />
+        </div>
+      ) : isGuestWishlistAttempt && !guestWishlistPayload ? (
+        <main className="pair-shell">
+          <h1>Вішліст не знайдено</h1>
+          <p>
+            Посилання недійсне, застаріло або було видалено автором.
+          </p>
+        </main>
       ) : !authReady ? (
         <div className="app-shell">
           <Skeleton />
