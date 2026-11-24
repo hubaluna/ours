@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { ExternalLink, Gift, Sparkles, Check, ArrowLeft, Lock } from "lucide-react";
+import { ExternalLink, Gift, Check, ArrowLeft, Lock } from "lucide-react";
 import type {
   SharedWishlistPayload,
   SharedWishItem,
@@ -103,13 +103,6 @@ export function GuestWishlistView({
             Оберіть подарунок, який хочете подарувати. Натисніть «Забронювати»,
             щоб ніхто інший не купив те саме.
           </p>
-          <div className="guest-wishlist-mystery-note">
-            <Sparkles size={16} />
-            <span>
-              Інтрига збережена: автор вішліста не знає, хто і що саме
-              забронював.
-            </span>
-          </div>
         </div>
       </header>
 
