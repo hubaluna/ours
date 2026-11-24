@@ -171,7 +171,7 @@ export function GuestWishlistView({
                         )}
                         {item.size && (
                           <span className="guest-size-badge">
-                            {item.size}
+                            Розмір: {item.size}
                           </span>
                         )}
                       </div>
@@ -231,7 +231,7 @@ export function GuestWishlistView({
                           <div className="guest-reserved-pill-group">
                             <span className="guest-reserved-pill">
                               <Check size={14} />
-                              Заброньовано
+                              Заброньовано вами
                             </span>
                             <button
                               type="button"
@@ -244,7 +244,7 @@ export function GuestWishlistView({
                         ) : isReservedByOther ? (
                           <div className="guest-reserved-by-other-pill">
                             <Lock size={14} />
-                            <span>Заброньовано</span>
+                            <span>Вже заброньовано</span>
                           </div>
                         ) : (
                           <button
