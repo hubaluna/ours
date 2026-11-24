@@ -697,7 +697,8 @@ export default function Wishes({
       </AnimatePresence>
       {sharing && (
         <WishlistShareSheet
-          wishes={ownAll}
+          wishes={data.wishes.filter((w) => !w.is_deleted)}
+          userId={userId}
           availableOccasions={availableOccasions}
           onClose={() => setSharing(false)}
           onOpenPreview={(code) => {

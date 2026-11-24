@@ -34,10 +34,11 @@ export function buildWishlistSharePayload(
   occasionFilter: string = "all",
   selectedIds?: string[],
 ): SharedWishlistPayload {
-  const publicWishes = wishes.filter((w) => !w.is_private && !w.fulfilled);
-
-  const filtered = publicWishes.filter((w) => {
-    if (selectedIds && !selectedIds.includes(w.id)) return false;
+  const filtered = wishes.filter((w) => {
+    if (selectedIds) {
+      return selectedIds.includes(w.id);
+    }
+    if (w.is_private || w.fulfilled) return false;
     if (occasionFilter === "all") return true;
     const parsed = parseWishOccasion(w.note);
     if (occasionFilter === "none") return !parsed.occasion;

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
-import { Copy, ExternalLink, Sparkles, Check, Link2, Loader2 } from "lucide-react";
+import { Copy, ExternalLink, Sparkles, Check, Link2, Loader2, Lock } from "lucide-react";
 import type { Wish } from "../lib/types";
-import { BottomSheet, Button } from "./ui";
+import { BottomSheet, Button, Segmented } from "./ui";
 import {
   buildWishlistSharePayload,
   encodeWishlistShare,
@@ -12,43 +12,56 @@ import { parseWishOccasion } from "../lib/wishes";
 
 export function WishlistShareSheet({
   wishes,
+  userId,
   availableOccasions,
   onClose,
   onOpenPreview,
   onToast,
 }: {
   wishes: Wish[];
+  userId?: string;
   availableOccasions: string[];
   onClose: () => void;
   onOpenPreview: (encoded: string) => void;
   onToast: (msg: string) => void;
 }) {
+  const [ownerFilter, setOwnerFilter] = useState<string>("mine");
   const [occasion, setOccasion] = useState<string>("all");
   const [copied, setCopied] = useState(false);
   const [shortUrl, setShortUrl] = useState<string>("");
   const [shortening, setShortening] = useState<boolean>(false);
 
-  // Filter public items
-  const eligibleWishes = useMemo(() => {
-    return wishes.filter((w) => !w.is_private && !w.fulfilled);
-  }, [wishes]);
+  // Filter wishes based on owner tab
+  const poolWishes = useMemo(() => {
+    if (!userId) return wishes;
+    if (ownerFilter === "mine") {
+      return wishes.filter((w) => w.owner_id === userId);
+    }
+    if (ownerFilter === "partner") {
+      return wishes.filter((w) => w.owner_id !== userId);
+    }
+    return wishes;
+  }, [wishes, userId, ownerFilter]);
 
-  const [selectedIds, setSelectedIds] = useState<string[]>(() =>
-    eligibleWishes.map((w) => w.id),
-  );
-
+  // Filter by occasion
   const filteredWishes = useMemo(() => {
-    if (occasion === "all") return eligibleWishes;
-    return eligibleWishes.filter((w) => {
+    if (occasion === "all") return poolWishes;
+    return poolWishes.filter((w) => {
       const parsed = parseWishOccasion(w.note);
       if (occasion === "none") return !parsed.occasion;
       return parsed.occasion === occasion;
     });
-  }, [eligibleWishes, occasion]);
+  }, [poolWishes, occasion]);
+
+  // Selected wish IDs (defaults to active unfulfilled wishes in the current pool)
+  const [selectedIds, setSelectedIds] = useState<string[]>(() => {
+    const active = poolWishes.filter((w) => !w.is_private && !w.fulfilled);
+    return (active.length > 0 ? active : poolWishes).map((w) => w.id);
+  });
 
   const payload = useMemo(() => {
-    return buildWishlistSharePayload(eligibleWishes, occasion, selectedIds);
-  }, [eligibleWishes, occasion, selectedIds]);
+    return buildWishlistSharePayload(wishes, occasion, selectedIds);
+  }, [wishes, occasion, selectedIds]);
 
   const shareCode = useMemo(() => {
     return encodeWishlistShare(payload);
@@ -63,7 +76,7 @@ export function WishlistShareSheet({
 
   // Generate shortened URL
   useEffect(() => {
-    if (!shareCode) {
+    if (!shareCode || selectedIds.length === 0) {
       setShortUrl("");
       return;
     }
@@ -95,29 +108,47 @@ export function WishlistShareSheet({
     return () => {
       cancelled = true;
     };
-  }, [payload, shareCode]);
+  }, [payload, shareCode, selectedIds.length]);
 
   const effectiveUrl = shortUrl || rawShareUrl;
 
   const handleCopy = async () => {
-    if (!effectiveUrl) return;
+    if (selectedIds.length === 0) {
+      onToast("Оберіть хоча б одне бажання для вішліста");
+      return;
+    }
+
+    const urlToCopy = effectiveUrl || rawShareUrl;
+    if (!urlToCopy) {
+      onToast("Посилання ще генерується, зачекайте мить");
+      return;
+    }
+
     try {
       if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(effectiveUrl);
+        await navigator.clipboard.writeText(urlToCopy);
       } else {
         const textarea = document.createElement("textarea");
-        textarea.value = effectiveUrl;
+        textarea.value = urlToCopy;
         document.body.appendChild(textarea);
         textarea.select();
         document.execCommand("copy");
         document.body.removeChild(textarea);
       }
       setCopied(true);
-      onToast("Коротке посилання скопійовано!");
+      onToast("Посилання на вішліст скопійовано!");
       setTimeout(() => setCopied(false), 2500);
     } catch {
       onToast("Не вдалося скопіювати. Спробуйте ще раз.");
     }
+  };
+
+  const handlePreview = () => {
+    if (selectedIds.length === 0) {
+      onToast("Оберіть хоча б одне бажання для вішліста");
+      return;
+    }
+    onOpenPreview(shareCode);
   };
 
   const toggleSelect = (id: string) => {
@@ -148,9 +179,25 @@ export function WishlistShareSheet({
           </div>
         </div>
 
+        {userId && (
+          <div className="field">
+            <span className="field-label">Чиї бажання показати?</span>
+            <Segmented
+              id="wishlist-share-owner"
+              value={ownerFilter}
+              options={[
+                { id: "mine", label: "Мої" },
+                { id: "partner", label: "Партнера" },
+                { id: "all", label: "Усі бажання" },
+              ]}
+              onChange={(val) => setOwnerFilter(val)}
+            />
+          </div>
+        )}
+
         {availableOccasions.length > 0 && (
           <div className="field">
-            <span className="field-label">До якого свята поділитися?</span>
+            <span className="field-label">До якого свята?</span>
             <select
               value={occasion}
               onChange={(e) => {
@@ -170,15 +217,15 @@ export function WishlistShareSheet({
 
         <div className="wishlist-share-items-head">
           <span>
-            Обрано для посилання: {selectedIds.length} з {filteredWishes.length}
+            Обрано для вішліста: <strong>{selectedIds.length}</strong> з {filteredWishes.length}
           </span>
           <div className="wishlist-share-quick-btns">
             <button type="button" onClick={selectAll}>
-              Усі
+              Обрати всі
             </button>
             <span>·</span>
             <button type="button" onClick={deselectAll}>
-              Очистити
+              Зняти всі
             </button>
           </div>
         </div>
@@ -186,11 +233,12 @@ export function WishlistShareSheet({
         <div className="wishlist-share-items-list">
           {filteredWishes.length === 0 ? (
             <p className="wishlist-share-empty-note">
-              Немає доступних спільних бажань для цього приводу.
+              Немає бажань для обраного фільтру.
             </p>
           ) : (
             filteredWishes.map((w) => {
               const isChecked = selectedIds.includes(w.id);
+              const isMine = userId && w.owner_id === userId;
               return (
                 <label key={w.id} className="wishlist-share-item-row">
                   <input
@@ -198,12 +246,31 @@ export function WishlistShareSheet({
                     checked={isChecked}
                     onChange={() => toggleSelect(w.id)}
                   />
-                  <span className="wishlist-share-item-name">{w.name}</span>
-                  {w.price !== null && w.price !== undefined && w.price > 0 && (
-                    <span className="wishlist-share-item-price">
-                      {w.price} ₴
-                    </span>
-                  )}
+                  <div className="wishlist-share-item-info">
+                    <span className="wishlist-share-item-name">{w.name}</span>
+                    <div className="wishlist-share-item-meta">
+                      {w.price !== null && w.price !== undefined && w.price > 0 && (
+                        <span className="wishlist-share-item-price">
+                          {w.price} ₴
+                        </span>
+                      )}
+                      {ownerFilter === "all" && (
+                        <span className="wishlist-share-tag">
+                          {isMine ? "Моє" : "Партнера"}
+                        </span>
+                      )}
+                      {w.is_private && (
+                        <span className="wishlist-share-tag is-private">
+                          <Lock size={10} /> Приватне
+                        </span>
+                      )}
+                      {w.fulfilled && (
+                        <span className="wishlist-share-tag is-fulfilled">
+                          ✓ Куплено
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </label>
               );
             })
@@ -214,7 +281,7 @@ export function WishlistShareSheet({
           <div className="wishlist-share-link-box">
             <div className="wishlist-share-link-header">
               <Link2 size={14} />
-              <span>Коротке посилання для друзів:</span>
+              <span>Посилання для друзів (приховує вміст):</span>
               {shortening && (
                 <Loader2 size={13} className="wishlist-share-spinner animate-spin" />
               )}
@@ -231,20 +298,16 @@ export function WishlistShareSheet({
           <Button
             type="button"
             className="w-full"
-            disabled={selectedIds.length === 0}
             onClick={handleCopy}
           >
             {copied ? <Check size={16} /> : <Copy size={16} />}
-            <span>{copied ? "Скопійовано!" : "Скопіювати коротке посилання"}</span>
+            <span>{copied ? "Скопійовано!" : "Скопіювати посилання"}</span>
           </Button>
 
           <Button
             type="button"
             className="secondary w-full"
-            disabled={selectedIds.length === 0}
-            onClick={() => {
-              onOpenPreview(shareCode);
-            }}
+            onClick={handlePreview}
           >
             <ExternalLink size={16} />
             <span>Подивитися як гість</span>
