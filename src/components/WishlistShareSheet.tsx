@@ -6,6 +6,7 @@ import {
   buildWishlistSharePayload,
   encodeWishlistShare,
   shortenWishlistUrl,
+  saveSharedWishlist,
 } from "../lib/wishlist-share";
 import { parseWishOccasion } from "../lib/wishes";
 
@@ -62,7 +63,7 @@ export function WishlistShareSheet({
 
   // Generate shortened URL
   useEffect(() => {
-    if (!rawShareUrl) {
+    if (!shareCode) {
       setShortUrl("");
       return;
     }
@@ -70,17 +71,31 @@ export function WishlistShareSheet({
     let cancelled = false;
     setShortening(true);
 
-    void shortenWishlistUrl(rawShareUrl).then((res) => {
+    const generateLinks = async () => {
+      if (typeof window === "undefined") return;
+      const origin = window.location.origin;
+      const path = window.location.pathname.replace(/\/$/, "");
+
+      // 1. Try to save short id to Supabase
+      const shortId = await saveSharedWishlist(payload);
+      const targetUrl = shortId
+        ? `${origin}${path}/?w=${shortId}`
+        : `${origin}${path}/?shared_wishlist=${shareCode}`;
+
+      // 2. Shorten with is.gd
+      const shortened = await shortenWishlistUrl(targetUrl);
       if (!cancelled) {
-        setShortUrl(res);
+        setShortUrl(shortened || targetUrl);
         setShortening(false);
       }
-    });
+    };
+
+    void generateLinks();
 
     return () => {
       cancelled = true;
     };
-  }, [rawShareUrl]);
+  }, [payload, shareCode]);
 
   const effectiveUrl = shortUrl || rawShareUrl;
 

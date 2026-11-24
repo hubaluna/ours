@@ -136,7 +136,6 @@ describe("wishlist-share logic & encoding", () => {
   });
 
   it("shortens wishlist URL via API and falls back to original on failure", async () => {
-    // Mock successful shorten
     const fakeFetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       json: async () => ({ shorturl: "https://is.gd/abc123" }),
@@ -146,11 +145,19 @@ describe("wishlist-share logic & encoding", () => {
     const short = await shortenWishlistUrl("https://hubaluna.github.io/ours/?shared_wishlist=xyz");
     expect(short).toBe("https://is.gd/abc123");
 
-    // Mock failed shorten
     fakeFetch.mockRejectedValueOnce(new Error("network error"));
     fakeFetch.mockRejectedValueOnce(new Error("network error 2"));
     const fallback = await shortenWishlistUrl("https://hubaluna.github.io/ours/?shared_wishlist=xyz");
     expect(fallback).toBe("https://hubaluna.github.io/ours/?shared_wishlist=xyz");
+  });
+
+  it("handles saving and fetching shared wishlist gracefully", async () => {
+    const payload = buildWishlistSharePayload(sampleWishes);
+    // In test environment without real supabase connection, returns empty string/null gracefully
+    const id = await wishlistShareModule.saveSharedWishlist(payload);
+    expect(typeof id).toBe("string");
+    const fetched = await wishlistShareModule.fetchSharedWishlistById("non-existent");
+    expect(fetched).toBeNull();
   });
 });
 

@@ -53,6 +53,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { hardReloadApp } from "./lib/pwa-update";
 import {
   decodeWishlistShare,
+  fetchSharedWishlistById,
   type SharedWishlistPayload,
 } from "./lib/wishlist-share";
 const UniversalShareImport = lazy(() =>
@@ -401,18 +402,67 @@ export default function App() {
       const searchParams = new URLSearchParams(window.location.search);
       const fromQuery = searchParams.get("shared_wishlist");
       if (fromQuery) {
-        return decodeWishlistShare(fromQuery);
+        const decoded = decodeWishlistShare(fromQuery);
+        if (decoded) {
+          try {
+            sessionStorage.setItem("ours_guest_wishlist", JSON.stringify(decoded));
+            window.history.replaceState(null, "", window.location.pathname);
+          } catch {
+            // ignore
+          }
+          return decoded;
+        }
       }
       if (window.location.hash.includes("shared_wishlist=")) {
         const hashQuery = window.location.hash.split("?")[1] || "";
         const hashParams = new URLSearchParams(hashQuery);
         const fromHash = hashParams.get("shared_wishlist");
         if (fromHash) {
-          return decodeWishlistShare(fromHash);
+          const decoded = decodeWishlistShare(fromHash);
+          if (decoded) {
+            try {
+              sessionStorage.setItem("ours_guest_wishlist", JSON.stringify(decoded));
+              window.history.replaceState(null, "", window.location.pathname);
+            } catch {
+              // ignore
+            }
+            return decoded;
+          }
         }
+      }
+      try {
+        const saved = sessionStorage.getItem("ours_guest_wishlist");
+        if (saved) return JSON.parse(saved);
+      } catch {
+        // ignore
       }
       return null;
     });
+
+  // Load wishlist if short id provided via ?w=
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const searchParams = new URLSearchParams(window.location.search);
+    const shortId =
+      searchParams.get("w") ||
+      (window.location.hash.includes("w=")
+        ? new URLSearchParams(window.location.hash.split("?")[1] || "").get("w")
+        : null);
+
+    if (shortId) {
+      void fetchSharedWishlistById(shortId).then((res) => {
+        if (res) {
+          setGuestWishlistPayload(res);
+          try {
+            sessionStorage.setItem("ours_guest_wishlist", JSON.stringify(res));
+            window.history.replaceState(null, "", window.location.pathname);
+          } catch {
+            // ignore
+          }
+        }
+      });
+    }
+  }, []);
   const [sharedUrl, setSharedUrl] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     const extracted = extractShareTargetUrl(window.location.search);
@@ -556,18 +606,28 @@ export default function App() {
         <Suspense fallback={<Skeleton />}>
           <GuestWishlistView
             payload={guestWishlistPayload}
-            onExit={() => {
-              if (typeof window !== "undefined") {
-                const url = new URL(window.location.href);
-                url.searchParams.delete("shared_wishlist");
-                window.history.replaceState(
-                  {},
-                  "",
-                  url.pathname + (url.search ? url.search : ""),
-                );
-              }
-              setGuestWishlistPayload(null);
-            }}
+            onExit={
+              session
+                ? () => {
+                    if (typeof window !== "undefined") {
+                      try {
+                        sessionStorage.removeItem("ours_guest_wishlist");
+                      } catch {
+                        // ignore
+                      }
+                      const url = new URL(window.location.href);
+                      url.searchParams.delete("shared_wishlist");
+                      url.searchParams.delete("w");
+                      window.history.replaceState(
+                        {},
+                        "",
+                        url.pathname + (url.search ? url.search : ""),
+                      );
+                    }
+                    setGuestWishlistPayload(null);
+                  }
+                : undefined
+            }
           />
         </Suspense>
       ) : !authReady ? (

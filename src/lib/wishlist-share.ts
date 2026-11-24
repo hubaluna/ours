@@ -314,3 +314,47 @@ export async function shortenWishlistUrl(longUrl: string): Promise<string> {
 
   return longUrl;
 }
+
+export async function saveSharedWishlist(
+  payload: SharedWishlistPayload,
+): Promise<string> {
+  if (!supabase) return "";
+  try {
+    const id = `w${Math.random().toString(36).slice(2, 8)}`;
+    const { error } = await supabase.from("guest_shared_wishlists").insert({
+      id,
+      title: payload.title,
+      occasion: payload.occasion || null,
+      items: payload.items,
+    });
+    if (!error) return id;
+  } catch {
+    // fallback
+  }
+  return "";
+}
+
+export async function fetchSharedWishlistById(
+  id: string,
+): Promise<SharedWishlistPayload | null> {
+  if (!supabase || !id) return null;
+  try {
+    const { data, error } = await supabase
+      .from("guest_shared_wishlists")
+      .select("id, title, occasion, items, created_at")
+      .eq("id", id)
+      .single();
+    if (!error && data && Array.isArray(data.items)) {
+      return {
+        v: 1,
+        title: data.title || "Вішліст",
+        occasion: data.occasion,
+        items: data.items as SharedWishItem[],
+        created_at: data.created_at || new Date().toISOString(),
+      };
+    }
+  } catch {
+    // fallback
+  }
+  return null;
+}

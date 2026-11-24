@@ -1122,4 +1122,26 @@ create policy "guest_reservations_delete" on public.guest_wish_reservations
 
 grant select, insert, delete on public.guest_wish_reservations to anon, authenticated;
 
+create table if not exists public.guest_shared_wishlists (
+  id text primary key,
+  title text not null,
+  occasion text,
+  items jsonb not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.guest_shared_wishlists enable row level security;
+
+drop policy if exists "guest_shared_wishlists_select" on public.guest_shared_wishlists;
+create policy "guest_shared_wishlists_select" on public.guest_shared_wishlists
+  for select to anon, authenticated
+  using (true);
+
+drop policy if exists "guest_shared_wishlists_insert" on public.guest_shared_wishlists;
+create policy "guest_shared_wishlists_insert" on public.guest_shared_wishlists
+  for insert to anon, authenticated
+  with check (true);
+
+grant select, insert on public.guest_shared_wishlists to anon, authenticated;
+
 commit;

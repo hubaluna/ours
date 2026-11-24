@@ -19,12 +19,13 @@ it("applies the one-query mobile setup atomically to a fresh project", async () 
     const tables = await db.query(
       "select tablename from pg_tables where schemaname='public'",
     );
-    expect(tables.rows).toHaveLength(30);
+    expect(tables.rows).toHaveLength(31);
     expect(tables.rows.map((row) => row.tablename)).toContain("plants");
     expect(tables.rows.map((row) => row.tablename)).toContain("pantry_items");
     expect(tables.rows.map((row) => row.tablename)).toContain("budget_transactions");
     expect(tables.rows.map((row) => row.tablename)).toContain("budget_recurring_payments");
     expect(tables.rows.map((row) => row.tablename)).toContain("guest_wish_reservations");
+    expect(tables.rows.map((row) => row.tablename)).toContain("guest_shared_wishlists");
     const bucket = await db.query<{ public: boolean }>(
       "select public from storage.buckets where id='photos'",
     );
@@ -44,7 +45,7 @@ it("applies the one-query mobile setup atomically to a fresh project", async () 
           "select tablename from pg_tables where schemaname='public'",
         )
       ).rows,
-    ).toHaveLength(30);
+    ).toHaveLength(31);
   } finally {
     await db.close();
   }
@@ -93,6 +94,7 @@ it("upgrades an existing 012 database cleanly and idempotently with update-exist
     expect(names).toContain("budget_merchant_rules");
     expect(names).toContain("budget_recurring_payments");
     expect(names).toContain("guest_wish_reservations");
+    expect(names).toContain("guest_shared_wishlists");
     const security = await db.query<{ relrowsecurity: boolean }>(
       "select relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r'",
     );
