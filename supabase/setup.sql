@@ -1779,7 +1779,8 @@ begin
   update public.budget_transactions
   set is_private = not p_share
   where couple_id = v_couple
-    and user_id = auth.uid();
+    and user_id = auth.uid()
+    and kind = 'income';
 end $$;
 
 create or replace function public.delete_budget_category(p_category_id uuid)
@@ -2056,46 +2057,35 @@ end $$;
 
 alter table public.budget_recurring_payments replica identity full;
 
--- 022: Web Push reliability fixes
-do $$
-declare
-  c record;
-begin
-  if to_regclass('public.pending_push_digest') is not null then
-    for c in
-      select conname
-      from pg_constraint
-      where conrelid = 'public.pending_push_digest'::regclass
-        and contype = 'c'
-        and pg_get_constraintdef(oid) ilike '%kind%'
-    loop
-      execute format('alter table public.pending_push_digest drop constraint %I', c.conname);
-    end loop;
 
-    alter table public.pending_push_digest
-      add constraint pending_push_digest_kind_check
-      check (kind in ('shopping', 'calendar', 'events', 'wishes', 'movies', 'recipes', 'plants', 'budget'));
-  end if;
-end $$;
+-- 023_guest_wish_reservations.sql
+-- Guest reservations for publicly shared wishlists
+-- Allows anonymous guests to coordinate gift bookings without requiring an account or entering names.
+-- Intrigue is maintained because the wishlist owner never sees these records in their private views.
 
-create or replace function public.push_dispatch_service_config()
-returns table(vapid_private_jwk text, vapid_public_key text, vapid_subject text, app_url text)
-language plpgsql security definer set search_path = '' as $$
-begin
-  return query
-  select
-    (select decrypted_secret from vault.decrypted_secrets where name = 'ours_vapid_private_jwk'),
-    (select decrypted_secret from vault.decrypted_secrets where name = 'ours_vapid_public_key'),
-    (select decrypted_secret from vault.decrypted_secrets where name = 'ours_vapid_subject'),
-    (select decrypted_secret from vault.decrypted_secrets where name = 'ours_public_app_url');
-end;
-$$;
-revoke all on function public.push_dispatch_service_config() from public, anon, authenticated;
-do $$
-begin
-  if exists (select 1 from pg_roles where rolname = 'service_role') then
-    grant execute on function public.push_dispatch_service_config() to service_role;
-  end if;
-end $$;
+create table if not exists public.guest_wish_reservations (
+  wish_id text primary key,
+  guest_token text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.guest_wish_reservations enable row level security;
+
+drop policy if exists "guest_reservations_select" on public.guest_wish_reservations;
+create policy "guest_reservations_select" on public.guest_wish_reservations
+  for select to anon, authenticated
+  using (true);
+
+drop policy if exists "guest_reservations_insert" on public.guest_wish_reservations;
+create policy "guest_reservations_insert" on public.guest_wish_reservations
+  for insert to anon, authenticated
+  with check (true);
+
+drop policy if exists "guest_reservations_delete" on public.guest_wish_reservations;
+create policy "guest_reservations_delete" on public.guest_wish_reservations
+  for delete to anon, authenticated
+  using (true);
+
+grant select, insert, delete on public.guest_wish_reservations to anon, authenticated;
 
 commit;

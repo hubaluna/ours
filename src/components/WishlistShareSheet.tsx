@@ -1,8 +1,12 @@
-import { useState, useMemo } from "react";
-import { Copy, ExternalLink, Sparkles, Check } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { Copy, ExternalLink, Sparkles, Check, Link2, Loader2 } from "lucide-react";
 import type { Wish } from "../lib/types";
 import { BottomSheet, Button } from "./ui";
-import { buildWishlistSharePayload, encodeWishlistShare } from "../lib/wishlist-share";
+import {
+  buildWishlistSharePayload,
+  encodeWishlistShare,
+  shortenWishlistUrl,
+} from "../lib/wishlist-share";
 import { parseWishOccasion } from "../lib/wishes";
 
 export function WishlistShareSheet({
@@ -20,6 +24,8 @@ export function WishlistShareSheet({
 }) {
   const [occasion, setOccasion] = useState<string>("all");
   const [copied, setCopied] = useState(false);
+  const [shortUrl, setShortUrl] = useState<string>("");
+  const [shortening, setShortening] = useState<boolean>(false);
 
   // Filter public items
   const eligibleWishes = useMemo(() => {
@@ -47,27 +53,52 @@ export function WishlistShareSheet({
     return encodeWishlistShare(payload);
   }, [payload]);
 
-  const shareUrl = useMemo(() => {
-    if (typeof window === "undefined") return "";
+  const rawShareUrl = useMemo(() => {
+    if (typeof window === "undefined" || !shareCode) return "";
     const origin = window.location.origin;
     const path = window.location.pathname.replace(/\/$/, "");
     return `${origin}${path}/?shared_wishlist=${shareCode}`;
   }, [shareCode]);
 
+  // Generate shortened URL
+  useEffect(() => {
+    if (!rawShareUrl) {
+      setShortUrl("");
+      return;
+    }
+
+    let cancelled = false;
+    setShortening(true);
+
+    void shortenWishlistUrl(rawShareUrl).then((res) => {
+      if (!cancelled) {
+        setShortUrl(res);
+        setShortening(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rawShareUrl]);
+
+  const effectiveUrl = shortUrl || rawShareUrl;
+
   const handleCopy = async () => {
+    if (!effectiveUrl) return;
     try {
       if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(shareUrl);
+        await navigator.clipboard.writeText(effectiveUrl);
       } else {
         const textarea = document.createElement("textarea");
-        textarea.value = shareUrl;
+        textarea.value = effectiveUrl;
         document.body.appendChild(textarea);
         textarea.select();
         document.execCommand("copy");
         document.body.removeChild(textarea);
       }
       setCopied(true);
-      onToast("Посилання на вішліст скопійовано!");
+      onToast("Коротке посилання скопійовано!");
       setTimeout(() => setCopied(false), 2500);
     } catch {
       onToast("Не вдалося скопіювати. Спробуйте ще раз.");
@@ -96,9 +127,8 @@ export function WishlistShareSheet({
           <div>
             <strong>Інтрига гарантована 🎁</strong>
             <p>
-              Ви не бачитимете, які саме подарунки забронювали друзі. Для гостей
-              усе оновлюється автоматично в 1 клік без реєстрації чи введення
-              імені.
+              Ви не бачитимете, які подарунки забронювали друзі. Для гостей усе
+              синхронізується в 1 клік без реєстрації чи введення імені.
             </p>
           </div>
         </div>
@@ -124,11 +154,17 @@ export function WishlistShareSheet({
         )}
 
         <div className="wishlist-share-items-head">
-          <span>Обрано для посилання: {selectedIds.length} з {filteredWishes.length}</span>
+          <span>
+            Обрано для посилання: {selectedIds.length} з {filteredWishes.length}
+          </span>
           <div className="wishlist-share-quick-btns">
-            <button type="button" onClick={selectAll}>Усі</button>
+            <button type="button" onClick={selectAll}>
+              Усі
+            </button>
             <span>·</span>
-            <button type="button" onClick={deselectAll}>Очистити</button>
+            <button type="button" onClick={deselectAll}>
+              Очистити
+            </button>
           </div>
         </div>
 
@@ -159,6 +195,23 @@ export function WishlistShareSheet({
           )}
         </div>
 
+        {effectiveUrl && (
+          <div className="wishlist-share-link-box">
+            <div className="wishlist-share-link-header">
+              <Link2 size={14} />
+              <span>Коротке посилання для друзів:</span>
+              {shortening && (
+                <Loader2 size={13} className="wishlist-share-spinner animate-spin" />
+              )}
+            </div>
+            <div className="wishlist-share-link-code-row">
+              <code className="wishlist-share-url-preview">
+                {effectiveUrl}
+              </code>
+            </div>
+          </div>
+        )}
+
         <div className="wishlist-share-actions">
           <Button
             type="button"
@@ -167,7 +220,7 @@ export function WishlistShareSheet({
             onClick={handleCopy}
           >
             {copied ? <Check size={16} /> : <Copy size={16} />}
-            <span>{copied ? "Скопійовано!" : "Скопіювати посилання"}</span>
+            <span>{copied ? "Скопійовано!" : "Скопіювати коротке посилання"}</span>
           </Button>
 
           <Button

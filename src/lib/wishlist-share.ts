@@ -1,5 +1,6 @@
 import type { Wish } from "./types";
 import { parseWishOccasion } from "./wishes";
+import { supabase } from "./supabase";
 
 export interface SharedWishItem {
   id: string;
@@ -20,6 +21,13 @@ export interface SharedWishlistPayload {
   items: SharedWishItem[];
   created_at: string;
 }
+
+export interface WishReservationStatus {
+  isReserved: boolean;
+  isReservedByMe: boolean;
+}
+
+export type WishReservationsMap = Record<string, WishReservationStatus>;
 
 export function buildWishlistSharePayload(
   wishes: Wish[],
@@ -106,6 +114,25 @@ export function decodeWishlistShare(
   }
 }
 
+const GUEST_TOKEN_KEY = "ours_guest_token";
+
+export function getGuestToken(): string {
+  if (typeof window === "undefined") return "server-guest-token";
+  try {
+    let token = localStorage.getItem(GUEST_TOKEN_KEY);
+    if (!token) {
+      token =
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `guest-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+      localStorage.setItem(GUEST_TOKEN_KEY, token);
+    }
+    return token;
+  } catch {
+    return "guest-temp-session";
+  }
+}
+
 const GUEST_RESERVATIONS_KEY = "ours_guest_reservations";
 
 export function getGuestReservations(): Record<string, boolean> {
@@ -134,4 +161,156 @@ export function setGuestReservation(
     // ignore quota
   }
   return current;
+}
+
+export async function fetchGuestReservations(
+  wishIds: string[],
+): Promise<WishReservationsMap> {
+  const myToken = getGuestToken();
+  const map: WishReservationsMap = {};
+
+  for (const id of wishIds) {
+    map[id] = { isReserved: false, isReservedByMe: false };
+  }
+
+  if (supabase && wishIds.length > 0) {
+    try {
+      const { data, error } = await supabase
+        .from("guest_wish_reservations")
+        .select("wish_id, guest_token")
+        .in("wish_id", wishIds);
+
+      if (!error && Array.isArray(data)) {
+        for (const row of data) {
+          const isMe = row.guest_token === myToken;
+          map[row.wish_id] = {
+            isReserved: true,
+            isReservedByMe: isMe,
+          };
+          // Also sync to local storage if it's mine
+          if (isMe) {
+            setGuestReservation(row.wish_id, true);
+          }
+        }
+        return map;
+      }
+    } catch {
+      // fallback to local storage
+    }
+  }
+
+  // Fallback to local storage
+  const local = getGuestReservations();
+  for (const [id, reserved] of Object.entries(local)) {
+    if (reserved && map[id]) {
+      map[id] = { isReserved: true, isReservedByMe: true };
+    }
+  }
+
+  return map;
+}
+
+export async function toggleGuestReservation(
+  wishId: string,
+  current: WishReservationStatus,
+): Promise<WishReservationStatus> {
+  // If reserved by someone else, cannot modify
+  if (current.isReserved && !current.isReservedByMe) {
+    return current;
+  }
+
+  const myToken = getGuestToken();
+
+  if (current.isReservedByMe) {
+    // Unreserve
+    setGuestReservation(wishId, false);
+    if (supabase) {
+      try {
+        await supabase
+          .from("guest_wish_reservations")
+          .delete()
+          .eq("wish_id", wishId)
+          .eq("guest_token", myToken);
+      } catch {
+        // ignore offline error
+      }
+    }
+    return { isReserved: false, isReservedByMe: false };
+  } else {
+    // Reserve
+    setGuestReservation(wishId, true);
+    if (supabase) {
+      try {
+        await supabase
+          .from("guest_wish_reservations")
+          .insert({ wish_id: wishId, guest_token: myToken });
+      } catch {
+        // ignore offline error
+      }
+    }
+    return { isReserved: true, isReservedByMe: true };
+  }
+}
+
+export function subscribeToGuestReservations(
+  onUpdate: () => void,
+): () => void {
+  if (!supabase) return () => {};
+
+  try {
+    const channel = supabase
+      .channel("guest_wish_reservations_realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "guest_wish_reservations" },
+        () => {
+          onUpdate();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase?.removeChannel(channel);
+    };
+  } catch {
+    return () => {};
+  }
+}
+
+export async function shortenWishlistUrl(longUrl: string): Promise<string> {
+  if (!longUrl) return "";
+
+  // 1. Try is.gd
+  try {
+    const resp = await fetch(
+      `https://is.gd/create.php?format=json&url=${encodeURIComponent(longUrl)}`,
+      { signal: AbortSignal.timeout(4500) },
+    );
+    if (resp.ok) {
+      const data = (await resp.json()) as { shorturl?: string };
+      if (data?.shorturl) {
+        return data.shorturl;
+      }
+    }
+  } catch {
+    // fallback
+  }
+
+  // 2. Try v.gd
+  try {
+    const resp = await fetch(
+      `https://v.gd/create.php?format=json&url=${encodeURIComponent(longUrl)}`,
+      { signal: AbortSignal.timeout(4500) },
+    );
+    if (resp.ok) {
+      const data = (await resp.json()) as { shorturl?: string };
+      if (data?.shorturl) {
+        return data.shorturl;
+      }
+    }
+  } catch {
+    // fallback
+  }
+
+  return longUrl;
 }

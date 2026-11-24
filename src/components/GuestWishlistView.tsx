@@ -1,9 +1,14 @@
-import { useState } from "react";
-import { ExternalLink, Gift, Sparkles, Check, ArrowLeft } from "lucide-react";
-import type { SharedWishlistPayload, SharedWishItem } from "../lib/wishlist-share";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { ExternalLink, Gift, Sparkles, Check, ArrowLeft, Lock } from "lucide-react";
+import type {
+  SharedWishlistPayload,
+  SharedWishItem,
+  WishReservationsMap,
+} from "../lib/wishlist-share";
 import {
-  getGuestReservations,
-  setGuestReservation,
+  fetchGuestReservations,
+  toggleGuestReservation,
+  subscribeToGuestReservations,
 } from "../lib/wishlist-share";
 import { money } from "../lib/utils";
 
@@ -14,14 +19,60 @@ export function GuestWishlistView({
   payload: SharedWishlistPayload;
   onExit?: () => void;
 }) {
-  const [reservations, setReservations] = useState<Record<string, boolean>>(
-    () => getGuestReservations(),
+  const itemIds = useMemo(
+    () => payload.items.map((i) => i.id),
+    [payload.items],
   );
 
-  const toggleReservation = (id: string) => {
-    const isCurrentlyReserved = Boolean(reservations[id]);
-    const updated = setGuestReservation(id, !isCurrentlyReserved);
-    setReservations({ ...updated });
+  const [reservations, setReservations] = useState<WishReservationsMap>(() => {
+    const initial: WishReservationsMap = {};
+    for (const item of payload.items) {
+      initial[item.id] = { isReserved: false, isReservedByMe: false };
+    }
+    return initial;
+  });
+
+  const loadReservations = useCallback(async () => {
+    if (itemIds.length === 0) return;
+    const res = await fetchGuestReservations(itemIds);
+    setReservations((prev) => ({ ...prev, ...res }));
+  }, [itemIds]);
+
+  useEffect(() => {
+    void loadReservations();
+    const unsubscribe = subscribeToGuestReservations(() => {
+      void loadReservations();
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [loadReservations]);
+
+  const handleToggle = async (id: string) => {
+    const current = reservations[id] || {
+      isReserved: false,
+      isReservedByMe: false,
+    };
+    if (current.isReserved && !current.isReservedByMe) {
+      // Reserved by another guest
+      return;
+    }
+
+    // Optimistic update
+    const nextState = {
+      isReserved: !current.isReservedByMe,
+      isReservedByMe: !current.isReservedByMe,
+    };
+    setReservations((prev) => ({
+      ...prev,
+      [id]: nextState,
+    }));
+
+    const result = await toggleGuestReservation(id, current);
+    setReservations((prev) => ({
+      ...prev,
+      [id]: result,
+    }));
   };
 
   return (
@@ -69,12 +120,23 @@ export function GuestWishlistView({
         ) : (
           <div className="guest-wishlist-grid">
             {payload.items.map((item: SharedWishItem) => {
-              const isReserved = Boolean(reservations[item.id]);
+              const resStatus = reservations[item.id] || {
+                isReserved: false,
+                isReservedByMe: false,
+              };
+              const isReservedByMe = resStatus.isReserved && resStatus.isReservedByMe;
+              const isReservedByOther = resStatus.isReserved && !resStatus.isReservedByMe;
 
               return (
                 <div
                   key={item.id}
-                  className={`guest-wish-card${isReserved ? " is-reserved" : ""}`}
+                  className={`guest-wish-card${
+                    isReservedByMe
+                      ? " is-reserved-me"
+                      : isReservedByOther
+                        ? " is-reserved-other"
+                        : ""
+                  }`}
                 >
                   {item.image_url && (
                     <div className="guest-wish-card-img-wrap">
@@ -137,7 +199,7 @@ export function GuestWishlistView({
                       )}
 
                       <div className="guest-reserve-action-wrap">
-                        {isReserved ? (
+                        {isReservedByMe ? (
                           <div className="guest-reserved-pill-group">
                             <span className="guest-reserved-pill">
                               <Check size={15} />
@@ -146,16 +208,21 @@ export function GuestWishlistView({
                             <button
                               type="button"
                               className="guest-cancel-reserve-btn"
-                              onClick={() => toggleReservation(item.id)}
+                              onClick={() => handleToggle(item.id)}
                             >
                               Скасувати
                             </button>
+                          </div>
+                        ) : isReservedByOther ? (
+                          <div className="guest-reserved-by-other-pill">
+                            <Lock size={15} />
+                            <span>Вже заброньовано</span>
                           </div>
                         ) : (
                           <button
                             type="button"
                             className="guest-reserve-btn button"
-                            onClick={() => toggleReservation(item.id)}
+                            onClick={() => handleToggle(item.id)}
                           >
                             <Gift size={16} />
                             <span>Забронювати</span>
@@ -172,7 +239,9 @@ export function GuestWishlistView({
       </main>
 
       <footer className="guest-wishlist-footer">
-        <p>Створено з турботою у просторі для двох <strong>ours.</strong></p>
+        <p>
+          Створено з турботою у просторі для двох <strong>ours.</strong>
+        </p>
       </footer>
     </div>
   );

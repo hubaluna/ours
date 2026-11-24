@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, fireEvent } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildWishlistSharePayload,
@@ -8,13 +8,17 @@ import {
   decodeWishlistShare,
   getGuestReservations,
   setGuestReservation,
+  getGuestToken,
+  shortenWishlistUrl,
 } from "../src/lib/wishlist-share";
+import * as wishlistShareModule from "../src/lib/wishlist-share";
 import { GuestWishlistView } from "../src/components/GuestWishlistView";
 import type { Wish } from "../src/lib/types";
 
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  vi.restoreAllMocks();
 });
 
 const sampleWishes: Wish[] = [
@@ -118,17 +122,40 @@ describe("wishlist-share logic & encoding", () => {
     expect(decoded?.items[0].name).toBe("Навушники Sony WH-1000XM5");
   });
 
-  it("manages guest reservations in localStorage without asking for a name", () => {
+  it("manages guest reservations and tokens without asking for a name", () => {
+    const token1 = getGuestToken();
+    expect(token1).toBeTruthy();
+    const token2 = getGuestToken();
+    expect(token2).toBe(token1);
+
     expect(getGuestReservations()["w-1"]).toBeUndefined();
     setGuestReservation("w-1", true);
     expect(getGuestReservations()["w-1"]).toBe(true);
     setGuestReservation("w-1", false);
     expect(getGuestReservations()["w-1"]).toBeUndefined();
   });
+
+  it("shortens wishlist URL via API and falls back to original on failure", async () => {
+    // Mock successful shorten
+    const fakeFetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ shorturl: "https://is.gd/abc123" }),
+    });
+    vi.stubGlobal("fetch", fakeFetch);
+
+    const short = await shortenWishlistUrl("https://hubaluna.github.io/ours/?shared_wishlist=xyz");
+    expect(short).toBe("https://is.gd/abc123");
+
+    // Mock failed shorten
+    fakeFetch.mockRejectedValueOnce(new Error("network error"));
+    fakeFetch.mockRejectedValueOnce(new Error("network error 2"));
+    const fallback = await shortenWishlistUrl("https://hubaluna.github.io/ours/?shared_wishlist=xyz");
+    expect(fallback).toBe("https://hubaluna.github.io/ours/?shared_wishlist=xyz");
+  });
 });
 
 describe("GuestWishlistView UI", () => {
-  it("renders wishes with price, store link and 1-tap reservation without requiring a name", () => {
+  it("renders wishes with price, store link and 1-tap reservation without requiring a name", async () => {
     const payload = buildWishlistSharePayload(sampleWishes);
     const onExit = vi.fn();
 
@@ -153,6 +180,28 @@ describe("GuestWishlistView UI", () => {
 
     // Cancel reservation
     fireEvent.click(screen.getByRole("button", { name: "Скасувати" }));
-    expect(screen.queryByText("Заброньовано вами")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("Заброньовано вами")).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows locked badge if a wish is already reserved by another guest", async () => {
+    const payload = buildWishlistSharePayload(sampleWishes);
+
+    // Mock fetchGuestReservations returning w-1 reserved by someone else
+    vi.spyOn(wishlistShareModule, "fetchGuestReservations").mockResolvedValueOnce({
+      "w-1": { isReserved: true, isReservedByMe: false },
+      "w-3": { isReserved: false, isReservedByMe: false },
+    });
+
+    render(<GuestWishlistView payload={payload} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Вже заброньовано")).toBeInTheDocument();
+    });
+
+    // Only 1 unreserved button remaining for w-3
+    const reserveButtons = screen.getAllByRole("button", { name: "Забронювати" });
+    expect(reserveButtons.length).toBe(1);
   });
 });
