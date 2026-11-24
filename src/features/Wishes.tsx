@@ -11,6 +11,7 @@ import {
   LockKeyhole,
   Pencil,
   RotateCcw,
+  Share2,
 } from "lucide-react";
 import type { Wish, NewWish } from "../lib/types";
 import { useApp } from "../hooks/AppContext";
@@ -37,6 +38,7 @@ import {
   Segmented,
 } from "../components/ui";
 import { WishForm } from "../components/Forms";
+import { WishlistShareSheet } from "../components/WishlistShareSheet";
 import {
   AddButton,
   BrandArt,
@@ -151,7 +153,11 @@ export function GiftReservationControl({ wish }: { wish: Wish }) {
   );
 }
 
-export default function Wishes() {
+export default function Wishes({
+  onOpenGuestWishlist,
+}: {
+  onOpenGuestWishlist?: (code: string) => void;
+} = {}) {
   const { data, userId, toggleWishFulfilled, pending, notify } = useApp();
   const [view, setView] = useState("mine"),
     [sort, setSort] = useState<"newest" | "priority" | "price-asc" | "price-desc">("newest"),
@@ -165,7 +171,8 @@ export default function Wishes() {
     [pdfBusy, setPdfBusy] = useState(false),
     [exportSelection, setExportSelection] = useState<string[]>([]),
     [printItems, setPrintItems] = useState<Wish[]>([]),
-    [importing, setImporting] = useState(false);
+    [importing, setImporting] = useState(false),
+    [sharing, setSharing] = useState(false);
 
   const priorityOrder: Record<string, number> = {
     "Мрія": 0,
@@ -337,15 +344,23 @@ export default function Wishes() {
         {view === "mine" && (
           <>
             {wishes.length > 0 && (
-              <IconButton
-                label="Експорт бажань у PDF"
-                onClick={() => {
-                  setExportSelection(wishes.map((wish) => wish.id));
-                  setExporting(true);
-                }}
-              >
-                <Download size={18} />
-              </IconButton>
+              <>
+                <IconButton
+                  label="Поділитися вішлістом з друзями"
+                  onClick={() => setSharing(true)}
+                >
+                  <Share2 size={18} />
+                </IconButton>
+                <IconButton
+                  label="Експорт бажань у PDF"
+                  onClick={() => {
+                    setExportSelection(wishes.map((wish) => wish.id));
+                    setExporting(true);
+                  }}
+                >
+                  <Download size={18} />
+                </IconButton>
+              </>
             )}
             <IconButton
               label="Імпорт бажання"
@@ -680,6 +695,20 @@ export default function Wishes() {
           </BottomSheet>
         ) : null}
       </AnimatePresence>
+      {sharing && (
+        <WishlistShareSheet
+          wishes={ownAll}
+          availableOccasions={availableOccasions}
+          onClose={() => setSharing(false)}
+          onOpenPreview={(code) => {
+            setSharing(false);
+            if (onOpenGuestWishlist) {
+              onOpenGuestWishlist(code);
+            }
+          }}
+          onToast={notify}
+        />
+      )}
     </section>
   );
 }

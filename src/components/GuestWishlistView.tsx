@@ -1,0 +1,179 @@
+import { useState } from "react";
+import { ExternalLink, Gift, Sparkles, Check, ArrowLeft } from "lucide-react";
+import type { SharedWishlistPayload, SharedWishItem } from "../lib/wishlist-share";
+import {
+  getGuestReservations,
+  setGuestReservation,
+} from "../lib/wishlist-share";
+import { money } from "../lib/utils";
+
+export function GuestWishlistView({
+  payload,
+  onExit,
+}: {
+  payload: SharedWishlistPayload;
+  onExit?: () => void;
+}) {
+  const [reservations, setReservations] = useState<Record<string, boolean>>(
+    () => getGuestReservations(),
+  );
+
+  const toggleReservation = (id: string) => {
+    const isCurrentlyReserved = Boolean(reservations[id]);
+    const updated = setGuestReservation(id, !isCurrentlyReserved);
+    setReservations({ ...updated });
+  };
+
+  return (
+    <div className="guest-wishlist-page">
+      <header className="guest-wishlist-header">
+        <div className="guest-wishlist-header-content">
+          {onExit && (
+            <button
+              type="button"
+              className="guest-wishlist-back-btn"
+              onClick={onExit}
+              title="Повернутися до додатка"
+            >
+              <ArrowLeft size={18} />
+              <span>Назад</span>
+            </button>
+          )}
+          <div className="guest-wishlist-brand">
+            ours<span>.</span>
+          </div>
+          <h1 className="guest-wishlist-title">
+            <Gift size={24} className="guest-wishlist-icon" />
+            <span>{payload.title || "Вішліст"}</span>
+          </h1>
+          <p className="guest-wishlist-subtitle">
+            Оберіть подарунок, який хочете подарувати. Натисніть «Забронювати»,
+            щоб ніхто інший не купив те саме.
+          </p>
+          <div className="guest-wishlist-mystery-note">
+            <Sparkles size={16} />
+            <span>
+              Інтрига збережена: автор вішліста не знає, хто і що саме
+              забронював.
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <main className="guest-wishlist-main">
+        {payload.items.length === 0 ? (
+          <div className="guest-wishlist-empty">
+            <Gift size={40} className="empty-icon" />
+            <p>У цьому вішлісті поки немає бажань.</p>
+          </div>
+        ) : (
+          <div className="guest-wishlist-grid">
+            {payload.items.map((item: SharedWishItem) => {
+              const isReserved = Boolean(reservations[item.id]);
+
+              return (
+                <div
+                  key={item.id}
+                  className={`guest-wish-card${isReserved ? " is-reserved" : ""}`}
+                >
+                  {item.image_url && (
+                    <div className="guest-wish-card-img-wrap">
+                      <img
+                        src={item.image_url}
+                        alt={item.name}
+                        className="guest-wish-card-img"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                  )}
+
+                  <div className="guest-wish-card-body">
+                    <div className="guest-wish-badges">
+                      {item.priority && (
+                        <span
+                          className={`guest-priority-badge ${
+                            item.priority === "Мрія"
+                              ? "is-dream"
+                              : item.priority === "Дуже хочу"
+                                ? "is-high"
+                                : "is-normal"
+                          }`}
+                        >
+                          {item.priority === "Мрія" ? "✨ Мрія" : item.priority}
+                        </span>
+                      )}
+                      {item.size && (
+                        <span className="guest-size-badge">
+                          Розмір: {item.size}
+                        </span>
+                      )}
+                    </div>
+
+                    <h2 className="guest-wish-card-title">{item.name}</h2>
+
+                    {item.price !== null &&
+                      item.price !== undefined &&
+                      item.price > 0 && (
+                        <div className="guest-wish-card-price">
+                          {money(item.price)}
+                        </div>
+                      )}
+
+                    {item.note && (
+                      <p className="guest-wish-card-note">{item.note}</p>
+                    )}
+
+                    <div className="guest-wish-card-actions">
+                      {item.url && (
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="guest-store-btn button secondary"
+                        >
+                          <ExternalLink size={15} />
+                          <span>Де купити</span>
+                        </a>
+                      )}
+
+                      <div className="guest-reserve-action-wrap">
+                        {isReserved ? (
+                          <div className="guest-reserved-pill-group">
+                            <span className="guest-reserved-pill">
+                              <Check size={15} />
+                              Заброньовано вами
+                            </span>
+                            <button
+                              type="button"
+                              className="guest-cancel-reserve-btn"
+                              onClick={() => toggleReservation(item.id)}
+                            >
+                              Скасувати
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className="guest-reserve-btn button"
+                            onClick={() => toggleReservation(item.id)}
+                          >
+                            <Gift size={16} />
+                            <span>Забронювати</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </main>
+
+      <footer className="guest-wishlist-footer">
+        <p>Створено з турботою у просторі для двох <strong>ours.</strong></p>
+      </footer>
+    </div>
+  );
+}

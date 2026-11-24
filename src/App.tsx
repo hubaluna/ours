@@ -51,9 +51,18 @@ import {
 import { extractShareTargetUrl } from "./lib/share-target";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { hardReloadApp } from "./lib/pwa-update";
+import {
+  decodeWishlistShare,
+  type SharedWishlistPayload,
+} from "./lib/wishlist-share";
 const UniversalShareImport = lazy(() =>
   import("./components/UniversalShareImport").then((m) => ({
     default: m.UniversalShareImport,
+  })),
+);
+const GuestWishlistView = lazy(() =>
+  import("./components/GuestWishlistView").then((m) => ({
+    default: m.GuestWishlistView,
   })),
 );
 const screens = {
@@ -386,6 +395,24 @@ export default function App() {
     ).length + dueRecurringCount;
   const totalQueuedCount =
     queuedShoppingCount + queuedBudgetCount + (queuedMutationCount ?? 0);
+  const [guestWishlistPayload, setGuestWishlistPayload] =
+    useState<SharedWishlistPayload | null>(() => {
+      if (typeof window === "undefined") return null;
+      const searchParams = new URLSearchParams(window.location.search);
+      const fromQuery = searchParams.get("shared_wishlist");
+      if (fromQuery) {
+        return decodeWishlistShare(fromQuery);
+      }
+      if (window.location.hash.includes("shared_wishlist=")) {
+        const hashQuery = window.location.hash.split("?")[1] || "";
+        const hashParams = new URLSearchParams(hashQuery);
+        const fromHash = hashParams.get("shared_wishlist");
+        if (fromHash) {
+          return decodeWishlistShare(fromHash);
+        }
+      }
+      return null;
+    });
   const [sharedUrl, setSharedUrl] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     const extracted = extractShareTargetUrl(window.location.search);
@@ -525,7 +552,25 @@ export default function App() {
   return (
     <MotionConfig reducedMotion="user">
       <Toast />
-      {!authReady ? (
+      {guestWishlistPayload ? (
+        <Suspense fallback={<Skeleton />}>
+          <GuestWishlistView
+            payload={guestWishlistPayload}
+            onExit={() => {
+              if (typeof window !== "undefined") {
+                const url = new URL(window.location.href);
+                url.searchParams.delete("shared_wishlist");
+                window.history.replaceState(
+                  {},
+                  "",
+                  url.pathname + (url.search ? url.search : ""),
+                );
+              }
+              setGuestWishlistPayload(null);
+            }}
+          />
+        </Suspense>
+      ) : !authReady ? (
         <div className="app-shell">
           <Skeleton />
         </div>
@@ -685,7 +730,11 @@ export default function App() {
                       ) : tab === "movies" ? (
                         <Movies />
                       ) : tab === "wishes" ? (
-                        <Wishes />
+                        <Wishes
+                          onOpenGuestWishlist={(code) =>
+                            setGuestWishlistPayload(decodeWishlistShare(code))
+                          }
+                        />
                       ) : tab === "plans" ? (
                         <Plans />
                       ) : (
