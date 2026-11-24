@@ -1238,11 +1238,11 @@ button.header-status-badge:active {
   min-height: 38px;
   margin: 3px 0 6px;
 }
-.shopping-category-filter {
+.filter-pill {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   height: 34px;
   padding: 0 10px 0 11px;
   border-radius: 12px;
@@ -1253,27 +1253,31 @@ button.header-status-badge:active {
   cursor: pointer;
   transition: all 0.16s ease;
   user-select: none;
+  max-width: 100%;
+  min-width: 0;
 }
-.shopping-category-filter:hover {
+.filter-pill:hover {
   background: var(--card);
   border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
   color: var(--text);
 }
-.shopping-category-filter.is-active {
+.filter-pill.is-active {
   background: var(--accent-light);
   border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
   color: var(--accent-strong);
 }
-.shopping-category-filter:focus-within {
+.filter-pill:focus-within {
   border-color: var(--sage);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--sage) 25%, transparent);
 }
-.shopping-category-icon {
+.filter-pill-icon {
+  display: inline-flex;
+  align-items: center;
   flex-shrink: 0;
   color: currentColor;
   opacity: 0.85;
 }
-.shopping-category-select {
+.filter-pill-select {
   appearance: none;
   -webkit-appearance: none;
   background: transparent;
@@ -1285,23 +1289,29 @@ button.header-status-badge:active {
   cursor: pointer;
   padding: 0 4px 0 0;
   margin: 0;
+  min-width: 0;
+  max-width: 100%;
+  text-overflow: ellipsis;
 }
-.shopping-category-select option {
+.filter-pill-select option {
   background: var(--card);
   color: var(--text);
   padding: 8px 12px;
 }
-.shopping-category-chevron {
+.filter-pill-chevron {
   flex-shrink: 0;
   color: currentColor;
   opacity: 0.65;
   pointer-events: none;
 }
+.wishes-occasion-pill {
+  max-width: 175px;
+}
 select option {
   background: var(--card);
   color: var(--text);
 }
-.filter-line select:not(.shopping-category-select) {
+.filter-line select:not(.filter-pill-select) {
   appearance: none;
   -webkit-appearance: none;
   border: 0;
@@ -7886,6 +7896,16 @@ select option {
   width: 100%;
   margin: 0 auto;
   padding: 20px 16px 40px;
+}
+.guest-wishlist-error {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--danger, #dc2626) 12%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--danger, #dc2626) 35%, transparent);
+  color: var(--danger, #dc2626);
+  font-size: 13px;
+  line-height: 1.4;
 }
 .guest-wishlist-grid {
   display: flex;

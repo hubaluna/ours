@@ -1,7 +1,7 @@
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, type HTMLMotionProps } from "motion/react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { AlertCircle, ArrowRight, Check, LoaderCircle, X } from "lucide-react";
+import { AlertCircle, ArrowRight, Check, ChevronDown, LoaderCircle, X } from "lucide-react";
 import { spring, soft } from "../lib/motion";
 import { recoverImage, useImage } from "../hooks/useImage";
 import { useApp } from "../hooks/AppContext";
@@ -415,5 +415,39 @@ export function ConfirmDelete({
     <Button className="danger ghost" onClick={() => setConfirm(true)}>
       Видалити
     </Button>
+  );
+}
+export function FilterSelect({
+  label,
+  value,
+  onChange,
+  icon,
+  active = false,
+  className = "",
+  children,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  icon?: ReactNode;
+  active?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <label
+      className={`filter-pill${active ? " is-active" : ""}${className ? ` ${className}` : ""}`}
+    >
+      {icon && <span className="filter-pill-icon">{icon}</span>}
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="filter-pill-select"
+      >
+        {children}
+      </select>
+      <ChevronDown size={13} className="filter-pill-chevron" aria-hidden="true" />
+    </label>
   );
 }

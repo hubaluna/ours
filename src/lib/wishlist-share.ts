@@ -25,6 +25,7 @@ export interface SharedWishlistPayload {
 export interface WishReservationStatus {
   isReserved: boolean;
   isReservedByMe: boolean;
+  error?: string;
 }
 
 export type WishReservationsMap = Record<string, WishReservationStatus>;
@@ -224,31 +225,49 @@ export async function toggleGuestReservation(
 
   if (current.isReservedByMe) {
     // Unreserve
-    setGuestReservation(wishId, false);
     if (supabase) {
       try {
-        await supabase
+        const { error } = await supabase
           .from("guest_wish_reservations")
           .delete()
           .eq("wish_id", wishId)
           .eq("guest_token", myToken);
+        if (error) {
+          return {
+            ...current,
+            error: "Не вдалося скасувати бронювання. Перевірте інтернет.",
+          };
+        }
       } catch {
-        // ignore offline error
+        return {
+          ...current,
+          error: "Не вдалося скасувати бронювання. Перевірте інтернет.",
+        };
       }
     }
+    setGuestReservation(wishId, false);
     return { isReserved: false, isReservedByMe: false };
   } else {
     // Reserve
-    setGuestReservation(wishId, true);
     if (supabase) {
       try {
-        await supabase
+        const { error } = await supabase
           .from("guest_wish_reservations")
           .insert({ wish_id: wishId, guest_token: myToken });
+        if (error) {
+          return {
+            ...current,
+            error: "Не вдалося забронювати. Перевірте інтернет або оновіть сторінку.",
+          };
+        }
       } catch {
-        // ignore offline error
+        return {
+          ...current,
+          error: "Не вдалося забронювати. Перевірте інтернет.",
+        };
       }
     }
+    setGuestReservation(wishId, true);
     return { isReserved: true, isReservedByMe: true };
   }
 }

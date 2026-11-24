@@ -371,6 +371,7 @@ export default function App() {
     queuedMutationCount,
     sync,
     refresh,
+    notify,
   } = useApp();
   const {
     theme,
@@ -710,13 +711,22 @@ export default function App() {
               </button>
               <div className="header-right">
                 {!online ? (
-                  <span
+                  <button
+                    type="button"
                     className="header-status-badge is-offline"
                     role="status"
-                    title={
+                    aria-label={
                       totalQueuedCount > 0
                         ? `Без інтернету · збережено локально (${totalQueuedCount})`
-                        : "Без інтернету · покупки й бюджет зберігаються локально"
+                        : "Без інтернету · зміни зберігаються локально"
+                    }
+                    title="Немає інтернету — натисніть для деталей"
+                    onClick={() =>
+                      notify(
+                        totalQueuedCount > 0
+                          ? `Немає інтернету. У черзі ${totalQueuedCount} змін — вони відправляться автоматично, коли з’явиться зв’язок.`
+                          : "Немає інтернету. Зміни збережуться на телефоні й відправляться автоматично, коли з’явиться зв’язок.",
+                      )
                     }
                   >
                     <WifiOff size={12} aria-hidden="true" />
@@ -725,7 +735,7 @@ export default function App() {
                         ? `Офлайн · ${totalQueuedCount}`
                         : "Офлайн"}
                     </span>
-                  </span>
+                  </button>
                 ) : !demo && totalQueuedCount > 0 ? (
                   <button
                     type="button"

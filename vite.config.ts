@@ -132,6 +132,13 @@ export default defineConfig(({ command, mode }) => {
     env.GITHUB_SHA?.slice(0, 12) || new Date().toISOString();
   return {
     base,
+    resolve: process.env.VITEST
+      ? undefined
+      : {
+          alias: {
+            linkedom: resolve(process.cwd(), "src/lib/browser-html-parser.ts"),
+          },
+        },
     define: {
       __APP_BUILD_ID__: JSON.stringify(buildId),
     },

@@ -33,6 +33,7 @@ export function GuestWishlistView({
   });
 
   const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
+  const [actionError, setActionError] = useState<string>("");
 
   const loadReservations = useCallback(async () => {
     if (itemIds.length === 0) return;
@@ -60,6 +61,7 @@ export function GuestWishlistView({
       return;
     }
 
+    setActionError("");
     // Optimistic update
     const nextState = {
       isReserved: !current.isReservedByMe,
@@ -71,9 +73,15 @@ export function GuestWishlistView({
     }));
 
     const result = await toggleGuestReservation(id, current);
+    if (result.error) {
+      setActionError(result.error);
+    }
     setReservations((prev) => ({
       ...prev,
-      [id]: result,
+      [id]: {
+        isReserved: result.isReserved,
+        isReservedByMe: result.isReservedByMe,
+      },
     }));
   };
 
@@ -107,6 +115,11 @@ export function GuestWishlistView({
       </header>
 
       <main className="guest-wishlist-main">
+        {actionError && (
+          <div className="guest-wishlist-error" role="alert">
+            <span>{actionError}</span>
+          </div>
+        )}
         {payload.items.length === 0 ? (
           <div className="guest-wishlist-empty">
             <Gift size={40} className="empty-icon" />

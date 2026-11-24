@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence } from "motion/react";
 import {
+  ArrowUpDown,
   Check,
   CheckCircle2,
   ChevronRight,
@@ -34,6 +35,7 @@ import {
   BottomSheet,
   Button,
   EmptyState,
+  FilterSelect,
   IconButton,
   Segmented,
 } from "../components/ui";
@@ -393,26 +395,30 @@ export default function Wishes({
         ]}
       />
       <div className="filter-line wishes-filter-line">
-        <select
-          aria-label="Сортування бажань"
+        <FilterSelect
+          label="Сортування бажань"
           value={sort}
-          onChange={(e) =>
+          onChange={(val) =>
             setSort(
-              e.target.value as "newest" | "priority" | "price-asc" | "price-desc",
+              val as "newest" | "priority" | "price-asc" | "price-desc",
             )
           }
+          active={sort !== "newest"}
+          icon={<ArrowUpDown size={13} />}
         >
           <option value="newest">Спочатку нові</option>
           <option value="priority">За силою бажання</option>
           <option value="price-asc">Дешевші спочатку</option>
           <option value="price-desc">Дорожчі спочатку</option>
-        </select>
+        </FilterSelect>
         {availableOccasions.length > 0 && (
-          <select
-            aria-label="Фільтр за приводом"
-            className="wishes-occasion-select"
+          <FilterSelect
+            label="Фільтр за приводом"
             value={occasionFilter}
-            onChange={(e) => setOccasionFilter(e.target.value)}
+            onChange={setOccasionFilter}
+            active={occasionFilter !== "all"}
+            icon={<Gift size={13} />}
+            className="wishes-occasion-pill"
           >
             <option value="all">Усі приводи</option>
             <option value="none">Без приводу</option>
@@ -421,7 +427,7 @@ export default function Wishes({
                 {occ}
               </option>
             ))}
-          </select>
+          </FilterSelect>
         )}
         {view === "mine" && (fulfilledCount > 0 || showFulfilled) && (
           <button

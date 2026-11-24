@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AnimatePresence } from "motion/react";
-import { CheckCheck, ChevronDown, History, Link2, SlidersHorizontal } from "lucide-react";
+import { CheckCheck, History, Link2, SlidersHorizontal } from "lucide-react";
 import { useApp } from "../hooks/AppContext";
 import { categories, type ShoppingItem } from "../lib/types";
 import { ShoppingRow } from "../components/ShoppingRow";
@@ -8,6 +8,7 @@ import {
   BottomSheet,
   Button,
   EmptyState,
+  FilterSelect,
   IconButton,
   Segmented,
 } from "../components/ui";
@@ -155,25 +156,20 @@ export default function Shopping() {
         </IconButton>
       </div>
       <div className="filter-line shopping-filter-line">
-        <label
-          className={`shopping-category-filter${category !== "all" ? " is-active" : ""}`}
+        <FilterSelect
+          label="Категорія покупок"
+          value={category}
+          onChange={setCategory}
+          active={category !== "all"}
+          icon={<SlidersHorizontal size={13} />}
         >
-          <SlidersHorizontal size={13} className="shopping-category-icon" />
-          <select
-            aria-label="Категорія покупок"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="shopping-category-select"
-          >
-            <option value="all">Усі категорії</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-          <ChevronDown size={13} className="shopping-category-chevron" />
-        </label>
+          <option value="all">Усі категорії</option>
+          {categories.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </FilterSelect>
         {view === "done" && done.length > 0 && active.length === 0 && (
           <Button
             className="ghost finish-shopping"
