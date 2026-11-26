@@ -1390,6 +1390,7 @@ export default function Budget({
             }
             onDeleteRule={(id) => void removeBudgetMerchantRule(id)}
             onAddRecurring={(item) => addBudgetRecurring(item)}
+            onUpdateRecurring={(id, patch) => updateBudgetRecurring(id, patch)}
             onToggleRecurring={(id, active) =>
               void updateBudgetRecurring(id, { active })
             }
@@ -1857,6 +1858,7 @@ function BudgetSettingsSheet({
   onSaveRule,
   onDeleteRule,
   onAddRecurring,
+  onUpdateRecurring,
   onToggleRecurring,
   onDeleteRecurring,
   fetchTokenStatus,
@@ -1883,6 +1885,16 @@ function BudgetSettingsSheet({
   ) => Promise<boolean>;
   onDeleteRule: (id: string) => void;
   onAddRecurring: (item: NewBudgetRecurringPayment) => Promise<boolean>;
+  onUpdateRecurring: (
+    id: string,
+    patch: {
+      title: string;
+      kind: BudgetKind;
+      amount: number;
+      category_key: string;
+      day_of_month: number;
+    },
+  ) => Promise<boolean>;
   onToggleRecurring: (id: string, active: boolean) => void;
   onDeleteRecurring: (id: string) => void;
   fetchTokenStatus: () => Promise<BudgetTokenStatus>;
@@ -1901,11 +1913,13 @@ function BudgetSettingsSheet({
   const [revealedToken, setRevealedToken] = useState<string | null>(null);
   const [rulePattern, setRulePattern] = useState("");
   const [ruleCatKey, setRuleCatKey] = useState("groceries");
+  const [editingRecId, setEditingRecId] = useState<string | null>(null);
   const [recTitle, setRecTitle] = useState("");
   const [recAmount, setRecAmount] = useState("");
   const [recDay, setRecDay] = useState("1");
   const [recKind, setRecKind] = useState<BudgetKind>("expense");
   const [recCatKey, setRecCatKey] = useState("home");
+  const recTitleInputRef = useRef<HTMLInputElement>(null);
   const ingestUrl = budgetIngestUrl();
 
   useEffect(() => {
@@ -1957,7 +1971,34 @@ function BudgetSettingsSheet({
     }
   };
 
-  const handleAddRecurring = async (e: FormEvent) => {
+  const resetRecurringForm = () => {
+    setEditingRecId(null);
+    setRecTitle("");
+    setRecAmount("");
+    setRecDay("1");
+    setRecKind("expense");
+    setRecCatKey("home");
+  };
+
+  const startEditRecurring = (item: BudgetRecurringPayment) => {
+    setEditingRecId(item.id);
+    setRecTitle(item.title);
+    setRecAmount(String(item.amount));
+    setRecDay(String(item.day_of_month));
+    setRecKind(item.kind);
+    setRecCatKey(
+      item.category_key || (item.kind === "income" ? "salary" : "home"),
+    );
+    window.requestAnimationFrame(() => {
+      recTitleInputRef.current?.focus();
+      recTitleInputRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    });
+  };
+
+  const handleSaveRecurring = async (e: FormEvent) => {
     e.preventDefault();
     const amount = parseApplePayAmount(recAmount);
     const day = Math.min(31, Math.max(1, Math.round(Number(recDay) || 1)));
@@ -1965,16 +2006,18 @@ function BudgetSettingsSheet({
       notify("Вкажіть назву та суму регулярного платежу");
       return;
     }
-    const ok = await onAddRecurring({
+    const payload = {
       title: recTitle.trim(),
       kind: recKind,
       amount,
       category_key: recCatKey,
       day_of_month: day,
-    });
+    };
+    const ok = editingRecId
+      ? await onUpdateRecurring(editingRecId, payload)
+      : await onAddRecurring(payload);
     if (ok) {
-      setRecTitle("");
-      setRecAmount("");
+      resetRecurringForm();
     }
   };
 
@@ -2118,9 +2161,10 @@ function BudgetSettingsSheet({
 
               <form
                 className="budget-recurring-form"
-                onSubmit={handleAddRecurring}
+                onSubmit={handleSaveRecurring}
               >
                 <input
+                  ref={recTitleInputRef}
                   value={recTitle}
                   onChange={(e) => setRecTitle(e.target.value)}
                   placeholder="Назва (напр. Оренда, Інтернет)"
@@ -2177,13 +2221,32 @@ function BudgetSettingsSheet({
                     ))}
                   </select>
                 </div>
-                <Button
-                  type="submit"
-                  className="secondary budget-recurring-submit"
-                  busy={pending.includes("add-budget-recurring")}
-                >
-                  + Додати платіж
-                </Button>
+                <div className="budget-recurring-form-actions">
+                  <Button
+                    type="submit"
+                    className={
+                      editingRecId
+                        ? "budget-recurring-submit"
+                        : "secondary budget-recurring-submit"
+                    }
+                    busy={pending.includes(
+                      editingRecId
+                        ? `budget-rec-${editingRecId}`
+                        : "add-budget-recurring",
+                    )}
+                  >
+                    {editingRecId ? "Зберегти зміни" : "+ Додати платіж"}
+                  </Button>
+                  {editingRecId && (
+                    <Button
+                      type="button"
+                      className="ghost"
+                      onClick={resetRecurringForm}
+                    >
+                      Скасувати
+                    </Button>
+                  )}
+                </div>
               </form>
 
               {recurring.length === 0 ? (
@@ -2199,9 +2262,10 @@ function BudgetSettingsSheet({
                       customCategories,
                       item.kind,
                     );
+                    const isEditing = editingRecId === item.id;
                     return (
                       <div
-                        className={`budget-rule-row${item.active ? "" : " is-paused"}`}
+                        className={`budget-rule-row${item.active ? "" : " is-paused"}${isEditing ? " is-editing" : ""}`}
                         key={item.id}
                       >
                         <label className="budget-recurring-toggle">
@@ -2223,12 +2287,25 @@ function BudgetSettingsSheet({
                             </small>
                           </div>
                         </label>
-                        <IconButton
-                          label={`Видалити регулярний платіж ${item.title}`}
-                          onClick={() => onDeleteRecurring(item.id)}
-                        >
-                          <Trash2 size={15} />
-                        </IconButton>
+                        <div className="budget-rule-actions">
+                          <IconButton
+                            label={`Редагувати регулярний платіж ${item.title}`}
+                            onClick={() => startEditRecurring(item)}
+                          >
+                            <SquarePen size={15} />
+                          </IconButton>
+                          <IconButton
+                            label={`Видалити регулярний платіж ${item.title}`}
+                            onClick={() => {
+                              if (editingRecId === item.id) {
+                                resetRecurringForm();
+                              }
+                              onDeleteRecurring(item.id);
+                            }}
+                          >
+                            <Trash2 size={15} />
+                          </IconButton>
+                        </div>
                       </div>
                     );
                   })}

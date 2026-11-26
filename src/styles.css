@@ -10012,12 +10012,27 @@ select option {
   grid-template-columns: 112px minmax(0, 1fr);
   gap: 8px;
 }
+.budget-recurring-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .budget-recurring-submit {
   min-height: 40px;
   font-size: var(--text-sm);
   font-weight: 500;
   justify-content: center;
   width: 100%;
+  flex: 1;
+}
+.budget-rule-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.budget-rule-row.is-editing {
+  border-color: var(--accent);
 }
 .budget-recurring-toggle {
   display: flex;
