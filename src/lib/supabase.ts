@@ -20,10 +20,13 @@ export const configured = Boolean(
   url && key && !isPlaceholder(url) && !isPlaceholder(key),
 );
 const fetchWithTimeout: typeof fetch = (input, init) => {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    return Promise.reject(new TypeError("Failed to fetch"));
+  }
   if (typeof AbortSignal === "undefined" || !("timeout" in AbortSignal)) {
     return fetch(input, init);
   }
-  const timeoutSignal = AbortSignal.timeout(15_000);
+  const timeoutSignal = AbortSignal.timeout(12_000);
   const signal =
     init?.signal && "any" in AbortSignal
       ? AbortSignal.any([init.signal, timeoutSignal])

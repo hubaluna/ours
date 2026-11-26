@@ -91,6 +91,12 @@ import {
   saveLocalRecurrence,
 } from "../lib/recurrence";
 import {
+  clearAppCache,
+  readAppCache,
+  readStoredSupabaseSession,
+  writeAppCache,
+} from "../lib/app-cache";
+import {
   clearTrash,
   pushTrash,
   readTrash,
@@ -287,18 +293,67 @@ function useStore() {
   );
   useEffect(() => {
     if (!supabase) return;
-    void supabase.auth.getSession().then(({ data, error }) => {
-      if (error) notify("Не вдалося відновити вхід. Увійдіть ще раз.");
-      setSession(data.session);
+    let settled = false;
+    const storedSession = readStoredSupabaseSession();
+    if (storedSession && !navigator.onLine) {
+      setSession(storedSession);
       setAuthReady(true);
-    });
+    }
+    const fallbackTimer =
+      storedSession && navigator.onLine
+        ? window.setTimeout(() => {
+            if (settled) return;
+            setSession((prev) => prev ?? storedSession);
+            setAuthReady(true);
+          }, 2500)
+        : null;
+    void supabase.auth
+      .getSession()
+      .then(({ data, error }) => {
+        settled = true;
+        if (fallbackTimer !== null) window.clearTimeout(fallbackTimer);
+        if (error) {
+          if (storedSession && (!navigator.onLine || isOfflineNetworkError(error))) {
+            setSession((prev) => prev ?? storedSession);
+            setAuthReady(true);
+            return;
+          }
+          notify("Не вдалося відновити вхід. Увійдіть ще раз.");
+        }
+        if (data.session) {
+          setSession(data.session);
+        } else if (!storedSession || navigator.onLine) {
+          setSession(null);
+        }
+        setAuthReady(true);
+      })
+      .catch(() => {
+        settled = true;
+        if (fallbackTimer !== null) window.clearTimeout(fallbackTimer);
+        if (storedSession) {
+          setSession((prev) => prev ?? storedSession);
+        }
+        setAuthReady(true);
+      });
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
+    } = supabase.auth.onAuthStateChange((event, s) => {
+      settled = true;
+      if (fallbackTimer !== null) window.clearTimeout(fallbackTimer);
+      if (event === "SIGNED_OUT") {
+        setSession((prev) => {
+          if (prev?.user.id) clearAppCache(prev.user.id);
+          return null;
+        });
+      } else {
+        setSession(s);
+      }
       setAuthReady(true);
     });
-    return () => subscription.unsubscribe();
+    return () => {
+      if (fallbackTimer !== null) window.clearTimeout(fallbackTimer);
+      subscription.unsubscribe();
+    };
   }, [notify]);
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);
@@ -742,6 +797,7 @@ function useStore() {
         );
         if (current === revision.current) {
           coupleIdRef.current = null;
+          clearAppCache(trashScope);
           setCoupleId(null);
           setData({ ...empty, profiles: profile as Profile[] });
           setFailure(false);
@@ -1047,7 +1103,7 @@ function useStore() {
       const localFulfilled = readLocalFulfilledWishes(trashScope);
       coupleIdRef.current = couple;
       setCoupleId(couple);
-      setData({
+      const nextData: Data = {
         mealPlan,
         pantry,
         recipes,
@@ -1079,33 +1135,42 @@ function useStore() {
         budgetMerchantRules: finalBudgetMerchantRules,
         budgetSettings: finalBudgetSettings,
         budgetRecurring: finalBudgetRecurring,
-      });
+      };
+      setData(nextData);
+      writeAppCache(trashScope, couple, nextData);
       lastRefreshAtRef.current = Date.now();
       setFailure(false);
     } catch {
       if (current === revision.current) {
-        const cached = readShoppingCache(trashScope);
+        const cachedApp = readAppCache(trashScope, empty);
+        const cachedShopping = readShoppingCache(trashScope);
         const cachedBudget = readBudgetCache(trashScope);
-        if (
-          !navigator.onLine &&
-          (cached.length ||
-            shoppingQueueRef.current.length ||
-            cachedBudget.length ||
-            budgetQueueRef.current.length)
-        ) {
-          setData((prev) => ({
-            ...prev,
-            shopping: applyShoppingQueue(
-              prev.shopping.length ? prev.shopping : cached,
-              shoppingQueueRef.current,
-            ),
-            budgetTransactions: applyBudgetQueue(
+        if (coupleIdRef.current || cachedApp) {
+          if (!coupleIdRef.current && cachedApp) {
+            coupleIdRef.current = cachedApp.coupleId;
+            setCoupleId(cachedApp.coupleId);
+          }
+          setData((prev) => {
+            const base =
+              prev.profiles.length ||
+              prev.shopping.length ||
               prev.budgetTransactions.length
-                ? prev.budgetTransactions
-                : cachedBudget,
-              budgetQueueRef.current,
-            ),
-          }));
+                ? prev
+                : (cachedApp?.data ?? prev);
+            return {
+              ...base,
+              shopping: applyShoppingQueue(
+                base.shopping.length ? base.shopping : cachedShopping,
+                shoppingQueueRef.current,
+              ),
+              budgetTransactions: applyBudgetQueue(
+                base.budgetTransactions.length
+                  ? base.budgetTransactions
+                  : cachedBudget,
+                budgetQueueRef.current,
+              ),
+            };
+          });
           setFailure(false);
         } else {
           setFailure(true);
@@ -1129,16 +1194,42 @@ function useStore() {
     if (demo) return;
     if (!userId) {
       revision.current++;
+      coupleIdRef.current = null;
       setData(empty);
       setCoupleId(null);
       setLoading(false);
       return;
     }
+    const cachedApp = readAppCache(trashScope, empty);
+    if (cachedApp) {
+      const loadedShoppingQueue = readShoppingQueue(trashScope);
+      const loadedBudgetQueue = readBudgetQueue(trashScope);
+      coupleIdRef.current = cachedApp.coupleId;
+      setCoupleId(cachedApp.coupleId);
+      setData({
+        ...cachedApp.data,
+        shopping: applyShoppingQueue(
+          cachedApp.data.shopping,
+          loadedShoppingQueue,
+        ),
+        budgetTransactions: applyBudgetQueue(
+          cachedApp.data.budgetTransactions,
+          loadedBudgetQueue,
+        ),
+      });
+      setFailure(false);
+      setLoading(false);
+      if (navigator.onLine) {
+        void refresh();
+      }
+      return;
+    }
+    coupleIdRef.current = null;
     setData(empty);
     setCoupleId(null);
     setLoading(true);
     void refresh();
-  }, [demo, userId, refresh]);
+  }, [demo, userId, trashScope, refresh]);
   useEffect(() => {
     if (!supabase || !coupleId || !userId) return;
     let refreshTimer: number | null = null;
@@ -1265,6 +1356,7 @@ function useStore() {
     const visible = () => {
       if (
         document.visibilityState === "visible" &&
+        navigator.onLine &&
         !demo &&
         Date.now() - lastRefreshAtRef.current > 15_000
       ) {

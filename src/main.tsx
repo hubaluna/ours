@@ -27,6 +27,7 @@ if (location.search.includes("_v=")) {
 }
 window.addEventListener("vite:preloadError", (event) => {
   event.preventDefault();
+  if (typeof navigator !== "undefined" && !navigator.onLine) return;
   try {
     if (!sessionStorage.getItem("ours-chunk-reloaded")) {
       sessionStorage.setItem("ours-chunk-reloaded", "1");
