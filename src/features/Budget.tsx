@@ -118,7 +118,7 @@ export default function Budget({
 
   const today = kyivDate();
   const [periodPreset, setPeriodPreset] =
-    useState<BudgetPeriodPreset>("this_month");
+    useState<BudgetPeriodPreset>("all_time");
   const [customFrom, setCustomFrom] = useState(`${today.slice(0, 7)}-01`);
   const [customTo, setCustomTo] = useState(today);
   const [scope, setScope] = useState<BudgetMemberScope>("all");
