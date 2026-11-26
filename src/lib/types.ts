@@ -21,7 +21,12 @@ export const eventCategories = [
   "Свято",
   "Інше",
 ] as const;
-export type Profile = { id: string; name: string; avatar_path: string | null };
+export type Profile = {
+  id: string;
+  name: string;
+  avatar_path: string | null;
+  updated_at?: string | null;
+};
 export type ShoppingItem = {
   id: string;
   couple_id: string;

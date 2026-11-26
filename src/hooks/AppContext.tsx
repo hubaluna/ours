@@ -227,6 +227,9 @@ function useStore() {
     [coupleId, setCoupleId] = useState<string | null>(
       configured ? null : DEMO_COUPLE,
     ),
+    [coupleCreatedBy, setCoupleCreatedBy] = useState<string | null>(
+      configured ? null : DEMO_USER,
+    ),
     [loading, setLoading] = useState(configured),
     [failure, setFailure] = useState(false),
     [pending, setPending] = useState<string[]>([]),
@@ -258,6 +261,7 @@ function useStore() {
     budgetLocalModeRef = useRef(false),
     budgetRecurringLocalRef = useRef(false),
     lastRefreshAtRef = useRef(0),
+    lastVisitPingRef = useRef(0),
     refreshInFlightRef = useRef<Promise<void> | null>(null);
   const [realtimeRetry, setRealtimeRetry] = useState(0);
   const busy = useRef(new Set<string>()),
@@ -799,6 +803,7 @@ function useStore() {
           coupleIdRef.current = null;
           clearAppCache(trashScope);
           setCoupleId(null);
+          setCoupleCreatedBy(null);
           setData({ ...empty, profiles: profile as Profile[] });
           setFailure(false);
         }
@@ -829,6 +834,7 @@ function useStore() {
         budgetMerchantRules,
         budgetSettings,
         budgetRecurring,
+        coupleOwner,
       ] = await Promise.all([
         readAll<Profile>("profiles"),
         readAll<Data["shopping"][number]>("shopping_items", {
@@ -956,6 +962,16 @@ function useStore() {
           }
           throw err;
         }),
+        supabase
+          .from("couples")
+          .select("created_by")
+          .eq("id", couple)
+          .maybeSingle()
+          .then(
+            ({ data: coupleRow }) =>
+              (coupleRow?.created_by as string | undefined) ?? null,
+            () => null,
+          ),
       ]);
       let finalBudgetCategories = budgetCategories;
       let finalBudgetTransactions = budgetTransactions;
@@ -1103,6 +1119,7 @@ function useStore() {
       const localFulfilled = readLocalFulfilledWishes(trashScope);
       coupleIdRef.current = couple;
       setCoupleId(couple);
+      setCoupleCreatedBy(coupleOwner);
       const nextData: Data = {
         mealPlan,
         pantry,
@@ -1137,7 +1154,7 @@ function useStore() {
         budgetRecurring: finalBudgetRecurring,
       };
       setData(nextData);
-      writeAppCache(trashScope, couple, nextData);
+      writeAppCache(trashScope, couple, nextData, coupleOwner);
       lastRefreshAtRef.current = Date.now();
       setFailure(false);
     } catch {
@@ -1149,6 +1166,9 @@ function useStore() {
           if (!coupleIdRef.current && cachedApp) {
             coupleIdRef.current = cachedApp.coupleId;
             setCoupleId(cachedApp.coupleId);
+            if (cachedApp.coupleCreatedBy) {
+              setCoupleCreatedBy((prev) => prev ?? cachedApp.coupleCreatedBy ?? null);
+            }
           }
           setData((prev) => {
             const base =
@@ -1197,6 +1217,7 @@ function useStore() {
       coupleIdRef.current = null;
       setData(empty);
       setCoupleId(null);
+      setCoupleCreatedBy(null);
       setLoading(false);
       return;
     }
@@ -1206,6 +1227,7 @@ function useStore() {
       const loadedBudgetQueue = readBudgetQueue(trashScope);
       coupleIdRef.current = cachedApp.coupleId;
       setCoupleId(cachedApp.coupleId);
+      setCoupleCreatedBy(cachedApp.coupleCreatedBy ?? null);
       setData({
         ...cachedApp.data,
         shopping: applyShoppingQueue(
@@ -1366,6 +1388,39 @@ function useStore() {
     document.addEventListener("visibilitychange", visible);
     return () => document.removeEventListener("visibilitychange", visible);
   }, [refresh, demo]);
+  useEffect(() => {
+    if (
+      demo ||
+      !supabase ||
+      !userId ||
+      !coupleId ||
+      !coupleCreatedBy ||
+      coupleCreatedBy === userId ||
+      !online
+    ) {
+      return;
+    }
+    const me = data.profiles.find((p) => p.id === userId);
+    const myName = me?.name?.trim();
+    if (!myName) return;
+    const ping = () => {
+      if (document.visibilityState !== "visible" || !navigator.onLine) return;
+      const now = Date.now();
+      if (now - lastVisitPingRef.current < 5 * 60 * 1000) return;
+      lastVisitPingRef.current = now;
+      void supabase!
+        .from("profiles")
+        .update({ name: myName })
+        .eq("id", userId)
+        .then(
+          () => {},
+          () => {},
+        );
+    };
+    ping();
+    document.addEventListener("visibilitychange", ping);
+    return () => document.removeEventListener("visibilitychange", ping);
+  }, [demo, userId, coupleId, coupleCreatedBy, online, data.profiles]);
   const enqueueOfflineShopping = useCallback(
     (op: ShoppingQueueOp) => {
       commitShoppingQueue((prev) => enqueueShoppingOp(prev, op));
@@ -5234,6 +5289,7 @@ function useStore() {
     authReady,
     userId,
     coupleId,
+    coupleCreatedBy,
     data,
     loading,
     failure,

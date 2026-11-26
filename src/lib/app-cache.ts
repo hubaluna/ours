@@ -3,6 +3,7 @@ import type { Data } from "./types";
 
 export type CachedAppState = {
   coupleId: string;
+  coupleCreatedBy?: string | null;
   data: Data;
   savedAt: number;
 };
@@ -30,6 +31,8 @@ export function readAppCache(scope: string, fallback: Data): CachedAppState | nu
     };
     return {
       coupleId: parsed.coupleId,
+      coupleCreatedBy:
+        typeof parsed.coupleCreatedBy === "string" ? parsed.coupleCreatedBy : null,
       data: merged,
       savedAt: typeof parsed.savedAt === "number" ? parsed.savedAt : 0,
     };
@@ -38,10 +41,16 @@ export function readAppCache(scope: string, fallback: Data): CachedAppState | nu
   }
 }
 
-export function writeAppCache(scope: string, coupleId: string, data: Data): void {
+export function writeAppCache(
+  scope: string,
+  coupleId: string,
+  data: Data,
+  coupleCreatedBy?: string | null,
+): void {
   if (!coupleId) return;
   const payload: CachedAppState = {
     coupleId,
+    coupleCreatedBy: coupleCreatedBy ?? null,
     data,
     savedAt: Date.now(),
   };
@@ -52,6 +61,7 @@ export function writeAppCache(scope: string, coupleId: string, data: Data): void
     try {
       const compact: CachedAppState = {
         coupleId,
+        coupleCreatedBy: coupleCreatedBy ?? null,
         savedAt: payload.savedAt,
         data: {
           ...data,

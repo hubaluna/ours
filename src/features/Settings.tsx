@@ -24,7 +24,7 @@ import {
 import { useApp } from "../hooks/AppContext";
 import { clearImageCache } from "../hooks/useImage";
 import { checked, supabase, uploadImage } from "../lib/supabase";
-import { downloadJson } from "../lib/utils";
+import { downloadJson, formatLastSeen } from "../lib/utils";
 import { forceAppUpdate, hardReloadApp } from "../lib/pwa-update";
 import { DARK_PALETTES, LIGHT_PALETTES } from "../hooks/useTheme";
 import type { DarkPalette, LightPalette, Theme } from "../lib/types";
@@ -86,9 +86,11 @@ export default function Settings({
     session,
     userId,
     coupleId,
+    coupleCreatedBy,
     demo,
     pending,
     saveProfile,
+    refresh,
     run,
     notify,
     trash,
@@ -99,6 +101,16 @@ export default function Settings({
   } = useApp();
   const me = data.profiles.find((p) => p.id === userId),
     partner = data.profiles.find((p) => p.id !== userId);
+  const canSeePartnerLastSeen =
+    !demo && Boolean(coupleCreatedBy && coupleCreatedBy === userId);
+  const partnerLastSeen = canSeePartnerLastSeen
+    ? formatLastSeen(partner?.updated_at)
+    : null;
+  useEffect(() => {
+    if (canSeePartnerLastSeen && navigator.onLine) {
+      void refresh();
+    }
+  }, [canSeePartnerLastSeen, refresh]);
   const [name, setName] = useState(me?.name ?? ""),
     [avatar, setAvatar] = useState(me?.avatar_path ?? null),
     [uploading, setUploading] = useState(false),
@@ -500,7 +512,11 @@ export default function Settings({
               <Avatar name={partner.name} path={partner.avatar_path} />
               <div>
                 <strong>{partner.name}</strong>
-                <p>Разом у цьому просторі</p>
+                <p>
+                  {partnerLastSeen
+                    ? `Останній візит: ${partnerLastSeen}`
+                    : "Разом у цьому просторі"}
+                </p>
               </div>
               <span className="status-dot" />
             </>

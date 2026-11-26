@@ -20,6 +20,17 @@ const longDateFormatter = new Intl.DateTimeFormat("uk-UA", {
   weekday: "long",
   timeZone: "Europe/Kyiv",
 });
+const kyivTimeFormatter = new Intl.DateTimeFormat("uk-UA", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: "Europe/Kyiv",
+});
+const shortDateFormatter = new Intl.DateTimeFormat("uk-UA", {
+  day: "numeric",
+  month: "short",
+  timeZone: "Europe/Kyiv",
+});
 
 export const kyivDate = (date = new Date()) => kyivDateFormatter.format(date);
 export const kyivHour = (date = new Date()) =>
@@ -27,6 +38,29 @@ export const kyivHour = (date = new Date()) =>
 export const money = (value: number) => moneyFormatter.format(value);
 export const longDate = (date: string) =>
   longDateFormatter.format(new Date(`${date}T12:00:00+02:00`));
+export function formatLastSeen(
+  iso?: string | null,
+  now = new Date(),
+): string | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  const diffMs = now.getTime() - date.getTime();
+  if (diffMs >= 0 && diffMs < 2 * 60 * 1000) {
+    return "зараз у застосунку";
+  }
+  const timeStr = kyivTimeFormatter.format(date);
+  const targetDay = kyivDate(date);
+  const today = kyivDate(now);
+  if (targetDay === today) {
+    return `сьогодні о ${timeStr}`;
+  }
+  const yesterday = kyivDate(new Date(now.getTime() - 24 * 60 * 60 * 1000));
+  if (targetDay === yesterday) {
+    return `вчора о ${timeStr}`;
+  }
+  return `${shortDateFormatter.format(date)} о ${timeStr}`;
+}
 export const greeting = () => {
   const hour = kyivHour();
   return hour < 5

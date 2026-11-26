@@ -7,6 +7,7 @@ import {
   writeAppCache,
 } from "../src/lib/app-cache";
 import { readDemo } from "../src/lib/demo";
+import { formatLastSeen } from "../src/lib/utils";
 
 describe("app offline cache", () => {
   beforeEach(() => {
@@ -59,5 +60,18 @@ describe("app offline cache", () => {
     const session = readStoredSupabaseSession();
     expect(session?.access_token).toBe("token-123");
     expect(session?.user.id).toBe("user-42");
+  });
+
+  it("formats partner last seen time in Ukrainian", () => {
+    const now = new Date("2026-11-26T14:00:00Z"); // 16:00 Kyiv
+    expect(formatLastSeen(null, now)).toBeNull();
+    expect(formatLastSeen("2026-11-26T13:59:30Z", now)).toBe(
+      "зараз у застосунку",
+    );
+    expect(formatLastSeen("2026-11-26T12:15:00Z", now)).toBe(
+      "сьогодні о 14:15",
+    );
+    expect(formatLastSeen("2026-11-25T18:30:00Z", now)).toBe("вчора о 20:30");
+    expect(formatLastSeen("2026-11-20T10:05:00Z", now)).toContain("12:05");
   });
 });
