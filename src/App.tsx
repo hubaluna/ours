@@ -53,7 +53,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { hardReloadApp } from "./lib/pwa-update";
 import {
   decodeWishlistShare,
-  fetchSharedWishlistById,
+  fetchSharedWishlistResult,
   type SharedWishlistPayload,
 } from "./lib/wishlist-share";
 const UniversalShareImport = lazy(() =>
@@ -384,7 +384,8 @@ export default function App() {
   } = useTheme();
   const mascot = useOccasionalCat();
   const [tab, setTab] = useState<Tab>("home"),
-    [settings, setSettings] = useState(false);
+    [settings, setSettings] = useState(false),
+    [editBudgetTxId, setEditBudgetTxId] = useState<string | null>(null);
   const dueRecurringCount = getDueRecurringPayments(
     data.budgetRecurring || [],
     kyivDate(),
@@ -397,6 +398,17 @@ export default function App() {
     ).length + dueRecurringCount;
   const totalQueuedCount =
     queuedShoppingCount + queuedBudgetCount + (queuedMutationCount ?? 0);
+  const initialShortId =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("w") ||
+        (window.location.hash.includes("w=")
+          ? new URLSearchParams(window.location.hash.split("?")[1] || "").get("w")
+          : null)
+      : null;
+
+  const [guestPreviewMode, setGuestPreviewMode] = useState(false);
+  const [guestShortId, setGuestShortId] = useState<string | null>(initialShortId);
+  const [guestLoadError, setGuestLoadError] = useState(false);
   const [guestWishlistPayload, setGuestWishlistPayload] =
     useState<SharedWishlistPayload | null>(() => {
       if (typeof window === "undefined") return null;
@@ -431,6 +443,14 @@ export default function App() {
           }
         }
       }
+      if (initialShortId) {
+        try {
+          sessionStorage.removeItem("ours_guest_wishlist");
+        } catch {
+          // ignore
+        }
+        return null;
+      }
       try {
         const saved = sessionStorage.getItem("ours_guest_wishlist");
         if (saved) return JSON.parse(saved);
@@ -441,49 +461,51 @@ export default function App() {
     });
 
   const isGuestWishlistAttempt =
-    typeof window !== "undefined" &&
-    (new URLSearchParams(window.location.search).has("w") ||
-      new URLSearchParams(window.location.search).has("shared_wishlist") ||
-      window.location.hash.includes("w=") ||
-      window.location.hash.includes("shared_wishlist=") ||
-      Boolean(
-        typeof sessionStorage !== "undefined" &&
-          sessionStorage.getItem("ours_guest_wishlist"),
-      ));
+    Boolean(guestShortId) ||
+    (typeof window !== "undefined" &&
+      (new URLSearchParams(window.location.search).has("w") ||
+        new URLSearchParams(window.location.search).has("shared_wishlist") ||
+        window.location.hash.includes("w=") ||
+        window.location.hash.includes("shared_wishlist=") ||
+        Boolean(
+          typeof sessionStorage !== "undefined" &&
+            sessionStorage.getItem("ours_guest_wishlist"),
+        )));
 
   const [guestLoading, setGuestLoading] = useState<boolean>(
-    () => isGuestWishlistAttempt && !guestWishlistPayload,
+    () => Boolean(initialShortId) || (isGuestWishlistAttempt && !guestWishlistPayload),
   );
+
+  const loadShortWishlist = useCallback(async (id: string) => {
+    setGuestLoading(true);
+    setGuestLoadError(false);
+    try {
+      const outcome = await fetchSharedWishlistResult(id);
+      if (outcome.status === "ok") {
+        setGuestWishlistPayload(outcome.payload);
+        try {
+          sessionStorage.setItem(
+            "ours_guest_wishlist",
+            JSON.stringify(outcome.payload),
+          );
+          window.history.replaceState(null, "", window.location.pathname);
+        } catch {
+          // ignore
+        }
+      } else if (outcome.status === "network_error") {
+        setGuestLoadError(true);
+      }
+    } finally {
+      setGuestLoading(false);
+    }
+  }, []);
 
   // Load wishlist if short id provided via ?w=
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const searchParams = new URLSearchParams(window.location.search);
-    const shortId =
-      searchParams.get("w") ||
-      (window.location.hash.includes("w=")
-        ? new URLSearchParams(window.location.hash.split("?")[1] || "").get("w")
-        : null);
-
-    if (shortId) {
-      setGuestLoading(true);
-      void fetchSharedWishlistById(shortId)
-        .then((res) => {
-          if (res) {
-            setGuestWishlistPayload(res);
-            try {
-              sessionStorage.setItem("ours_guest_wishlist", JSON.stringify(res));
-              window.history.replaceState(null, "", window.location.pathname);
-            } catch {
-              // ignore
-            }
-          }
-        })
-        .finally(() => {
-          setGuestLoading(false);
-        });
-    }
-  }, []);
+    if (!initialShortId) return;
+    setGuestShortId(initialShortId);
+    void loadShortWishlist(initialShortId);
+  }, [initialShortId, loadShortWishlist]);
   const [sharedUrl, setSharedUrl] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     const extracted = extractShareTargetUrl(window.location.search);
@@ -551,7 +573,15 @@ export default function App() {
         preloadSettings(),
       ]);
     };
-    const timer = window.setTimeout(warmChunks, 150);
+    const idleApi = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (idleApi.requestIdleCallback) {
+      const idleId = idleApi.requestIdleCallback(warmChunks, { timeout: 2500 });
+      return () => idleApi.cancelIdleCallback?.(idleId);
+    }
+    const timer = window.setTimeout(warmChunks, 800);
     return () => window.clearTimeout(timer);
   }, [demo, coupleId]);
   useEffect(() => {
@@ -624,43 +654,58 @@ export default function App() {
     <MotionConfig reducedMotion="user">
       <Toast />
       {guestWishlistPayload ? (
-        <Suspense fallback={<Skeleton />}>
-          <GuestWishlistView
-            payload={guestWishlistPayload}
-            onExit={
-              session
-                ? () => {
-                    if (typeof window !== "undefined") {
-                      try {
-                        sessionStorage.removeItem("ours_guest_wishlist");
-                      } catch {
-                        // ignore
+        <ErrorBoundary>
+          <Suspense fallback={<Skeleton />}>
+            <GuestWishlistView
+              payload={guestWishlistPayload}
+              previewMode={guestPreviewMode}
+              onExit={
+                session || guestPreviewMode
+                  ? () => {
+                      if (typeof window !== "undefined") {
+                        try {
+                          sessionStorage.removeItem("ours_guest_wishlist");
+                        } catch {
+                          // ignore
+                        }
+                        const url = new URL(window.location.href);
+                        url.searchParams.delete("shared_wishlist");
+                        url.searchParams.delete("w");
+                        window.history.replaceState(
+                          {},
+                          "",
+                          url.pathname + (url.search ? url.search : ""),
+                        );
                       }
-                      const url = new URL(window.location.href);
-                      url.searchParams.delete("shared_wishlist");
-                      url.searchParams.delete("w");
-                      window.history.replaceState(
-                        {},
-                        "",
-                        url.pathname + (url.search ? url.search : ""),
-                      );
+                      setGuestPreviewMode(false);
+                      setGuestWishlistPayload(null);
                     }
-                    setGuestWishlistPayload(null);
-                  }
-                : undefined
-            }
-          />
-        </Suspense>
+                  : undefined
+              }
+            />
+          </Suspense>
+        </ErrorBoundary>
       ) : guestLoading ? (
         <div className="app-shell">
           <Skeleton />
         </div>
       ) : isGuestWishlistAttempt && !guestWishlistPayload ? (
         <main className="pair-shell">
-          <h1>Вішліст не знайдено</h1>
+          <h1>
+            {guestLoadError
+              ? "Не вдалося завантажити вішліст"
+              : "Вішліст не знайдено"}
+          </h1>
           <p>
-            Посилання недійсне, застаріло або було видалено автором.
+            {guestLoadError
+              ? "Перевірте інтернет-з’єднання та спробуйте ще раз."
+              : "Посилання недійсне, застаріло або було видалено автором."}
           </p>
+          {guestLoadError && guestShortId && (
+            <Button onClick={() => void loadShortWishlist(guestShortId)}>
+              Спробувати ще раз
+            </Button>
+          )}
         </main>
       ) : !authReady ? (
         <div className="app-shell">
@@ -696,19 +741,21 @@ export default function App() {
         <MascotContext.Provider value={mascot}>
           <div className="app-shell">
             <header className="app-header">
-              <button
-                className={`brand${tab === "home" ? " is-home" : ""}`}
-                onClick={() => setTab("home")}
-                aria-label="ours. — головна"
-                aria-current={tab === "home" ? "page" : undefined}
-              >
-                ours<span>.</span>
+              <div className="brand-wrap">
+                <button
+                  className={`brand${tab === "home" ? " is-home" : ""}`}
+                  onClick={() => setTab("home")}
+                  aria-label="ours. — головна"
+                  aria-current={tab === "home" ? "page" : undefined}
+                >
+                  ours<span>.</span>
+                </button>
                 <AnimatePresence>
                   {mascot?.placement === "logo" && (
                     <CatMascot placement="logo" />
                   )}
                 </AnimatePresence>
-              </button>
+              </div>
               <div className="header-right">
                 {!online ? (
                   <button
@@ -821,9 +868,18 @@ export default function App() {
                   <Suspense fallback={<Skeleton />}>
                     <motion.div className="tab-view" key={tab} {...tabEnter}>
                       {tab === "home" ? (
-                        <Home navigate={setTab} />
+                        <Home
+                          navigate={setTab}
+                          onEditBudgetTx={(txId) => {
+                            setEditBudgetTxId(txId);
+                            setTab("budget");
+                          }}
+                        />
                       ) : tab === "budget" ? (
-                        <Budget />
+                        <Budget
+                          initialEditTxId={editBudgetTxId}
+                          onClearInitialEditTx={() => setEditBudgetTxId(null)}
+                        />
                       ) : tab === "shopping" ? (
                         <Shopping />
                       ) : tab === "menu" ? (
@@ -832,9 +888,10 @@ export default function App() {
                         <Movies />
                       ) : tab === "wishes" ? (
                         <Wishes
-                          onOpenGuestWishlist={(code) =>
-                            setGuestWishlistPayload(decodeWishlistShare(code))
-                          }
+                          onOpenGuestWishlist={(code, preview = false) => {
+                            setGuestPreviewMode(preview);
+                            setGuestWishlistPayload(decodeWishlistShare(code));
+                          }}
                         />
                       ) : tab === "plans" ? (
                         <Plans />
@@ -853,7 +910,9 @@ export default function App() {
             </AnimatePresence>
             <nav className="bottom-nav glass" aria-label="Основна навігація">
               <AnimatePresence>
-                {mascot?.placement === "nav" && <CatMascot placement="nav" />}
+                {mascot?.placement === "nav" && tab !== "budget" && (
+                  <CatMascot placement="nav" />
+                )}
               </AnimatePresence>
               {tabs.map(({ id, label, icon: Icon }) => (
                 <motion.button
@@ -894,28 +953,32 @@ export default function App() {
             </nav>
             <AnimatePresence>
               {settings && (
-                <Suspense fallback={null}>
-                  <Settings
-                    onClose={() => setSettings(false)}
-                    theme={theme}
-                    setTheme={setTheme}
-                    resolvedTheme={resolvedTheme}
-                    lightPalette={lightPalette}
-                    setLightPalette={setLightPalette}
-                    darkPalette={darkPalette}
-                    setDarkPalette={setDarkPalette}
-                    updateServiceWorker={updateServiceWorker}
-                  />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={null}>
+                    <Settings
+                      onClose={() => setSettings(false)}
+                      theme={theme}
+                      setTheme={setTheme}
+                      resolvedTheme={resolvedTheme}
+                      lightPalette={lightPalette}
+                      setLightPalette={setLightPalette}
+                      darkPalette={darkPalette}
+                      setDarkPalette={setDarkPalette}
+                      updateServiceWorker={updateServiceWorker}
+                    />
+                  </Suspense>
+                </ErrorBoundary>
               )}
               {sharedUrl && (
-                <Suspense fallback={null}>
-                  <UniversalShareImport
-                    url={sharedUrl}
-                    onClose={() => setSharedUrl(null)}
-                    onNavigateTab={(targetTab) => setTab(targetTab)}
-                  />
-                </Suspense>
+                <ErrorBoundary>
+                  <Suspense fallback={null}>
+                    <UniversalShareImport
+                      url={sharedUrl}
+                      onClose={() => setSharedUrl(null)}
+                      onNavigateTab={(targetTab) => setTab(targetTab)}
+                    />
+                  </Suspense>
+                </ErrorBoundary>
               )}
             </AnimatePresence>
             {needRefresh && !settings && (

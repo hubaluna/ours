@@ -34,7 +34,6 @@ import {
 import { useApp } from "../hooks/AppContext";
 import {
   CUSTOM_CATEGORY_EMOJIS,
-  SKARBO_SEED_NOTE,
   autoCategorizeMerchant,
   budgetIngestUrl,
   computeBudgetStats,
@@ -46,12 +45,10 @@ import {
   normalizeCategoryKey,
   parseApplePayAmount,
   resolveBudgetCategories,
-  suggestRulePattern,
   type BudgetKind,
   type BudgetMemberScope,
   type BudgetPeriodPreset,
 } from "../lib/budget";
-import { exportBudgetPdfReport } from "../lib/budget-pdf";
 import {
   buildBudgetExportCsv,
   buildBudgetExportJson,
@@ -77,12 +74,22 @@ import {
   BudgetExpenseDonut,
   BudgetSpendingPaceCard,
 } from "../components/budget/BudgetCharts";
+import {
+  BudgetRecurringConfirmSheet,
+  BudgetReviewSheet,
+} from "../components/budget/BudgetHomeSheets";
 
 type HeroMetricTab = "expense" | "income" | "balance";
 type ViewMode = "overview" | "analytics";
 type AnalyticsChartMode = "sankey" | "donut";
 
-export default function Budget() {
+export default function Budget({
+  initialEditTxId,
+  onClearInitialEditTx,
+}: {
+  initialEditTxId?: string | null;
+  onClearInitialEditTx?: () => void;
+} = {}) {
   const mascot = useContext(MascotContext);
   const {
     data,
@@ -111,7 +118,7 @@ export default function Budget() {
 
   const today = kyivDate();
   const [periodPreset, setPeriodPreset] =
-    useState<BudgetPeriodPreset>("all_time");
+    useState<BudgetPeriodPreset>("this_month");
   const [customFrom, setCustomFrom] = useState(`${today.slice(0, 7)}-01`);
   const [customTo, setCustomTo] = useState(today);
   const [scope, setScope] = useState<BudgetMemberScope>("all");
@@ -139,6 +146,16 @@ export default function Budget() {
   const [exportingPdf, setExportingPdf] = useState(false);
 
   const opsCardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!initialEditTxId) return;
+    const found = data.budgetTransactions.find((t) => t.id === initialEditTxId);
+    if (found) {
+      setEditingTx(found);
+      setTxSheetOpen(true);
+      onClearInitialEditTx?.();
+    }
+  }, [initialEditTxId, data.budgetTransactions, onClearInitialEditTx]);
 
   const partner = data.profiles.find((p) => p.id !== userId);
   const mySettings = data.budgetSettings.find((s) => s.user_id === userId);
@@ -288,6 +305,7 @@ export default function Budget() {
         year: "numeric",
         timeZone: "Europe/Kyiv",
       }).format(new Date());
+      const { exportBudgetPdfReport } = await import("../lib/budget-pdf");
       const result = await exportBudgetPdfReport({
         periodLabel: period.label,
         periodFrom: period.from,
@@ -425,7 +443,7 @@ export default function Budget() {
               label="Імпорт та експорт витрат і виписок"
               onClick={() => setTransferOpen(true)}
             >
-              <ArrowUpDown size={17} />
+              <Download size={17} />
             </IconButton>
             <IconButton
               label="Налаштування бюджету та Apple Pay"
@@ -595,11 +613,11 @@ export default function Budget() {
                   "Операції партнера приховані"
                 ) : (
                   <>
-                    Заробив{" "}
+                    Отримано{" "}
                     {stats.incomeTotal === null
                       ? "—"
                       : formatUAH(stats.incomeTotal)}{" "}
-                    · Витратив {formatUAH(stats.expenseTotal)}
+                    · Витрачено {formatUAH(stats.expenseTotal)}
                   </>
                 )}
               </span>
@@ -706,6 +724,7 @@ export default function Budget() {
             <BudgetSpendingPaceCard
               transactions={data.budgetTransactions}
               userId={userId}
+              scope={scope}
               today={today}
             />
             <div className="budget-section-card glass">
@@ -878,7 +897,9 @@ export default function Budget() {
               onClick={() => void setBudgetIncomeSharing(!myShareIncome)}
             >
               {myShareIncome ? <Eye size={13} /> : <EyeOff size={13} />}
-              <span>{myShareIncome ? "Мої відкриті" : "Мої приховані"}</span>
+              <span>
+                {myShareIncome ? "Мої операції відкриті" : "Мої операції приховані"}
+              </span>
             </button>
           </div>
 
@@ -1067,9 +1088,7 @@ export default function Budget() {
                             )}
                           </strong>
                           <small>
-                            {tx.note === SKARBO_SEED_NOTE || tx.card_label === "Skarbo"
-                              ? "серп.–лист. 2026"
-                              : formatBudgetDayHeading(tx.occurred_on, today)}{" "}
+                            {formatBudgetDayHeading(tx.occurred_on, today)}{" "}
                             · {meta.name}
                             {tx.source === "apple_pay" ? " · Apple Pay" : ""}
                           </small>
@@ -1398,7 +1417,18 @@ export default function Budget() {
             busy={pending.includes("import-budget-tx")}
             notify={notify}
             onClose={() => setTransferOpen(false)}
-            onImport={async (items) => {
+            onImport={async (items, rules) => {
+              if (rules?.length) {
+                for (const r of rules) {
+                  if (r.merchant_pattern && r.category_key) {
+                    await saveBudgetMerchantRule(
+                      r.merchant_pattern,
+                      r.category_key,
+                      r.kind,
+                    );
+                  }
+                }
+              }
               const count = await importBudgetTransactions(items);
               if (count > 0) setTransferOpen(false);
             }}
@@ -1406,190 +1436,6 @@ export default function Budget() {
         )}
       </AnimatePresence>
     </section>
-  );
-}
-
-export function BudgetRecurringConfirmSheet({
-  item,
-  customCategories,
-  busy,
-  onClose,
-  onConfirm,
-  onSkip,
-}: {
-  item: BudgetRecurringPayment;
-  customCategories: ReturnType<typeof useApp>["data"]["budgetCategories"];
-  busy: boolean;
-  onClose: () => void;
-  onConfirm: (amount: number) => Promise<void>;
-  onSkip: () => Promise<void>;
-}) {
-  const [amountText, setAmountText] = useState(String(item.amount));
-  const meta = findCategoryMeta(item.category_key, customCategories, item.kind);
-
-  useEffect(() => {
-    setAmountText(String(item.amount));
-  }, [item.id, item.amount]);
-
-  const parsed = parseApplePayAmount(amountText);
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!parsed || parsed <= 0) return;
-    await onConfirm(parsed);
-  };
-
-  return (
-    <BottomSheet title="Регулярний платіж" onClose={onClose}>
-      <form className="budget-review-modal" onSubmit={handleSubmit}>
-        <div className="budget-review-hero">
-          <span className="budget-review-merchant">
-            {meta.emoji} {item.title}
-          </span>
-          <strong className="budget-review-amount">
-            {formatUAH(parsed ?? item.amount)}
-          </strong>
-          <small>
-            Щомісяця {item.day_of_month}-го · {meta.name} ·{" "}
-            {item.kind === "income" ? "Дохід" : "Витрата"}
-          </small>
-        </div>
-
-        <Field label="Сума цього місяця (₴)">
-          <input
-            type="text"
-            inputMode="decimal"
-            value={amountText}
-            onChange={(e) => setAmountText(e.target.value)}
-            placeholder="0"
-            required
-          />
-        </Field>
-
-        <div className="budget-recurring-confirm-footer">
-          <Button type="submit" busy={busy} disabled={!parsed || parsed <= 0}>
-            Внести операцію
-          </Button>
-          <Button
-            type="button"
-            className="secondary"
-            busy={busy}
-            onClick={() => void onSkip()}
-          >
-            Пропустити цього місяця
-          </Button>
-        </div>
-      </form>
-    </BottomSheet>
-  );
-}
-
-export function BudgetReviewSheet({
-  tx,
-  categories,
-  busy,
-  onClose,
-  onCategorize,
-  onEditFull,
-  onDelete,
-}: {
-  tx: BudgetTransaction;
-  categories: ReturnType<typeof resolveBudgetCategories>;
-  busy: boolean;
-  onClose: () => void;
-  onCategorize: (
-    categoryKey: string,
-    saveRule: boolean,
-    rulePattern: string,
-  ) => Promise<void>;
-  onEditFull?: () => void;
-  onDelete?: () => Promise<void>;
-}) {
-  const [saveRule, setSaveRule] = useState(true);
-  const [pattern, setPattern] = useState(() =>
-    suggestRulePattern(tx.merchant || ""),
-  );
-
-  useEffect(() => {
-    setPattern(suggestRulePattern(tx.merchant || ""));
-    setSaveRule(true);
-  }, [tx.id, tx.merchant]);
-
-  return (
-    <BottomSheet title="Оберіть категорію" onClose={onClose}>
-      <div className="budget-review-modal">
-        <div className="budget-review-hero">
-          <div className="budget-review-amount">{formatUAH(tx.amount)}</div>
-          <div className="budget-review-merchant">
-            {tx.merchant || "Оплата Apple Pay"}
-          </div>
-          <small>
-            {formatBudgetDayHeading(tx.occurred_on)}
-            {tx.card_label ? ` · ${tx.card_label}` : ""}
-          </small>
-        </div>
-
-        <label className="budget-rule-remember">
-          <input
-            type="checkbox"
-            checked={saveRule}
-            onChange={(e) => setSaveRule(e.target.checked)}
-          />
-          <span>Запам’ятати продавця для автовибору</span>
-        </label>
-
-        {saveRule && (
-          <Field label="Шаблон продавця для правила">
-            <input
-              value={pattern}
-              onChange={(e) => setPattern(e.target.value)}
-              maxLength={120}
-              placeholder="Напр.: FOP IVANOV"
-            />
-          </Field>
-        )}
-
-        <div className="budget-cat-grid">
-          {categories.map((cat) => (
-            <button
-              key={cat.key}
-              type="button"
-              disabled={busy}
-              className="budget-cat-tile"
-              onClick={() => void onCategorize(cat.key, saveRule, pattern)}
-            >
-              <span
-                className="budget-cat-tile-dot"
-                style={{ backgroundColor: cat.color }}
-                aria-hidden="true"
-              />
-              <span className="budget-cat-tile-emoji">{cat.emoji}</span>
-              <span>{cat.name}</span>
-            </button>
-          ))}
-        </div>
-
-        {(onEditFull || onDelete) && (
-          <div className="budget-review-footer">
-            {onEditFull && (
-              <Button type="button" className="ghost" onClick={onEditFull}>
-                Змінити деталі
-              </Button>
-            )}
-            {onDelete && (
-              <Button
-                type="button"
-                className="danger ghost"
-                onClick={() => void onDelete()}
-              >
-                <Trash2 size={15} />
-                Видалити
-              </Button>
-            )}
-          </div>
-        )}
-      </div>
-    </BottomSheet>
   );
 }
 
@@ -1884,7 +1730,7 @@ function BudgetCategorySheet({
 }) {
   const [selectedKind, setSelectedKind] = useState<BudgetKind>(kind);
   const [name, setName] = useState("");
-  const [emoji, setEmoji] = useState(kind === "income" ? "💼" : "🚬");
+  const [emoji, setEmoji] = useState(kind === "income" ? "💼" : "🛍️");
 
   const handleStickerInput = (value: string) => {
     const trimmed = value.trim();
@@ -1940,7 +1786,7 @@ function BudgetCategorySheet({
               className={selectedKind === id ? "active" : ""}
               onClick={() => {
                 setSelectedKind(id);
-                if (id === "income" && emoji === "🚬") setEmoji("💼");
+                if (id === "income" && emoji === "🛍️") setEmoji("💼");
               }}
             >
               {label}
@@ -1954,7 +1800,7 @@ function BudgetCategorySheet({
               data-autofocus
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Напр.: Куріння, Спорт, Подарунки"
+              placeholder="Напр.: Спорт, Подарунки, Хобі"
               maxLength={50}
               required
             />
@@ -2495,7 +2341,6 @@ function BudgetSettingsSheet({
                     </li>
                     <li>
                       <b>Додайте дію «Отримати вміст URL»</b>{" "}
-                      <i>(прямо під блоком «Додати транзакцію», якщо вже є Skarbo)</i>{" "}
                       і вставте адресу:
                       <div className="budget-copy-row">
                         <code>{ingestUrl}</code>
@@ -2671,7 +2516,10 @@ function BudgetTransferSheet({
   busy: boolean;
   notify: (text: string) => void;
   onClose: () => void;
-  onImport: (items: NewBudgetTransaction[]) => Promise<void>;
+  onImport: (
+    items: NewBudgetTransaction[],
+    rules?: BudgetImportParseResult["merchantRules"],
+  ) => Promise<void>;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<BudgetImportParseResult | null>(null);
@@ -2845,7 +2693,7 @@ function BudgetTransferSheet({
         occurred_at: row.occurred_at,
       };
     });
-    await onImport(items);
+    await onImport(items, preview?.merchantRules);
   };
 
   return (

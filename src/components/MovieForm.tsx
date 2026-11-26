@@ -28,12 +28,21 @@ export function MovieForm({
   );
   const [moreOpen, setMoreOpen] = useState(hasSecondaryData);
 
+  const normalizeWebUrl = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed;
+    return `https://${trimmed}`;
+  };
+
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     const title = String(f.get("title")).trim();
-    const cleanUrl = (f.get("url") !== null ? String(f.get("url")) : url).trim();
-    const cleanPoster = (f.get("poster") !== null ? String(f.get("poster")) : poster).trim();
+    const rawUrl = (f.get("url") !== null ? String(f.get("url")) : url).trim();
+    const rawPoster = (f.get("poster") !== null ? String(f.get("poster")) : poster).trim();
+    const cleanUrl = rawUrl ? normalizeWebUrl(rawUrl) : "";
+    const cleanPoster = rawPoster ? normalizeWebUrl(rawPoster) : "";
     const cleanDesc = (f.get("description") !== null ? String(f.get("description")) : description).trim();
     const year = String(f.get("year") ?? "");
 

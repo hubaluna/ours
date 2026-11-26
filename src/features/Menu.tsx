@@ -17,7 +17,7 @@ import {
   recipeLibrary,
   resolveRecipe,
 } from "../lib/recipe-catalog";
-import { IconButton } from "../components/ui";
+import { Button, IconButton } from "../components/ui";
 import { AddButton, PagedList, ScreenHeader } from "../components/Compact";
 import { RecipeForm } from "../components/RecipeForm";
 import { LinkImport } from "../components/LinkImportLoader";
@@ -220,14 +220,6 @@ export default function Menu() {
                       setDetail(recipe);
                     }}
                   >
-                    Продукти
-                  </button>
-                  <button
-                    onClick={() => {
-                      setFromCatalog(false);
-                      setDetail(recipe);
-                    }}
-                  >
                     Рецепт
                   </button>
                   <IconButton
@@ -263,13 +255,15 @@ export default function Menu() {
       </div>
       {showPlan && rows.length > 0 && (
         <div className="menu-toolbar">
-          <IconButton
-            label="Повернути приховані продукти"
+          <Button
+            className="ghost menu-restore-btn"
+            aria-label="Повернути приховані продукти"
             disabled={busy}
             onClick={() => void restoreMenuProducts()}
           >
-            <RotateCcw size={17} />
-          </IconButton>
+            <RotateCcw size={15} />
+            <span>Повернути приховані</span>
+          </Button>
         </div>
       )}
       <AnimatePresence mode="wait">

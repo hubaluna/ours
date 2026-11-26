@@ -676,7 +676,7 @@ test("plants show an individual watering countdown and record watering", async (
   const plantName = "Кактус із дуже довгою назвою для вузького екрана";
   await page.goto("/");
   await choose(page, "Рослини");
-  await expect(page.getByText("Додай першу рослину")).toBeVisible();
+  await expect(page.getByText("Додайте першу рослину")).toBeVisible();
   await page.getByRole("button", { name: "Додати рослину" }).first().click();
   const photo = readFileSync(new URL("../fixtures/plant.png", import.meta.url));
   await page.getByLabel("Фото рослини").setInputFiles([
@@ -714,7 +714,7 @@ test("plants show an individual watering countdown and record watering", async (
   await expect(page.locator(".plant-card-meter > span")).toHaveAttribute("style", "width: 0%;");
   await page.getByRole("button", { name: `Деталі рослини · ${plantName}` }).click();
   await expect(page.getByRole("heading", { name: plantName })).toBeVisible();
-  await expect(page.getByText(/Перевір ґрунт приблизно через/)).toBeVisible();
+  await expect(page.getByText(/Перевірте ґрунт приблизно через/)).toBeVisible();
   await page.getByText("Історія догляду · 1").click();
   await expect(page.getByText("Полили")).toBeVisible();
 });

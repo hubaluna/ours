@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "tests/e2e",
   fullyParallel: true,
+  retries: process.env.CI ? 1 : 0,
   // Give hosted WebKit runners time for navigation and finite motion transitions.
   timeout: 60_000,
   reporter: [["list"], ["html", { open: "never" }]],

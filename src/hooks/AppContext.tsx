@@ -98,6 +98,40 @@ import {
   type TrashEntry,
   type TrashKind,
 } from "../lib/trash";
+const isMissingTableError = (error: unknown) => {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : "";
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error
+        ? String((error as { message?: unknown }).message ?? "")
+        : String(error);
+  return (
+    code === "42P01" ||
+    code === "PGRST205" ||
+    /does not exist|Could not find the table/i.test(message)
+  );
+};
+const isRetryableQueueError = (error: unknown) => {
+  if (isOfflineNetworkError(error)) return true;
+  if (!error || typeof error !== "object") return false;
+  const err = error as { status?: unknown; name?: unknown; message?: unknown };
+  if (err.name === "AbortError" || err.name === "TimeoutError") return true;
+  const status = typeof err.status === "number" ? err.status : Number(err.status);
+  if (
+    status === 401 ||
+    status === 408 ||
+    status === 429 ||
+    (status >= 500 && status <= 599)
+  ) {
+    return true;
+  }
+  const message = String(err.message ?? "");
+  return /timeout|timed out|abort|jwt expired|502|503|504|429/i.test(message);
+};
 const isMissingRecurrenceColumn = (error: unknown) => {
   const code =
     typeof error === "object" && error !== null && "code" in error
@@ -216,7 +250,10 @@ function useStore() {
     flushingMutationQueue = useRef(false),
     coupleIdRef = useRef<string | null>(coupleId),
     budgetLocalModeRef = useRef(false),
-    budgetRecurringLocalRef = useRef(false);
+    budgetRecurringLocalRef = useRef(false),
+    lastRefreshAtRef = useRef(0),
+    refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const [realtimeRetry, setRealtimeRetry] = useState(0);
   const busy = useRef(new Set<string>()),
     revision = useRef(0);
   useEffect(() => {
@@ -235,12 +272,16 @@ function useStore() {
     setMutationQueue(loadedMutationQueue);
   }, [trashScope]);
   const notify = useCallback(
-    (text: string, action?: () => void, label = "Скасувати") =>
+    (text: string, action?: () => void, label = "Скасувати", isError?: boolean) =>
       setNotice({
         text,
         action,
         label,
-        error: /^(Не вдалося|Немає|Пам’ять|Фото|Оберіть)/.test(text),
+        error:
+          isError ??
+          /^(Не вдалося|Немає|Пам’ять|Фото|Оберіть|Введіть|Вкажіть|Некоректн|Такий|У файлі|Перевірте|Посилання|Забагато|Частину)/.test(
+            text,
+          ),
       }),
     [],
   );
@@ -355,7 +396,7 @@ function useStore() {
                 : prev.filter((item) => item !== op),
             );
           } catch (err) {
-            if (isOfflineNetworkError(err)) {
+            if (isRetryableQueueError(err)) {
               break;
             }
             // Drop permanently invalid/conflicting op so the queue cannot stall forever.
@@ -364,6 +405,7 @@ function useStore() {
                 ? prev.slice(1)
                 : prev.filter((item) => item !== op),
             );
+            notify("Частину відкладених покупок не вдалося синхронізувати", undefined, "Скасувати", true);
           }
         }
       } finally {
@@ -466,7 +508,7 @@ function useStore() {
                 : prev.filter((item) => item !== op),
             );
           } catch (err) {
-            if (isOfflineNetworkError(err)) {
+            if (isRetryableQueueError(err)) {
               break;
             }
             if (isMissingBudgetTableError(err)) {
@@ -478,6 +520,7 @@ function useStore() {
                 ? prev.slice(1)
                 : prev.filter((item) => item !== op),
             );
+            notify("Частину відкладених операцій бюджету не вдалося зберегти", undefined, "Скасувати", true);
           }
         }
       } finally {
@@ -647,7 +690,7 @@ function useStore() {
                 : prev.filter((item) => item !== m),
             );
           } catch (err) {
-            if (isOfflineNetworkError(err)) {
+            if (isRetryableQueueError(err)) {
               break;
             }
             commitMutationQueue((prev) =>
@@ -655,6 +698,7 @@ function useStore() {
                 ? prev.slice(1)
                 : prev.filter((item) => item !== m),
             );
+            notify("Частину відкладених змін не вдалося синхронізувати", undefined, "Скасувати", true);
           }
         }
       } finally {
@@ -669,8 +713,12 @@ function useStore() {
   );
   const refresh = useCallback(async () => {
     if (!supabase || !userId) return;
-    const current = ++revision.current;
-    try {
+    if (refreshInFlightRef.current) {
+      return refreshInFlightRef.current;
+    }
+    const exec = (async () => {
+      const current = ++revision.current;
+      try {
       if (navigator.onLine && shoppingQueueRef.current.length > 0) {
         await flushShoppingQueue({ silent: false });
       }
@@ -770,7 +818,10 @@ function useStore() {
         readAll<Data["recipes"][number]>("recipes", { couple_id: couple }),
         readAll<MealPlanItem>("meal_plan_items", { couple_id: couple }),
         readAll<PantryItem>("pantry_items", { couple_id: couple }).catch(
-          () => [] as PantryItem[],
+          (err) => {
+            if (isMissingTableError(err)) return [] as PantryItem[];
+            throw err;
+          },
         ),
         readAll<Plant>("plants", { couple_id: couple }, "created_at", false),
         readAll<PlantCareEvent>(
@@ -797,8 +848,11 @@ function useStore() {
           { couple_id: couple },
           "sort_order",
         ).catch((err) => {
-          if (isMissingBudgetTableError(err)) budgetSchemaMissing = true;
-          return [] as BudgetCategory[];
+          if (isMissingBudgetTableError(err)) {
+            budgetSchemaMissing = true;
+            return [] as BudgetCategory[];
+          }
+          throw err;
         }),
         readAll<BudgetTransaction>(
           "budget_transactions",
@@ -806,8 +860,11 @@ function useStore() {
           "occurred_on",
           false,
         ).catch((err) => {
-          if (isMissingBudgetTableError(err)) budgetSchemaMissing = true;
-          return [] as BudgetTransaction[];
+          if (isMissingBudgetTableError(err)) {
+            budgetSchemaMissing = true;
+            return [] as BudgetTransaction[];
+          }
+          throw err;
         }),
         readAll<BudgetMerchantRule>(
           "budget_merchant_rules",
@@ -815,24 +872,33 @@ function useStore() {
           "created_at",
           false,
         ).catch((err) => {
-          if (isMissingBudgetTableError(err)) budgetSchemaMissing = true;
-          return [] as BudgetMerchantRule[];
+          if (isMissingBudgetTableError(err)) {
+            budgetSchemaMissing = true;
+            return [] as BudgetMerchantRule[];
+          }
+          throw err;
         }),
         readAll<BudgetSettings>(
           "budget_settings",
           { couple_id: couple },
           "user_id",
         ).catch((err) => {
-          if (isMissingBudgetTableError(err)) budgetSchemaMissing = true;
-          return [] as BudgetSettings[];
+          if (isMissingBudgetTableError(err)) {
+            budgetSchemaMissing = true;
+            return [] as BudgetSettings[];
+          }
+          throw err;
         }),
         readAll<BudgetRecurringPayment>(
           "budget_recurring_payments",
           { couple_id: couple },
           "day_of_month",
         ).catch((err) => {
-          if (isMissingBudgetTableError(err)) budgetRecurringMissing = true;
-          return [] as BudgetRecurringPayment[];
+          if (isMissingBudgetTableError(err)) {
+            budgetRecurringMissing = true;
+            return [] as BudgetRecurringPayment[];
+          }
+          throw err;
         }),
       ]);
       let finalBudgetCategories = budgetCategories;
@@ -1014,6 +1080,7 @@ function useStore() {
         budgetSettings: finalBudgetSettings,
         budgetRecurring: finalBudgetRecurring,
       });
+      lastRefreshAtRef.current = Date.now();
       setFailure(false);
     } catch {
       if (current === revision.current) {
@@ -1047,6 +1114,15 @@ function useStore() {
       }
     } finally {
       if (current === revision.current) setLoading(false);
+    }
+    })();
+    refreshInFlightRef.current = exec;
+    try {
+      await exec;
+    } finally {
+      if (refreshInFlightRef.current === exec) {
+        refreshInFlightRef.current = null;
+      }
     }
   }, [userId, notify, flushShoppingQueue, flushBudgetQueue, flushMutationQueue, trashScope]);
   useEffect(() => {
@@ -1154,20 +1230,46 @@ function useStore() {
         hadLiveOnce = true;
       }
     });
+    let retryTimer: number | null = null;
     channel.subscribe((status) => {
-      if (status !== "SUBSCRIBED") setSync("connecting");
+      if (status === "SUBSCRIBED") {
+        setSync("live");
+        return;
+      }
+      setSync("connecting");
+      if (
+        (status === "CHANNEL_ERROR" ||
+          status === "TIMED_OUT" ||
+          status === "CLOSED") &&
+        retryTimer === null
+      ) {
+        const delay = Math.min(30_000, 3000 * 2 ** Math.min(realtimeRetry, 3));
+        retryTimer = window.setTimeout(() => {
+          retryTimer = null;
+          setRealtimeRetry((n) => n + 1);
+        }, delay);
+      }
     });
     return () => {
       if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
       void supabase!.removeChannel(channel);
     };
-  }, [coupleId, userId, refresh]);
+  }, [coupleId, userId, refresh, realtimeRetry]);
   useEffect(() => {
-    if (online && !demo && userId) void refresh();
+    if (online && !demo && userId && Date.now() - lastRefreshAtRef.current > 2000) {
+      void refresh();
+    }
   }, [online, demo, userId, refresh]);
   useEffect(() => {
     const visible = () => {
-      if (document.visibilityState === "visible" && !demo) void refresh();
+      if (
+        document.visibilityState === "visible" &&
+        !demo &&
+        Date.now() - lastRefreshAtRef.current > 15_000
+      ) {
+        void refresh();
+      }
     };
     document.addEventListener("visibilitychange", visible);
     return () => document.removeEventListener("visibilitychange", visible);
@@ -1196,7 +1298,7 @@ function useStore() {
   );
   const run = async (
     key: string,
-    action: () => Promise<void>,
+    action: () => Promise<void | { skipRefresh?: boolean }>,
     message?: string,
   ) => {
     if (busy.current.has(key)) return false;
@@ -1207,9 +1309,9 @@ function useStore() {
     busy.current.add(key);
     setPending([...busy.current]);
     try {
-      await action();
-      if (!demo) await refresh();
-      if (message) notify(message);
+      const outcome = await action();
+      if (!demo && !outcome?.skipRefresh) await refresh();
+      if (message && !outcome?.skipRefresh) notify(message);
       return true;
     } catch (e) {
       notify(errorMessage(e));
@@ -1323,7 +1425,7 @@ function useStore() {
                   queuedAt: now,
                 });
                 notify(message || "Збережено офлайн · синхронізується з мережею");
-                return;
+                return { skipRefresh: true };
               }
               if (!isMissingRecurrenceColumn(err)) throw err;
               const { recurrence: _drop, ...withoutRecurrence } = row;
@@ -1363,7 +1465,7 @@ function useStore() {
                   queuedAt: now,
                 });
                 notify(message || "Збережено офлайн · синхронізується з мережею");
-                return;
+                return { skipRefresh: true };
               }
               throw err;
             }
@@ -1554,6 +1656,22 @@ function useStore() {
             }
           } catch (err) {
             if (isMutationTable && isOfflineNetworkError(err)) {
+              const field = (
+                {
+                  wishes: "wishes",
+                  events: "events",
+                  movies: "movies",
+                  recipes: "recipes",
+                } as const
+              )[table];
+              setData((d) => ({
+                ...d,
+                [field]: d[field].map((row) =>
+                  row.id === id
+                    ? { ...row, ...patch, updated_at: new Date().toISOString() }
+                    : row,
+                ),
+              }));
               enqueueOfflineMutationOp({
                 id: crypto.randomUUID(),
                 table,
@@ -1563,7 +1681,7 @@ function useStore() {
                 queuedAt: new Date().toISOString(),
               });
               notify(message || "Збережено офлайн · синхронізується з мережею");
-              return;
+              return { skipRefresh: true };
             }
             throw err;
           }
@@ -4309,7 +4427,7 @@ function useStore() {
   };
 
   const DEMO_TOKEN_KEY = "ours-demo-budget-token-v1";
-  const fetchBudgetIngestTokenStatus = async (): Promise<BudgetTokenStatus> => {
+  const fetchBudgetIngestTokenStatus = useCallback(async (): Promise<BudgetTokenStatus> => {
     if (demo || !supabase || budgetLocalModeRef.current) {
       try {
         const raw = localStorage.getItem(DEMO_TOKEN_KEY);
@@ -4338,7 +4456,7 @@ function useStore() {
       }
       throw err;
     }
-  };
+  }, [demo]);
 
   const rotateBudgetIngestToken = async (): Promise<{
     token: string;
@@ -4759,7 +4877,7 @@ function useStore() {
                   .map((w) => ({
                     id: w.id,
                     couple_id: activeCoupleId,
-                    owner_id: userId,
+                    owner_id: safeActor(w.owner_id),
                     name: w.name,
                     price: w.price ?? null,
                     url: w.url ?? "",
@@ -4768,6 +4886,7 @@ function useStore() {
                     image_path: w.image_path ?? null,
                     image_url: w.image_url ?? "",
                     is_private: Boolean(w.is_private),
+                    fulfilled: Boolean(w.fulfilled),
                     size: w.size ?? "",
                   })),
                 { onConflict: "id", ignoreDuplicates: true },
@@ -4787,8 +4906,10 @@ function useStore() {
                     time: e.time ?? null,
                     all_day: Boolean(e.all_day),
                     location: e.location ?? "",
+                    url: e.url ?? "",
                     description: e.description ?? "",
                     category: e.category || "Інше",
+                    recurrence: normalizeRecurrence(e.recurrence),
                     created_by: safeActor(e.created_by),
                   })),
                 { onConflict: "id", ignoreDuplicates: true },
@@ -4810,7 +4931,31 @@ function useStore() {
                     genres: m.genres ?? "",
                     description: m.description ?? "",
                     status: m.status === "watched" ? "watched" : "planned",
+                    rating: typeof m.rating === "number" ? m.rating : null,
+                    metadata_url: m.metadata_url ?? "",
                     added_by: safeActor(m.added_by),
+                  })),
+                { onConflict: "id", ignoreDuplicates: true },
+              ),
+            );
+          }
+          if (recipes.length) {
+            await checked(
+              supabase.from("recipes").upsert(
+                recipes
+                  .filter((r) => r.title && r.image_url && Array.isArray(r.ingredients) && r.ingredients.length)
+                  .map((r) => ({
+                    id: r.id,
+                    couple_id: activeCoupleId,
+                    title: r.title,
+                    category: r.category || "main",
+                    image_url: r.image_url,
+                    source_url: r.source_url ?? "",
+                    ingredients: r.ingredients,
+                    instructions: Array.isArray(r.instructions) ? r.instructions : [],
+                    base_servings: r.base_servings || 1,
+                    total_time_minutes: r.total_time_minutes ?? null,
+                    added_by: safeActor(r.added_by),
                   })),
                 { onConflict: "id", ignoreDuplicates: true },
               ),
@@ -4829,6 +4974,7 @@ function useStore() {
                     image_path: p.image_path ?? null,
                     watering_interval_days: p.watering_interval_days || 7,
                     last_watered_at: p.last_watered_at || kyivDate(),
+                    wet_checked_at: p.wet_checked_at ?? null,
                     light: p.light ?? "",
                     watering_notes: p.watering_notes ?? "",
                     info_url: p.info_url ?? "",
@@ -4857,53 +5003,104 @@ function useStore() {
               ),
             );
           }
+          if (budgetCategories.length && !budgetLocalModeRef.current) {
+            try {
+              await checked(
+                supabase.from("budget_categories").upsert(
+                  budgetCategories
+                    .filter((c) => c.name)
+                    .map((c) => ({
+                      id: c.id,
+                      couple_id: activeCoupleId,
+                      name: c.name,
+                      kind: c.kind === "income" ? "income" : "expense",
+                      emoji: c.emoji || "✨",
+                      sort_order: c.sort_order ?? 100,
+                      created_by: safeActor(c.created_by),
+                    })),
+                  { onConflict: "id", ignoreDuplicates: true },
+                ),
+              );
+            } catch (err) {
+              if (!isMissingBudgetTableError(err)) throw err;
+            }
+          }
+          if (budgetMerchantRules.length && !budgetLocalModeRef.current) {
+            try {
+              await checked(
+                supabase.from("budget_merchant_rules").upsert(
+                  budgetMerchantRules
+                    .filter((r) => r.merchant_pattern && r.category_key)
+                    .map((r) => ({
+                      id: r.id,
+                      couple_id: activeCoupleId,
+                      merchant_pattern: r.merchant_pattern,
+                      category_key: r.category_key,
+                      kind: r.kind === "income" ? "income" : "expense",
+                      created_by: safeActor(r.created_by),
+                    })),
+                  { onConflict: "id", ignoreDuplicates: true },
+                ),
+              );
+            } catch (err) {
+              if (!isMissingBudgetTableError(err)) throw err;
+            }
+          }
           if (budgetTransactions.length && !budgetLocalModeRef.current) {
-            await checked(
-              supabase.from("budget_transactions").upsert(
-                budgetTransactions
-                  .filter((t) => Number(t.amount) > 0)
-                  .map((t) => ({
-                    id: t.id,
-                    couple_id: activeCoupleId,
-                    user_id: userId,
-                    kind: t.kind === "income" ? "income" : "expense",
-                    amount: t.amount,
-                    merchant: t.merchant ?? "",
-                    note: t.note ?? "",
-                    category_key: t.category_key || "other",
-                    status:
-                      t.status === "needs_review" ? "needs_review" : "confirmed",
-                    source: t.source === "apple_pay" ? "apple_pay" : "manual",
-                    is_private: Boolean(t.is_private),
-                    card_label: t.card_label ?? "",
-                    occurred_on: t.occurred_on || kyivDate(),
-                    occurred_at: t.occurred_at || new Date().toISOString(),
-                  })),
-                { onConflict: "id", ignoreDuplicates: true },
-              ),
-            ).catch(() => {});
+            try {
+              await checked(
+                supabase.from("budget_transactions").upsert(
+                  budgetTransactions
+                    .filter((t) => Number(t.amount) > 0)
+                    .map((t) => ({
+                      id: t.id,
+                      couple_id: activeCoupleId,
+                      user_id: safeActor(t.user_id),
+                      kind: t.kind === "income" ? "income" : "expense",
+                      amount: t.amount,
+                      merchant: t.merchant ?? "",
+                      note: t.note ?? "",
+                      category_key: t.category_key || "other",
+                      status:
+                        t.status === "needs_review" ? "needs_review" : "confirmed",
+                      source: t.source === "apple_pay" ? "apple_pay" : "manual",
+                      is_private: Boolean(t.is_private),
+                      card_label: t.card_label ?? "",
+                      occurred_on: t.occurred_on || kyivDate(),
+                      occurred_at: t.occurred_at || new Date().toISOString(),
+                    })),
+                  { onConflict: "id", ignoreDuplicates: true },
+                ),
+              );
+            } catch (err) {
+              if (!isMissingBudgetTableError(err)) throw err;
+            }
           }
           if (budgetRecurring.length && !budgetRecurringLocalRef.current) {
-            await checked(
-              supabase.from("budget_recurring_payments").upsert(
-                budgetRecurring
-                  .filter((r) => r.title && Number(r.amount) > 0)
-                  .map((r) => ({
-                    id: r.id,
-                    couple_id: activeCoupleId,
-                    user_id: userId,
-                    title: r.title,
-                    kind: r.kind === "income" ? "income" : "expense",
-                    amount: r.amount,
-                    category_key: r.category_key || "other",
-                    day_of_month: Math.max(1, Math.min(31, Number(r.day_of_month) || 1)),
-                    active: r.active !== false,
-                    last_confirmed_month: r.last_confirmed_month ?? null,
-                    last_skipped_month: r.last_skipped_month ?? null,
-                  })),
-                { onConflict: "id", ignoreDuplicates: true },
-              ),
-            ).catch(() => {});
+            try {
+              await checked(
+                supabase.from("budget_recurring_payments").upsert(
+                  budgetRecurring
+                    .filter((r) => r.title && Number(r.amount) > 0)
+                    .map((r) => ({
+                      id: r.id,
+                      couple_id: activeCoupleId,
+                      user_id: safeActor(r.user_id),
+                      title: r.title,
+                      kind: r.kind === "income" ? "income" : "expense",
+                      amount: r.amount,
+                      category_key: r.category_key || "other",
+                      day_of_month: Math.max(1, Math.min(31, Number(r.day_of_month) || 1)),
+                      active: r.active !== false,
+                      last_confirmed_month: r.last_confirmed_month ?? null,
+                      last_skipped_month: r.last_skipped_month ?? null,
+                    })),
+                  { onConflict: "id", ignoreDuplicates: true },
+                ),
+              );
+            } catch (err) {
+              if (!isMissingBudgetTableError(err)) throw err;
+            }
           }
         } else {
           setData((d) => ({

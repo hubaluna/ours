@@ -19,14 +19,33 @@ const DB_NAME = "ours-photo-cache-v2";
 const STORE_NAME = "blobs";
 const MAX_CACHED_BLOBS = 120;
 const MAX_BLOB_BYTES = 12 * 1024 * 1024;
+const MAX_MEMORY_CACHE = 60;
+const MAX_BG_CACHE_CONCURRENCY = 3;
 const SIGNED_URL_TTL_MS = 50 * 60 * 1000; // refresh 10m before 1h expiry
 const IDB_TIMEOUT_MS = 1200;
 
 const memoryCache = new Map<string, CachedEntry>();
 const inflight = new Map<string, Promise<string | null>>();
 const backgroundCaching = new Set<string>();
+const bgQueue: Array<{ path: string; signedUrl: string }> = [];
+let bgActiveCount = 0;
 const prefetchedExternal = new Set<string>();
 const listeners = new Map<string, Set<(url: string | null) => void>>();
+
+function setMemoryCache(path: string, entry: CachedEntry): void {
+  const prev = memoryCache.get(path);
+  if (prev && prev.url !== entry.url) {
+    revokeEntry(prev);
+  }
+  memoryCache.delete(path);
+  memoryCache.set(path, entry);
+  while (memoryCache.size > MAX_MEMORY_CACHE) {
+    const oldestKey = memoryCache.keys().next().value;
+    if (!oldestKey) break;
+    revokeEntry(memoryCache.get(oldestKey));
+    memoryCache.delete(oldestKey);
+  }
+}
 
 let dbPromise: Promise<IDBDatabase | null> | null = null;
 let legacyCleaned = false;
@@ -271,6 +290,43 @@ function canCreateObjectUrl(): boolean {
   );
 }
 
+function drainBackgroundQueue(): void {
+  while (bgActiveCount < MAX_BG_CACHE_CONCURRENCY && bgQueue.length > 0) {
+    const next = bgQueue.shift();
+    if (!next) break;
+    bgActiveCount++;
+    void (async () => {
+      try {
+        const signal =
+          typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
+            ? AbortSignal.timeout(15_000)
+            : undefined;
+        const response = await fetch(next.signedUrl, signal ? { signal } : undefined);
+        if (!response.ok) return;
+        const contentType = response.headers.get("content-type");
+        const blob = await response.blob();
+        if (
+          blob.size <= 0 ||
+          blob.size >= MAX_BLOB_BYTES ||
+          !isValidImageResponse(contentType, blob.type)
+        ) {
+          return;
+        }
+        const mime = normalizeMimeType(contentType || blob.type, next.path);
+        const buffer = await blob.arrayBuffer();
+        if (buffer.byteLength <= 0) return;
+        await writeStoredBuffer(next.path, buffer, mime);
+      } catch {
+        // Signed URL already renders the image directly; skip disk cache silently
+      } finally {
+        backgroundCaching.delete(next.path);
+        bgActiveCount--;
+        drainBackgroundQueue();
+      }
+    })();
+  }
+}
+
 function cacheBlobInBackground(path: string, signedUrl: string): void {
   if (
     !canCreateObjectUrl() ||
@@ -280,29 +336,8 @@ function cacheBlobInBackground(path: string, signedUrl: string): void {
     return;
   }
   backgroundCaching.add(path);
-  void (async () => {
-    try {
-      const response = await fetch(signedUrl);
-      if (!response.ok) return;
-      const contentType = response.headers.get("content-type");
-      const blob = await response.blob();
-      if (
-        blob.size <= 0 ||
-        blob.size >= MAX_BLOB_BYTES ||
-        !isValidImageResponse(contentType, blob.type)
-      ) {
-        return;
-      }
-      const mime = normalizeMimeType(contentType || blob.type, path);
-      const buffer = await blob.arrayBuffer();
-      if (buffer.byteLength <= 0) return;
-      await writeStoredBuffer(path, buffer, mime);
-    } catch {
-      // Signed URL already renders the image directly; skip disk cache silently
-    } finally {
-      backgroundCaching.delete(path);
-    }
-  })();
+  bgQueue.push({ path, signedUrl });
+  drainBackgroundQueue();
 }
 
 async function fetchDirectSignedUrl(path: string): Promise<string | null> {
@@ -338,8 +373,7 @@ async function resolveStorageImage(
       const stored = await readStoredBlob(path);
       if (stored && stored.size > 0) {
         const objectUrl = URL.createObjectURL(stored);
-        revokeEntry(memoryCache.get(path));
-        memoryCache.set(path, {
+        setMemoryCache(path, {
           url: objectUrl,
           isObjectUrl: true,
           expiresAt: Number.POSITIVE_INFINITY,
@@ -352,8 +386,7 @@ async function resolveStorageImage(
     const signedUrl = await fetchDirectSignedUrl(path);
     if (!signedUrl) return null;
 
-    revokeEntry(memoryCache.get(path));
-    memoryCache.set(path, {
+    setMemoryCache(path, {
       url: signedUrl,
       isObjectUrl: false,
       expiresAt: Date.now() + SIGNED_URL_TTL_MS,
@@ -512,8 +545,7 @@ export function prefetchImages(paths: Array<string | null | undefined>): void {
           const stored = await readStoredBlob(path);
           if (stored && stored.size > 0) {
             const objectUrl = URL.createObjectURL(stored);
-            revokeEntry(memoryCache.get(path));
-            memoryCache.set(path, {
+            setMemoryCache(path, {
               url: objectUrl,
               isObjectUrl: true,
               expiresAt: Number.POSITIVE_INFINITY,
@@ -550,7 +582,7 @@ export function prefetchImages(paths: Array<string | null | undefined>): void {
           if (!item?.path || !item?.signedUrl) continue;
           const rawPath = cleanToRaw.get(item.path) ?? item.path;
           if (!getImmediateUrl(rawPath)) {
-            memoryCache.set(rawPath, {
+            setMemoryCache(rawPath, {
               url: item.signedUrl,
               isObjectUrl: false,
               expiresAt: Date.now() + SIGNED_URL_TTL_MS,
@@ -610,8 +642,7 @@ export function primeImageCache(path: string, blob: Blob): void {
   if (!path || !blob || blob.size <= 0) return;
   if (canCreateObjectUrl()) {
     const objectUrl = URL.createObjectURL(blob);
-    revokeEntry(memoryCache.get(path));
-    memoryCache.set(path, {
+    setMemoryCache(path, {
       url: objectUrl,
       isObjectUrl: true,
       expiresAt: Number.POSITIVE_INFINITY,
@@ -634,6 +665,7 @@ export async function clearImageCache(): Promise<void> {
   memoryCache.clear();
   inflight.clear();
   backgroundCaching.clear();
+  bgQueue.length = 0;
   prefetchedExternal.clear();
   const db = await openCacheDb();
   if (!db) return;
@@ -648,6 +680,33 @@ export async function clearImageCache(): Promise<void> {
       resolve();
     }
   });
+}
+
+let sharedLifecycleInstalled = false;
+let sharedRefreshTimer: number | null = null;
+
+function ensureSharedImageLifecycle(): void {
+  if (sharedLifecycleInstalled || typeof window === "undefined") return;
+  sharedLifecycleInstalled = true;
+  const refreshStale = (onlyMissing: boolean) => {
+    for (const path of listeners.keys()) {
+      const current = memoryCache.get(path);
+      const stale =
+        !current || (!current.isObjectUrl && current.expiresAt <= Date.now());
+      if (onlyMissing ? !getImmediateUrl(path) : stale) {
+        if (stale) memoryCache.delete(path);
+        void resolveStorageImage(path).then((resolved) => {
+          if (resolved) notifyPath(path, resolved);
+        });
+      }
+    }
+  };
+  window.addEventListener("online", () => refreshStale(true));
+  sharedRefreshTimer = window.setInterval(
+    () => refreshStale(false),
+    45 * 60 * 1000,
+  );
+  void sharedRefreshTimer;
 }
 
 export function useImage(path: string | null) {
@@ -666,40 +725,22 @@ export function useImage(path: string | null) {
       return;
     }
 
+    ensureSharedImageLifecycle();
+
     let active = true;
     const unsubscribe = subscribePath(path, (nextUrl) => {
       if (active) setUrl(nextUrl);
     });
 
-    const load = () => {
+    if (!immediate) {
       void resolveStorageImage(path).then((resolved) => {
         if (active && resolved) setUrl(resolved);
       });
-    };
-
-    if (!immediate) {
-      load();
     }
-
-    const handleOnline = () => {
-      if (!getImmediateUrl(path)) load();
-    };
-    window.addEventListener("online", handleOnline);
-
-    // Refresh time-limited signed URLs before they expire
-    const timer = window.setInterval(() => {
-      const current = memoryCache.get(path);
-      if (!current || (!current.isObjectUrl && current.expiresAt <= Date.now())) {
-        memoryCache.delete(path);
-        load();
-      }
-    }, 45 * 60 * 1000);
 
     return () => {
       active = false;
       unsubscribe();
-      window.removeEventListener("online", handleOnline);
-      window.clearInterval(timer);
     };
   }, [path]);
 

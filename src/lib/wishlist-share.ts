@@ -34,6 +34,7 @@ export function buildWishlistSharePayload(
   wishes: Wish[],
   occasionFilter: string = "all",
   selectedIds?: string[],
+  resolvedImages?: Record<string, string>,
 ): SharedWishlistPayload {
   const filtered = wishes.filter((w) => {
     if (selectedIds) {
@@ -53,6 +54,8 @@ export function buildWishlistSharePayload(
 
   const items: SharedWishItem[] = filtered.map((w) => {
     const parsed = parseWishOccasion(w.note);
+    const resolvedImg =
+      (w.image_url && w.image_url.trim()) || resolvedImages?.[w.id] || "";
     return {
       id: w.id,
       name: w.name,
@@ -61,7 +64,7 @@ export function buildWishlistSharePayload(
       priority: w.priority || undefined,
       size: w.size || undefined,
       note: parsed.cleanNote || undefined,
-      image_url: w.image_url || undefined,
+      image_url: resolvedImg || undefined,
       occasion: parsed.occasion || undefined,
     };
   });
@@ -165,9 +168,13 @@ export function setGuestReservation(
   return current;
 }
 
+let lastReservationsLoadFailed = false;
+export const didReservationsLoadFail = () => lastReservationsLoadFailed;
+
 export async function fetchGuestReservations(
   wishIds: string[],
 ): Promise<WishReservationsMap> {
+  lastReservationsLoadFailed = false;
   const myToken = getGuestToken();
   const map: WishReservationsMap = {};
 
@@ -196,8 +203,9 @@ export async function fetchGuestReservations(
         }
         return map;
       }
+      lastReservationsLoadFailed = true;
     } catch {
-      // fallback to local storage
+      lastReservationsLoadFailed = true;
     }
   }
 
@@ -354,10 +362,14 @@ export async function saveSharedWishlist(
   return "";
 }
 
-export async function fetchSharedWishlistById(
+export type FetchSharedWishlistOutcome =
+  | { status: "ok"; payload: SharedWishlistPayload }
+  | { status: "not_found" | "network_error" };
+
+export async function fetchSharedWishlistResult(
   id: string,
-): Promise<SharedWishlistPayload | null> {
-  if (!supabase || !id) return null;
+): Promise<FetchSharedWishlistOutcome> {
+  if (!supabase || !id) return { status: "not_found" };
   try {
     const { data, error } = await supabase
       .from("guest_shared_wishlists")
@@ -366,15 +378,30 @@ export async function fetchSharedWishlistById(
       .single();
     if (!error && data && Array.isArray(data.items)) {
       return {
-        v: 1,
-        title: data.title || "Вішліст",
-        occasion: data.occasion,
-        items: data.items as SharedWishItem[],
-        created_at: data.created_at || new Date().toISOString(),
+        status: "ok",
+        payload: {
+          v: 1,
+          title: data.title || "Вішліст",
+          occasion: data.occasion,
+          items: data.items as SharedWishItem[],
+          created_at: data.created_at || new Date().toISOString(),
+        },
       };
     }
+    const code = (error as { code?: string; status?: number } | null)?.code;
+    const status = (error as { status?: number } | null)?.status;
+    if (code === "PGRST116" || status === 404 || status === 406) {
+      return { status: "not_found" };
+    }
+    return { status: "network_error" };
   } catch {
-    // fallback
+    return { status: "network_error" };
   }
-  return null;
+}
+
+export async function fetchSharedWishlistById(
+  id: string,
+): Promise<SharedWishlistPayload | null> {
+  const result = await fetchSharedWishlistResult(id);
+  return result.status === "ok" ? result.payload : null;
 }

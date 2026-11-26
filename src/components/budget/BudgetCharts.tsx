@@ -10,6 +10,7 @@ import {
   computeBudgetStats,
   computeSpendingPace,
   formatUAH,
+  type BudgetMemberScope,
 } from "../../lib/budget";
 import type { BudgetTransaction } from "../../lib/types";
 import { kyivDate } from "../../lib/utils";
@@ -17,15 +18,23 @@ import { kyivDate } from "../../lib/utils";
 export function BudgetSpendingPaceCard({
   transactions,
   userId,
+  scope = "all",
   today = kyivDate(),
 }: {
   transactions: BudgetTransaction[];
   userId: string;
+  scope?: BudgetMemberScope;
   today?: string;
 }) {
+  const scopedTransactions = useMemo(() => {
+    if (scope === "mine") return transactions.filter((t) => t.user_id === userId);
+    if (scope === "partner") return transactions.filter((t) => t.user_id !== userId);
+    return transactions;
+  }, [transactions, scope, userId]);
+
   const pace = useMemo(
-    () => computeSpendingPace(transactions, today, userId),
-    [transactions, today, userId],
+    () => computeSpendingPace(scopedTransactions, today, userId),
+    [scopedTransactions, today, userId],
   );
 
   const maxVal = Math.max(pace.currentSpentSoFar, pace.prevSpentSameDay, 1);

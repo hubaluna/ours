@@ -741,8 +741,12 @@ export async function handleRequest(request: Request): Promise<Response> {
     await flushPendingDigestsOnly(config);
 
     return new Response(null, { status: 204 });
-  } catch {
+  } catch (err) {
     // The database trigger is asynchronous; keep errors generic and avoid logging event data or secrets.
+    console.error(
+      "[push-dispatch] failed:",
+      err instanceof Error ? err.message : "unknown",
+    );
     return new Response("Push delivery unavailable", { status: 503 });
   }
 }

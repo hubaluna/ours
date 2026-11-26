@@ -114,7 +114,7 @@ function PlantForm({
       );
       if (reason || !data?.recognized) {
         setRecognitionNote(
-          "Не вдалося впевнено визначити вид. Вкажи назву й догляд самостійно.",
+          "Не вдалося впевнено визначити вид. Вкажіть назву й догляд самостійно.",
         );
         return;
       }
@@ -132,7 +132,7 @@ function PlantForm({
       setNotes((current) => current || String(data.notes || ""));
       setInfoUrl((current) => current || String(data.info_url || ""));
       setRecognitionNote(
-        "Вид визначено за фото. Перевір назву та підказки щодо поливу.",
+        "Вид визначено за фото. Перевірте назву та підказки щодо поливу.",
       );
     } catch {
       setRecognitionNote(
@@ -145,7 +145,7 @@ function PlantForm({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!name.trim()) return setError("Додай назву рослини.");
+    if (!name.trim()) return setError("Додайте назву рослини.");
     const parsedInterval = Number(intervalText);
     if (
       !intervalText.trim() ||
@@ -153,7 +153,7 @@ function PlantForm({
       parsedInterval < 1 ||
       parsedInterval > 120
     ) {
-      return setError("Вкажи інтервал перевірки від 1 до 120 днів.");
+      return setError("Вкажіть інтервал перевірки від 1 до 120 днів.");
     }
     const cleanLastWatered = /^\d{4}-\d{2}-\d{2}$/.test(lastWatered)
       ? lastWatered
@@ -183,7 +183,7 @@ function PlantForm({
         ? await updatePlant(plant.id, value)
         : await addPlant(value);
       if (ok) onClose();
-      else setError("Не вдалося зберегти рослину. Спробуй ще раз.");
+      else setError("Не вдалося зберегти рослину. Спробуйте ще раз.");
     } catch (reason) {
       const message =
         reason instanceof Error
@@ -364,8 +364,8 @@ function PlantDetails({
           <span>Полив</span>
           <p>
             {days <= 0
-              ? "Пора перевірити ґрунт. Якщо він сухий — полий рослину."
-              : `Перевір ґрунт приблизно через ${days} дн. (${schedule.next}).`}
+              ? "Пора перевірити ґрунт. Якщо він сухий — полийте рослину."
+              : `Перевірте ґрунт приблизно через ${days} дн. (${schedule.next}).`}
           </p>
           {schedule.winter && (
             <small>
@@ -586,7 +586,7 @@ export default function Plants() {
           />
         ) : (
           <EmptyState
-            title="Додай першу рослину"
+            title="Додайте першу рослину"
             description="Фото, інтервал перевірки ґрунту й короткі підказки будуть в одному місці."
           >
             <Button onClick={() => setForm("new")}>Додати рослину</Button>

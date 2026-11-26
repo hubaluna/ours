@@ -1,20 +1,65 @@
 import { useState, type FormEvent } from "react";
-import { ArrowRight, Check, KeyRound, Link2, Mail } from "lucide-react";
+import { ArrowRight, Check, Eye, EyeOff, KeyRound, Link2, Mail } from "lucide-react";
 import { Button, Field } from "../components/ui";
 import { TogetherArt } from "../components/Illustrations";
 import { useApp } from "../hooks/AppContext";
 import { checked, supabase } from "../lib/supabase";
 import { errorMessage } from "../lib/utils";
+
+const INVITE_STORAGE_KEY = "ours-invite-v1";
+const INVITE_TTL_MS = 24 * 60 * 60 * 1000;
+
+function readSavedInvite(): string {
+  try {
+    const raw = localStorage.getItem(INVITE_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as { token?: string; savedAt?: number };
+      if (
+        parsed?.token &&
+        typeof parsed.savedAt === "number" &&
+        Date.now() - parsed.savedAt < INVITE_TTL_MS
+      ) {
+        return parsed.token;
+      }
+      localStorage.removeItem(INVITE_STORAGE_KEY);
+    }
+  } catch {
+    // ignore storage read error
+  }
+  try {
+    return sessionStorage.getItem("ours-invite") ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function clearSavedInvite(): void {
+  try {
+    localStorage.removeItem(INVITE_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+  try {
+    sessionStorage.removeItem("ours-invite");
+  } catch {
+    // ignore
+  }
+}
+
 export function Auth() {
   const [signup, setSignup] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
+    [resetInfo, setResetInfo] = useState(""),
+    [emailValue, setEmailValue] = useState(""),
+    [showPassword, setShowPassword] = useState(false),
     [sent, setSent] = useState(false);
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (busy) return;
     setBusy(true);
     setError("");
+    setResetInfo("");
     const f = new FormData(e.currentTarget),
       email = String(f.get("email")),
       password = String(f.get("password"));
@@ -37,6 +82,28 @@ export function Auth() {
         });
         if (error) throw error;
       }
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const handleResetPassword = async () => {
+    const cleanEmail = emailValue.trim();
+    if (!cleanEmail) {
+      setError("Спочатку введіть електронну пошту вище.");
+      return;
+    }
+    if (!supabase || busy) return;
+    setBusy(true);
+    setError("");
+    setResetInfo("");
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo: location.origin + import.meta.env.BASE_URL,
+      });
+      if (error) throw error;
+      setResetInfo("Лист для відновлення пароля надіслано на пошту.");
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -107,19 +174,49 @@ export function Auth() {
                     type="email"
                     autoComplete="email"
                     required
+                    value={emailValue}
+                    onChange={(e) => setEmailValue(e.target.value)}
                     placeholder="you@example.com"
                   />
                 </Field>
                 <Field label="Пароль">
-                  <input
-                    name="password"
-                    type="password"
-                    minLength={10}
-                    autoComplete={signup ? "new-password" : "current-password"}
-                    required
-                    placeholder="Щонайменше 10 символів"
-                  />
+                  <div className="password-input-wrap">
+                    <input
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      minLength={signup ? 10 : undefined}
+                      autoComplete={signup ? "new-password" : "current-password"}
+                      required
+                      placeholder={
+                        signup ? "Щонайменше 10 символів" : "Введіть пароль"
+                      }
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle-btn"
+                      aria-label={
+                        showPassword ? "Сховати пароль" : "Показати пароль"
+                      }
+                      onClick={() => setShowPassword((v) => !v)}
+                    >
+                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
+                  </div>
                 </Field>
+                {!signup && (
+                  <button
+                    type="button"
+                    className="text-button auth-forgot-btn"
+                    onClick={() => void handleResetPassword()}
+                  >
+                    Забули пароль?
+                  </button>
+                )}
+                {resetInfo && (
+                  <p className="auth-reset-info" role="status">
+                    {resetInfo}
+                  </p>
+                )}
                 {error && (
                   <p className="form-error" role="alert">
                     {error}
@@ -154,9 +251,8 @@ export function Auth() {
 }
 export function PairSetup() {
   const { refresh, run, pending, data, userId } = useApp();
-  const [token, setToken] = useState(
-    () => sessionStorage.getItem("ours-invite") ?? "",
-  );
+  const [token, setToken] = useState(() => readSavedInvite());
+  const hasInvite = Boolean(token.trim());
   const join = () =>
     run(
       "join",
@@ -165,11 +261,67 @@ export function PairSetup() {
           ? token.split("#invite=")[1]
           : token.trim();
         await checked(supabase!.rpc("join_couple", { p_token: value }));
-        sessionStorage.removeItem("ours-invite");
+        clearSavedInvite();
         await refresh();
       },
       "Тепер ви разом",
     );
+  const createCard = (
+    <div className="card pair-card" key="create-space">
+      <h2>Створити наш простір</h2>
+      <p>
+        Перший крок — за вами. Далі надішліть партнеру приватне запрошення.
+      </p>
+      <Button
+        className={hasInvite ? "secondary" : undefined}
+        busy={pending.includes("create-couple")}
+        onClick={() =>
+          void run(
+            "create-couple",
+            async () => {
+              await checked(supabase!.rpc("create_couple"));
+              clearSavedInvite();
+              await refresh();
+            },
+            "Ваш простір створено",
+          )
+        }
+      >
+        <Check size={18} />
+        Створити простір
+      </Button>
+    </div>
+  );
+  const joinCard = (
+    <div className="card pair-card" key="join-space">
+      <h2>Уже маєте запрошення?</h2>
+      <form
+        className="form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void join();
+        }}
+      >
+        <Field label="Посилання або код запрошення">
+          <input
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            required
+            placeholder="Вставте запрошення партнера"
+            autoComplete="off"
+          />
+        </Field>
+        <Button
+          className={hasInvite ? undefined : "secondary"}
+          busy={pending.includes("join")}
+          type="submit"
+        >
+          <Link2 size={18} />
+          Приєднатися
+        </Button>
+      </form>
+    </div>
+  );
   return (
     <main className="pair-shell">
       <div className="brand">
@@ -180,56 +332,7 @@ export function PairSetup() {
         Привіт, {data.profiles.find((p) => p.id === userId)?.name ?? "друже"}.
       </h1>
       <p>У вашому маленькому світі є місце для двох.</p>
-      <div className="card pair-card">
-        <h2>Створити наш простір</h2>
-        <p>
-          Перший крок — за вами. Далі надішліть партнеру приватне запрошення.
-        </p>
-        <Button
-          busy={pending.includes("create-couple")}
-          onClick={() =>
-            void run(
-              "create-couple",
-              async () => {
-                await checked(supabase!.rpc("create_couple"));
-                await refresh();
-              },
-              "Ваш простір створено",
-            )
-          }
-        >
-          <Check size={18} />
-          Створити простір
-        </Button>
-      </div>
-      <div className="card pair-card">
-        <h2>Уже маєте запрошення?</h2>
-        <form
-          className="form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void join();
-          }}
-        >
-          <Field label="Посилання або код запрошення">
-            <input
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              required
-              placeholder="Вставте запрошення партнера"
-              autoComplete="off"
-            />
-          </Field>
-          <Button
-            className="secondary"
-            busy={pending.includes("join")}
-            type="submit"
-          >
-            <Link2 size={18} />
-            Приєднатися
-          </Button>
-        </form>
-      </div>
+      {hasInvite ? [joinCard, createCard] : [createCard, joinCard]}
       <button
         className="text-button"
         onClick={() => void supabase?.auth.signOut()}

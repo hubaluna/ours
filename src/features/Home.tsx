@@ -27,7 +27,10 @@ import {
   getDueRecurringPayments,
   resolveBudgetCategories,
 } from "../lib/budget";
-import { BudgetRecurringConfirmSheet, BudgetReviewSheet } from "./Budget";
+import {
+  BudgetRecurringConfirmSheet,
+  BudgetReviewSheet,
+} from "../components/budget/BudgetHomeSheets";
 import { greeting, kyivDate } from "../lib/utils";
 import { getEventReminders, getPlantReminders } from "../lib/home-reminders";
 import { eventOccursOn, nextOccurrence } from "../lib/recurrence";
@@ -68,7 +71,13 @@ const actions = {
   deleted: "прибирає",
   purchased: "купує",
 };
-export default function Home({ navigate }: { navigate: (tab: Tab) => void }) {
+export default function Home({
+  navigate,
+  onEditBudgetTx,
+}: {
+  navigate: (tab: Tab) => void;
+  onEditBudgetTx?: (txId: string) => void;
+}) {
   const {
     data,
     userId,
@@ -505,8 +514,10 @@ export default function Home({ navigate }: { navigate: (tab: Tab) => void }) {
               }
             }}
             onEditFull={() => {
+              const txId = reviewTx.id;
               setReviewTx(null);
-              navigate("budget");
+              if (onEditBudgetTx) onEditBudgetTx(txId);
+              else navigate("budget");
             }}
             onDelete={async () => {
               if (await removeBudgetTransaction(reviewTx.id)) {

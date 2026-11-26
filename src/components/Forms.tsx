@@ -1,6 +1,5 @@
 import { useRef, useState, type FormEvent } from "react";
 import { Camera, ChevronDown, ChevronUp, Plus, X } from "lucide-react";
-import { z } from "zod";
 import { useApp } from "../hooks/AppContext";
 import { uploadImage } from "../lib/supabase";
 import {
@@ -10,7 +9,7 @@ import {
   type NewWish,
   type Plan,
 } from "../lib/types";
-import { kyivDate } from "../lib/utils";
+import { kyivDate, safeUrl } from "../lib/utils";
 import { groceryCategory } from "../../supabase/functions/_shared/grocery-category";
 import {
   groceryCatalogCategory,
@@ -32,11 +31,19 @@ import {
   parseWishOccasion,
 } from "../lib/wishes";
 import { BottomSheet, Button, ConfirmDelete, Field } from "./ui";
-const textSchema = z
-  .string()
-  .trim()
-  .min(1, "Додайте назву.")
-  .max(160, "Не більше 160 символів.");
+const validateText = (value: string, max = 160): string | null => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.length <= max ? trimmed : null;
+};
+const textError = (value: string, max = 160) =>
+  !value.trim() ? "Додайте назву." : `Не більше ${max} символів.`;
+const normalizeWebUrl = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+};
 const price = (value: string) => (value === "" ? null : Number(value));
 export function ShoppingForm({
   onClose,
@@ -135,15 +142,16 @@ export function ShoppingForm({
       return;
     }
     const singleFromBatch = hasBatchSep && batchItems.length === 1 ? batchItems[0] : null;
-    const parsed = textSchema.safeParse(singleFromBatch ? singleFromBatch.name : name);
-    if (!parsed.success) {
-      setError(parsed.error.issues[0].message);
+    const rawName = singleFromBatch ? singleFromBatch.name : name;
+    const validatedName = validateText(rawName);
+    if (!validatedName) {
+      setError(textError(rawName));
       return;
     }
     const f = new FormData(e.currentTarget);
     const effectiveUnit = singleFromBatch ? singleFromBatch.unit : unit;
     const rawValue = {
-      name: parsed.data,
+      name: validatedName,
       quantity:
         singleFromBatch && singleFromBatch.quantity !== null
           ? singleFromBatch.quantity
@@ -346,7 +354,7 @@ export function ShoppingForm({
             {manualCategory ? "обрано вами" : "визначено автоматично"}
           </p>
         )}
-        <details className="additional-fields">
+        <details className="additional-fields" open={Boolean(item)}>
           <summary>Додатково</summary>
           <div className="form">
             <div className="form-grid">
@@ -483,14 +491,16 @@ export function WishForm({
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
-    const parsed = textSchema.safeParse(String(f.get("name")));
-    if (!parsed.success) {
-      setError(parsed.error.issues[0].message);
+    const rawName = String(f.get("name"));
+    const validatedName = validateText(rawName);
+    if (!validatedName) {
+      setError(textError(rawName));
       return;
     }
-    const cleanUrl = (f.get("url") !== null ? String(f.get("url")) : url).trim();
+    const cleanUrlRaw = (f.get("url") !== null ? String(f.get("url")) : url).trim();
+    const cleanUrl = cleanUrlRaw ? normalizeWebUrl(cleanUrlRaw) : "";
     const cleanSize = (f.get("size") !== null ? String(f.get("size")) : size).trim();
-    if (cleanUrl && !z.url({ protocol: /^https?$/ }).safeParse(cleanUrl).success) {
+    if (cleanUrl && !safeUrl(cleanUrl)) {
       setError("Додайте повне посилання, що починається з https://");
       return;
     }
@@ -516,7 +526,7 @@ export function WishForm({
         ? f.get("is_private") === "on"
         : isPrivate;
     const value = {
-      name: parsed.data,
+      name: validatedName,
       price: parsedPrice,
       url: cleanUrl,
       priority: String(f.get("priority")),
@@ -789,13 +799,14 @@ export function EventForm({
       setError("Посилання має бути публічним HTTPS-адресом.");
       return;
     }
-    const parsed = textSchema.safeParse(String(f.get("title")));
-    if (!parsed.success) {
-      setError(parsed.error.issues[0].message);
+    const rawTitle = String(f.get("title"));
+    const validatedTitle = validateText(rawTitle);
+    if (!validatedTitle) {
+      setError(textError(rawTitle));
       return;
     }
     const value = {
-      title: parsed.data,
+      title: validatedTitle,
       date: String(f.get("date")),
       time: allDay ? null : String(f.get("time")) || null,
       all_day: allDay,

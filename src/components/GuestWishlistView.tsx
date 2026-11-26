@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { ExternalLink, Gift, Check, ArrowLeft, Lock } from "lucide-react";
 import type {
   SharedWishlistPayload,
@@ -9,15 +9,18 @@ import {
   fetchGuestReservations,
   toggleGuestReservation,
   subscribeToGuestReservations,
+  didReservationsLoadFail,
 } from "../lib/wishlist-share";
 import { money } from "../lib/utils";
 
 export function GuestWishlistView({
   payload,
   onExit,
+  previewMode = false,
 }: {
   payload: SharedWishlistPayload;
   onExit?: () => void;
+  previewMode?: boolean;
 }) {
   const itemIds = useMemo(
     () => payload.items.map((i) => i.id),
@@ -34,14 +37,23 @@ export function GuestWishlistView({
 
   const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
   const [actionError, setActionError] = useState<string>("");
+  const inFlightActionRef = useRef<Record<string, "reserve" | "cancel">>({});
+  const latestSeqRef = useRef<Record<string, number>>({});
+  const itemQueueRef = useRef<Record<string, Promise<void>>>({});
 
   const loadReservations = useCallback(async () => {
-    if (itemIds.length === 0) return;
+    if (previewMode || itemIds.length === 0) return;
     const res = await fetchGuestReservations(itemIds);
     setReservations((prev) => ({ ...prev, ...res }));
-  }, [itemIds]);
+    if (didReservationsLoadFail()) {
+      setActionError(
+        "Не вдалося оновити статуси бронювань — перевірте інтернет.",
+      );
+    }
+  }, [itemIds, previewMode]);
 
   useEffect(() => {
+    if (previewMode) return;
     void loadReservations();
     const unsubscribe = subscribeToGuestReservations(() => {
       void loadReservations();
@@ -49,9 +61,9 @@ export function GuestWishlistView({
     return () => {
       unsubscribe();
     };
-  }, [loadReservations]);
+  }, [loadReservations, previewMode]);
 
-  const handleToggle = async (id: string) => {
+  const handleToggle = (id: string, expectedAction?: "reserve" | "cancel") => {
     const current = reservations[id] || {
       isReserved: false,
       isReservedByMe: false,
@@ -61,28 +73,60 @@ export function GuestWishlistView({
       return;
     }
 
-    setActionError("");
-    // Optimistic update
-    const nextState = {
-      isReserved: !current.isReservedByMe,
-      isReservedByMe: !current.isReservedByMe,
-    };
-    setReservations((prev) => ({
-      ...prev,
-      [id]: nextState,
-    }));
-
-    const result = await toggleGuestReservation(id, current);
-    if (result.error) {
-      setActionError(result.error);
+    const action: "reserve" | "cancel" =
+      expectedAction ?? (current.isReservedByMe ? "cancel" : "reserve");
+    if (inFlightActionRef.current[id] === action) {
+      return;
     }
+
+    const nextReserved = action === "reserve";
+    if (previewMode) {
+      setReservations((prev) => ({
+        ...prev,
+        [id]: {
+          isReserved: nextReserved,
+          isReservedByMe: nextReserved,
+        },
+      }));
+      return;
+    }
+
+    setActionError("");
+    inFlightActionRef.current[id] = action;
+    const seq = (latestSeqRef.current[id] ?? 0) + 1;
+    latestSeqRef.current[id] = seq;
+
+    // Optimistic update
     setReservations((prev) => ({
       ...prev,
       [id]: {
-        isReserved: result.isReserved,
-        isReservedByMe: result.isReservedByMe,
+        isReserved: nextReserved,
+        isReservedByMe: nextReserved,
       },
     }));
+
+    const baseStatus = {
+      isReserved: !nextReserved,
+      isReservedByMe: !nextReserved,
+    };
+    const prevChain = itemQueueRef.current[id] ?? Promise.resolve();
+    const nextChain = prevChain.then(async () => {
+      const result = await toggleGuestReservation(id, baseStatus);
+      if (seq === latestSeqRef.current[id]) {
+        delete inFlightActionRef.current[id];
+        if (result.error) {
+          setActionError(result.error);
+        }
+        setReservations((prev) => ({
+          ...prev,
+          [id]: {
+            isReserved: result.isReserved,
+            isReservedByMe: result.isReservedByMe,
+          },
+        }));
+      }
+    });
+    itemQueueRef.current[id] = nextChain;
   };
 
   return (
@@ -115,6 +159,11 @@ export function GuestWishlistView({
       </header>
 
       <main className="guest-wishlist-main">
+        {previewMode && (
+          <div className="guest-wishlist-preview-note" role="status">
+            <span>Режим перегляду · реальні бронювання друзів приховані</span>
+          </div>
+        )}
         {actionError && (
           <div className="guest-wishlist-error" role="alert">
             <span>{actionError}</span>
@@ -242,7 +291,7 @@ export function GuestWishlistView({
                             <button
                               type="button"
                               className="guest-cancel-reserve-btn"
-                              onClick={() => handleToggle(item.id)}
+                              onClick={() => handleToggle(item.id, "cancel")}
                             >
                               Скасувати
                             </button>
@@ -256,7 +305,7 @@ export function GuestWishlistView({
                           <button
                             type="button"
                             className="guest-reserve-btn button"
-                            onClick={() => handleToggle(item.id)}
+                            onClick={() => handleToggle(item.id, "reserve")}
                           >
                             <Gift size={14} />
                             <span>Забронювати</span>

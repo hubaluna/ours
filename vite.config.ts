@@ -149,13 +149,6 @@ export default defineConfig(({ command, mode }) => {
       devLinkPreviewPlugin(supabaseUrl),
       VitePWA({
         registerType: "autoUpdate",
-        includeAssets: [
-          "favicon.png",
-          "icon-192.png",
-          "icon-512.png",
-          "icon-maskable.png",
-          "apple-touch-icon.png",
-        ],
         manifest: {
           id: base,
           name: "ours. — простір для двох",
@@ -203,7 +196,11 @@ export default defineConfig(({ command, mode }) => {
           navigateFallbackDenylist: [/^\/auth/, /supabase/, /version\.json/],
           importScripts: ["push-events.js"],
           globPatterns: ["**/*.{js,css,html,png,svg,woff2}", "art/*.webp"],
-          globIgnores: ["version.json"],
+          globIgnores: [
+            "version.json",
+            "art/cat-carpet-sitting.webp",
+            "art/cat-bed-paw.webp",
+          ],
           runtimeCaching: [
             {
               urlPattern: /\/recipes\/.+\.(?:webp|png|jpe?g)$/,

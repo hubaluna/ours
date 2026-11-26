@@ -303,7 +303,7 @@ export function LinkImport({
           : "Додати з посилання";
 
   return (
-    <BottomSheet title={title} onClose={onClose}>
+    <BottomSheet title={title} onClose={onClose} guardChanges={false}>
       {allowTargetChange && (
         <div
           className="import-target-selector"
@@ -405,7 +405,7 @@ export function LinkImport({
                 label={
                   activeKind === "recipe"
                     ? "Інгредієнти · кожен із нового рядка"
-                    : "Текст або HTML сторінки"
+                    : "Текст або код сторінки"
                 }
               >
                 <textarea

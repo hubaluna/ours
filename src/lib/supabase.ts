@@ -19,8 +19,21 @@ export const supabasePublishableKey = key;
 export const configured = Boolean(
   url && key && !isPlaceholder(url) && !isPlaceholder(key),
 );
+const fetchWithTimeout: typeof fetch = (input, init) => {
+  if (typeof AbortSignal === "undefined" || !("timeout" in AbortSignal)) {
+    return fetch(input, init);
+  }
+  const timeoutSignal = AbortSignal.timeout(15_000);
+  const signal =
+    init?.signal && "any" in AbortSignal
+      ? AbortSignal.any([init.signal, timeoutSignal])
+      : init?.signal || timeoutSignal;
+  return fetch(input, { ...init, signal });
+};
+
 export const supabase = configured
   ? createClient(url, key, {
+      global: { fetch: fetchWithTimeout },
       auth: {
         persistSession: true,
         autoRefreshToken: true,

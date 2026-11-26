@@ -7,6 +7,14 @@ import { structuredIngredients } from "../lib/recipe-catalog";
 import { isTikTokVideoUrl } from "../lib/recipe-source";
 import { BottomSheet, Button, ConfirmDelete, Field } from "./ui";
 
+const DEFAULT_RECIPE_IMAGE = "https://hubaluna.github.io/ours/art/ours-glass.webp";
+const normalizeWebUrl = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+};
+
 export const courseLabels = {
   side: "Гарнір",
   protein: "М’ясо або риба",
@@ -41,8 +49,12 @@ export function RecipeForm({
         .split("\n")
         .map((s) => s.trim())
         .filter(Boolean);
-    const image_url = publicUrl(String(f.get("image"))),
-      source = String(f.get("source")).trim();
+    const rawImage = String(f.get("image") ?? "").trim();
+    const image_url = rawImage
+      ? publicUrl(normalizeWebUrl(rawImage))
+      : DEFAULT_RECIPE_IMAGE;
+    const rawSource = String(f.get("source") ?? "").trim();
+    const source = rawSource ? normalizeWebUrl(rawSource) : "";
     const videoRecipe = isTikTokVideoUrl(source);
     const baseServings = Number(f.get("base_servings") || 1);
     const totalTimeRaw = String(f.get("total_time_minutes") ?? "").trim();
@@ -64,7 +76,7 @@ export function RecipeForm({
           : null,
     };
     if (
-      !image_url ||
+      (rawImage && !image_url) ||
       !value.title ||
       !value.ingredients.length ||
       (!value.instructions.length && !videoRecipe) ||
@@ -78,7 +90,9 @@ export function RecipeForm({
         (!Number.isFinite(totalTime) || totalTime < 1 || totalTime > 2880))
     ) {
       setError(
-        "Додайте назву, фото готової страви, продукти й кроки приготування.",
+        rawImage && !image_url
+          ? "Посилання на фото має починатися з https://"
+          : "Додайте назву, продукти й кроки приготування.",
       );
       return;
     }
@@ -145,11 +159,11 @@ export function RecipeForm({
           <div className="recipe-photo-input-wrap">
             <input
               name="image"
-              type="url"
-              required
+              type="text"
+              inputMode="url"
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="https://…"
+              placeholder="https://… (необов’язково)"
             />
             {imageUrl && (
               <img

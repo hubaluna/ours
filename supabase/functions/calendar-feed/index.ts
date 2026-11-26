@@ -105,7 +105,11 @@ Deno.serve(async (request) => {
         "X-Content-Type-Options": "nosniff",
       },
     });
-  } catch {
+  } catch (err) {
+    console.error(
+      "[calendar-feed] failed:",
+      err instanceof Error ? err.message : "unknown",
+    );
     return new Response("Calendar temporarily unavailable", { status: 503 });
   }
 });

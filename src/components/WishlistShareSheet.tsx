@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Copy, ExternalLink, Sparkles, Check, Link2, Loader2, Lock } from "lucide-react";
 import type { Wish } from "../lib/types";
+import { supabase } from "../lib/supabase";
 import { BottomSheet, Button, Segmented } from "./ui";
 import {
   buildWishlistSharePayload,
@@ -30,6 +31,45 @@ export function WishlistShareSheet({
   const [copied, setCopied] = useState(false);
   const [shortUrl, setShortUrl] = useState<string>("");
   const [shortening, setShortening] = useState<boolean>(false);
+  const [resolvedImages, setResolvedImages] = useState<Record<string, string>>({});
+
+  // Resolve uploaded gallery images (30-day signed URL or data URL) so guests can see them
+  useEffect(() => {
+    let cancelled = false;
+    const withPaths = wishes.filter(
+      (w) =>
+        !w.image_url &&
+        w.image_path &&
+        !w.image_path.startsWith("illustration:"),
+    );
+    if (!withPaths.length) return;
+    void (async () => {
+      const next: Record<string, string> = {};
+      await Promise.all(
+        withPaths.map(async (w) => {
+          if (!w.image_path) return;
+          if (w.image_path.startsWith("data:")) {
+            next[w.id] = w.image_path;
+          } else if (supabase) {
+            try {
+              const { data } = await supabase.storage
+                .from("photos")
+                .createSignedUrl(w.image_path, 60 * 60 * 24 * 30);
+              if (data?.signedUrl) next[w.id] = data.signedUrl;
+            } catch {
+              // skip unreachable image
+            }
+          }
+        }),
+      );
+      if (!cancelled && Object.keys(next).length > 0) {
+        setResolvedImages(next);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [wishes]);
 
   // Filter wishes based on owner tab
   const poolWishes = useMemo(() => {
@@ -53,15 +93,28 @@ export function WishlistShareSheet({
     });
   }, [poolWishes, occasion]);
 
-  // Selected wish IDs (defaults to active unfulfilled wishes in the current pool)
-  const [selectedIds, setSelectedIds] = useState<string[]>(() => {
-    const active = poolWishes.filter((w) => !w.is_private && !w.fulfilled);
-    return (active.length > 0 ? active : poolWishes).map((w) => w.id);
-  });
+  // Selected wish IDs (defaults to active unfulfilled wishes in the current filtered pool)
+  const defaultIdsFor = (items: Wish[]) => {
+    const active = items.filter((w) => !w.is_private && !w.fulfilled);
+    return (active.length > 0 ? active : items).map((w) => w.id);
+  };
+  const [selectedIds, setSelectedIds] = useState<string[]>(() =>
+    defaultIdsFor(filteredWishes),
+  );
+
+  // Sync selectedIds whenever ownerFilter or occasion changes so stale/hidden items aren't included
+  useEffect(() => {
+    setSelectedIds(defaultIdsFor(filteredWishes));
+  }, [ownerFilter, occasion, filteredWishes]);
 
   const payload = useMemo(() => {
-    return buildWishlistSharePayload(wishes, occasion, selectedIds);
-  }, [wishes, occasion, selectedIds]);
+    return buildWishlistSharePayload(
+      wishes,
+      occasion,
+      selectedIds,
+      resolvedImages,
+    );
+  }, [wishes, occasion, selectedIds, resolvedImages]);
 
   const shareCode = useMemo(() => {
     return encodeWishlistShare(payload);
@@ -103,10 +156,13 @@ export function WishlistShareSheet({
       }
     };
 
-    void generateLinks();
+    const timer = window.setTimeout(() => {
+      void generateLinks();
+    }, 450);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [payload, shareCode, selectedIds.length]);
 
@@ -166,7 +222,11 @@ export function WishlistShareSheet({
   };
 
   return (
-    <BottomSheet title="Поділитися вішлістом з друзями" onClose={onClose}>
+    <BottomSheet
+      title="Поділитися вішлістом з друзями"
+      onClose={onClose}
+      guardChanges={false}
+    >
       <div className="wishlist-share-sheet">
         <div className="wishlist-share-mystery-banner">
           <Sparkles size={20} className="mystery-icon" />

@@ -30,7 +30,6 @@ import { money, safeUrl } from "../lib/utils";
 import { publicUrl } from "../../supabase/functions/_shared/urls";
 import type { LinkMetadata } from "../../supabase/functions/_shared/metadata";
 import { supabase } from "../lib/supabase";
-import { exportWishesPdf } from "../lib/wishes-pdf";
 import {
   BottomSheet,
   Button,
@@ -158,7 +157,7 @@ export function GiftReservationControl({ wish }: { wish: Wish }) {
 export default function Wishes({
   onOpenGuestWishlist,
 }: {
-  onOpenGuestWishlist?: (code: string) => void;
+  onOpenGuestWishlist?: (code: string, preview?: boolean) => void;
 } = {}) {
   const { data, userId, toggleWishFulfilled, pending, notify } = useApp();
   const [view, setView] = useState("mine"),
@@ -311,6 +310,7 @@ export default function Wishes({
         }),
       );
       const me = data.profiles.find((p) => p.id === userId);
+      const { exportWishesPdf } = await import("../lib/wishes-pdf");
       const mode = await exportWishesPdf(selected, resolvedImages, me?.name);
       setExporting(false);
       notify(mode === "shared" ? "PDF-файл готовий" : "PDF-файл завантажено");
@@ -547,6 +547,7 @@ export default function Wishes({
             key="wish-export"
             title="Експорт у PDF"
             onClose={() => setExporting(false)}
+            guardChanges={false}
           >
             <div className="wish-export">
               <p>
@@ -710,7 +711,7 @@ export default function Wishes({
           onOpenPreview={(code) => {
             setSharing(false);
             if (onOpenGuestWishlist) {
-              onOpenGuestWishlist(code);
+              onOpenGuestWishlist(code, true);
             }
           }}
           onToast={notify}

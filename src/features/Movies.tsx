@@ -183,6 +183,24 @@ export default function Movies() {
                 >
                   Зберегти оцінку
                 </Button>
+                <Button
+                  type="button"
+                  className="ghost"
+                  busy={pending.includes(ratingMovie.id)}
+                  onClick={async () => {
+                    if (
+                      await update(
+                        "movies",
+                        ratingMovie.id,
+                        { status: "watched", rating: null },
+                        "Позначено переглянутим",
+                      )
+                    )
+                      setRatingMovie(null);
+                  }}
+                >
+                  Без оцінки
+                </Button>
               </div>
               <p>{ratingMovie.title}</p>
               <fieldset className="rating-picker">
@@ -272,7 +290,7 @@ export default function Movies() {
                 onClick={async () => {
                   if (detail.status === "planned") {
                     setRatingMovie(detail);
-                    setRating(detail.rating ?? null);
+                    setRating(detail.rating ?? 5);
                     setDetail(null);
                     return;
                   }
@@ -300,7 +318,7 @@ export default function Movies() {
                   className="secondary"
                   onClick={() => {
                     setRatingMovie(detail);
-                    setRating(detail.rating ?? null);
+                    setRating(detail.rating ?? 5);
                     setDetail(null);
                   }}
                 >

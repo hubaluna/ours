@@ -5,7 +5,7 @@ import { guardedSetupSQL } from "../scripts/supabase-setup.mjs";
 it("applies the one-query mobile setup atomically to a fresh project", async () => {
   const db = new PGlite();
   try {
-    await db.exec(`create role anon nologin;create role authenticated nologin;create schema auth;
+    await db.exec(`create role anon nologin;create role authenticated nologin;create role service_role nologin;create schema auth;create schema extensions;create schema vault;create table vault.decrypted_secrets(name text,decrypted_secret text);
  create table auth.users(id uuid primary key,raw_user_meta_data jsonb default '{}');
  create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
  create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
@@ -19,9 +19,12 @@ it("applies the one-query mobile setup atomically to a fresh project", async () 
     const tables = await db.query(
       "select tablename from pg_tables where schemaname='public'",
     );
-    expect(tables.rows).toHaveLength(31);
+    expect(tables.rows).toHaveLength(36);
     expect(tables.rows.map((row) => row.tablename)).toContain("plants");
     expect(tables.rows.map((row) => row.tablename)).toContain("pantry_items");
+    expect(tables.rows.map((row) => row.tablename)).toContain("calendar_feed_tokens");
+    expect(tables.rows.map((row) => row.tablename)).toContain("push_subscriptions");
+    expect(tables.rows.map((row) => row.tablename)).toContain("pending_push_digest");
     expect(tables.rows.map((row) => row.tablename)).toContain("budget_transactions");
     expect(tables.rows.map((row) => row.tablename)).toContain("budget_recurring_payments");
     expect(tables.rows.map((row) => row.tablename)).toContain("guest_wish_reservations");
@@ -45,7 +48,7 @@ it("applies the one-query mobile setup atomically to a fresh project", async () 
           "select tablename from pg_tables where schemaname='public'",
         )
       ).rows,
-    ).toHaveLength(31);
+    ).toHaveLength(36);
   } finally {
     await db.close();
   }

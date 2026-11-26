@@ -1096,6 +1096,145 @@ end;
 $$;
 
 
+-- 013_calendar_feed.sql
+
+create table public.calendar_feed_tokens (
+  couple_id uuid primary key references public.couples(id) on delete cascade,
+  token_hash bytea not null unique,
+  created_at timestamptz not null default now()
+);
+alter table public.calendar_feed_tokens enable row level security;
+revoke all on public.calendar_feed_tokens from public, anon, authenticated;
+
+create function public.rotate_calendar_feed_token(p_token text)
+returns void language plpgsql security definer set search_path=''
+as $$
+declare v_couple uuid := public.current_couple();
+begin
+  if v_couple is null or p_token !~ '^[A-Za-z0-9_-]{43}$' then
+    raise exception 'invalid calendar feed';
+  end if;
+  insert into public.calendar_feed_tokens(couple_id, token_hash)
+  values(v_couple, sha256(convert_to(p_token, 'UTF8')))
+  on conflict(couple_id) do update
+    set token_hash=excluded.token_hash, created_at=now();
+end $$;
+
+create function public.revoke_calendar_feed_token()
+returns void language sql security definer set search_path=''
+as $$ delete from public.calendar_feed_tokens where couple_id=public.current_couple() $$;
+
+create function public.calendar_feed_events(p_token text)
+returns table (
+  id uuid, title text, date date, "time" time, all_day boolean,
+  location text, description text, url text, created_at timestamptz
+) language sql stable security definer set search_path=''
+as $$
+  select e.id, e.title, e.date, e.time, e.all_day, e.location,
+         e.description, e.url, e.created_at
+  from public.calendar_feed_tokens f
+  join public.events e on e.couple_id=f.couple_id
+  where length(p_token) = 43
+    and f.token_hash=sha256(convert_to(p_token, 'UTF8'))
+  order by e.date, e.time nulls first, e.created_at
+$$;
+
+revoke all on function public.rotate_calendar_feed_token(text), public.revoke_calendar_feed_token(), public.calendar_feed_events(text) from public;
+revoke all on function public.rotate_calendar_feed_token(text), public.revoke_calendar_feed_token(), public.calendar_feed_events(text) from anon;
+grant execute on function public.rotate_calendar_feed_token(text), public.revoke_calendar_feed_token() to authenticated;
+grant execute on function public.calendar_feed_events(text) to anon, authenticated;
+
+
+-- 014_push_notifications.sql
+-- Background Web Push for opted-in users. Secrets and the endpoint URL live in Supabase Vault.
+
+do $$
+begin
+  create extension if not exists pg_net with schema extensions;
+exception when others then
+  null;
+end $$;
+create table public.push_preferences (
+  user_id uuid primary key references public.profiles(id) on delete cascade,
+  enabled boolean not null default false,
+  shopping boolean not null default true,
+  wishes boolean not null default true,
+  movies boolean not null default true,
+  events boolean not null default true,
+  recipes boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+
+create table public.push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  couple_id uuid not null references public.couples(id) on delete cascade,
+  endpoint text not null check (endpoint ~ '^https://[^ ]{1,2048}$'),
+  p256dh text not null check (length(p256dh) between 80 and 100),
+  auth_secret text not null check (length(auth_secret) between 20 and 40),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(user_id, endpoint)
+);
+create index push_subscriptions_user on public.push_subscriptions(user_id);
+
+alter table public.push_preferences enable row level security;
+alter table public.push_subscriptions enable row level security;
+revoke all on public.push_preferences, public.push_subscriptions from anon, authenticated;
+
+create policy push_preferences_self on public.push_preferences
+  for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy push_subscriptions_self on public.push_subscriptions
+  for all to authenticated
+  using (user_id = auth.uid() and couple_id = public.current_couple())
+  with check (user_id = auth.uid() and couple_id = public.current_couple());
+
+grant select, insert, update, delete on public.push_preferences, public.push_subscriptions to authenticated;
+create trigger touch_push_preference before update on public.push_preferences
+  for each row execute function public.touch_updated_at();
+create trigger touch_push_subscription before update on public.push_subscriptions
+  for each row execute function public.touch_updated_at();
+
+create or replace function public.enqueue_activity_push()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare
+  endpoint text;
+  hook_secret text;
+begin
+  select decrypted_secret into endpoint
+    from vault.decrypted_secrets where name = 'ours_push_function_url';
+  select decrypted_secret into hook_secret
+    from vault.decrypted_secrets where name = 'ours_push_hook_secret';
+  if endpoint is null or hook_secret is null then return new; end if;
+  perform net.http_post(
+    url := endpoint,
+    headers := jsonb_build_object('content-type', 'application/json', 'x-ours-push-secret', hook_secret),
+    body := jsonb_build_object('activity_id', new.id),
+    timeout_milliseconds := 5000
+  );
+  return new;
+end;
+$$;
+
+revoke all on function public.enqueue_activity_push() from public, anon, authenticated;
+create trigger activity_push after insert on public.activity_events
+  for each row execute function public.enqueue_activity_push();
+
+create or replace function public.push_dispatch_config(p_hook_secret text)
+returns table(vapid_private_jwk text, vapid_public_key text, vapid_subject text, app_url text)
+language sql security definer set search_path = '' as $$
+  select
+    (select decrypted_secret from vault.decrypted_secrets where name = 'ours_vapid_private_jwk'),
+    (select decrypted_secret from vault.decrypted_secrets where name = 'ours_vapid_public_key'),
+    (select decrypted_secret from vault.decrypted_secrets where name = 'ours_vapid_subject'),
+    (select decrypted_secret from vault.decrypted_secrets where name = 'ours_public_app_url')
+  where p_hook_secret = (select decrypted_secret from vault.decrypted_secrets where name = 'ours_push_hook_secret')
+    and p_hook_secret is not null
+$$;
+revoke all on function public.push_dispatch_config(text) from public, anon, authenticated;
+grant execute on function public.push_dispatch_config(text) to service_role;
+
+
 -- 015_plants.sql
 
 create table if not exists public.plants (
@@ -1238,6 +1377,125 @@ grant execute on function public.finish_menu_item(uuid) to authenticated;
 alter publication supabase_realtime add table public.plant_care_events;
 alter publication supabase_realtime add table public.recipe_cooks;
 alter publication supabase_realtime add table public.recipe_favorites;
+
+-- 017_recurring_events.sql
+
+alter table public.events
+  add column if not exists recurrence text not null default 'none'
+  check (recurrence in ('none', 'weekly', 'monthly', 'yearly'));
+
+grant update(recurrence) on public.events to authenticated;
+
+drop function if exists public.calendar_feed_events(text);
+
+create function public.calendar_feed_events(p_token text)
+returns table (
+  id uuid, title text, date date, "time" time, all_day boolean,
+  location text, description text, url text, recurrence text, created_at timestamptz
+) language sql stable security definer set search_path=''
+as $$
+  select e.id, e.title, e.date, e.time, e.all_day, e.location,
+         e.description, e.url, e.recurrence, e.created_at
+  from public.calendar_feed_tokens f
+  join public.events e on e.couple_id=f.couple_id
+  where length(p_token) = 43
+    and f.token_hash=sha256(convert_to(p_token, 'UTF8'))
+  order by e.date, e.time nulls first, e.created_at
+$$;
+
+revoke all on function public.calendar_feed_events(text) from public;
+grant execute on function public.calendar_feed_events(text) to anon, authenticated;
+
+
+-- 018_smart_notifications.sql
+-- Smart notifications: batch shopping additions, skip shopping check-offs,
+-- quiet hours before 11:00 Kyiv time, and optional daily 11:00 reminder flush.
+
+create table if not exists public.pending_push_digest (
+  id uuid primary key default gen_random_uuid(),
+  couple_id uuid not null references public.couples(id) on delete cascade,
+  actor_id uuid not null references public.profiles(id) on delete cascade,
+  kind text not null check (kind in ('shopping', 'wishes', 'movies', 'events', 'recipes')),
+  title text not null,
+  activity_id uuid not null references public.activity_events(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+create index if not exists pending_push_digest_couple on public.pending_push_digest(couple_id, created_at);
+
+create table if not exists public.daily_reminder_log (
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  sent_date date not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, sent_date)
+);
+
+alter table public.pending_push_digest enable row level security;
+alter table public.daily_reminder_log enable row level security;
+revoke all on public.pending_push_digest, public.daily_reminder_log from public, anon, authenticated;
+
+create or replace function public.enqueue_activity_push()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare
+  endpoint text;
+  hook_secret text;
+begin
+  if new.kind = 'shopping' and new.action <> 'added' then
+    return new;
+  end if;
+  select decrypted_secret into endpoint
+    from vault.decrypted_secrets where name = 'ours_push_function_url';
+  select decrypted_secret into hook_secret
+    from vault.decrypted_secrets where name = 'ours_push_hook_secret';
+  if endpoint is null or hook_secret is null then return new; end if;
+  perform net.http_post(
+    url := endpoint,
+    headers := jsonb_build_object('content-type', 'application/json', 'x-ours-push-secret', hook_secret),
+    body := jsonb_build_object('activity_id', new.id),
+    timeout_milliseconds := 5000
+  );
+  return new;
+end;
+$$;
+
+revoke all on function public.enqueue_activity_push() from public, anon, authenticated;
+
+create or replace function public.flush_smart_notifications()
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  endpoint text;
+  hook_secret text;
+begin
+  select decrypted_secret into endpoint
+    from vault.decrypted_secrets where name = 'ours_push_function_url';
+  select decrypted_secret into hook_secret
+    from vault.decrypted_secrets where name = 'ours_push_hook_secret';
+  if endpoint is null or hook_secret is null then return; end if;
+  perform net.http_post(
+    url := endpoint,
+    headers := jsonb_build_object('content-type', 'application/json', 'x-ours-push-secret', hook_secret),
+    body := jsonb_build_object('mode', 'flush'),
+    timeout_milliseconds := 10000
+  );
+end;
+$$;
+revoke all on function public.flush_smart_notifications() from public, anon, authenticated;
+
+do $$
+begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    perform cron.unschedule('ours-smart-notifications')
+      where exists (select 1 from cron.job where jobname = 'ours-smart-notifications');
+    perform cron.schedule(
+      'ours-smart-notifications',
+      '*/5 * * * *',
+      'select public.flush_smart_notifications();'
+    );
+  end if;
+exception when others then
+  null;
+end
+$$;
+
 
 -- 019_home_pantry.sql
 -- Home pantry ("єВдома"): couple-scoped home inventory synced with menu shopping generation.
@@ -2056,6 +2314,58 @@ begin
 end $$;
 
 alter table public.budget_recurring_payments replica identity full;
+
+
+-- 022_push_fixes.sql
+-- 022: Web Push reliability fixes — allow plants/budget in pending_push_digest
+-- and add service_role-only push_dispatch_service_config() for authenticated self-test push.
+
+-- 1. Widen pending_push_digest.kind to match activity_events (adds plants & budget)
+do $$
+declare
+  c record;
+begin
+  if to_regclass('public.pending_push_digest') is not null then
+    for c in
+      select conname
+      from pg_constraint
+      where conrelid = 'public.pending_push_digest'::regclass
+        and contype = 'c'
+        and pg_get_constraintdef(oid) ilike '%kind%'
+    loop
+      execute format('alter table public.pending_push_digest drop constraint %I', c.conname);
+    end loop;
+
+    alter table public.pending_push_digest
+      add constraint pending_push_digest_kind_check
+      check (kind in ('shopping', 'calendar', 'events', 'wishes', 'movies', 'recipes', 'plants', 'budget'));
+  end if;
+end $$;
+
+-- 2. Service-role-only VAPID config lookup for authenticated self-test push requests
+create or replace function public.push_dispatch_service_config()
+returns table(vapid_private_jwk text, vapid_public_key text, vapid_subject text, app_url text)
+language plpgsql security definer set search_path = '' as $$
+begin
+  return query
+  select
+    (select decrypted_secret from vault.decrypted_secrets where name = 'ours_vapid_private_jwk'),
+    (select decrypted_secret from vault.decrypted_secrets where name = 'ours_vapid_public_key'),
+    (select decrypted_secret from vault.decrypted_secrets where name = 'ours_vapid_subject'),
+    (select decrypted_secret from vault.decrypted_secrets where name = 'ours_public_app_url');
+end;
+$$;
+
+revoke all on function public.push_dispatch_service_config() from public, anon, authenticated;
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    grant execute on function public.push_dispatch_service_config() to service_role;
+  end if;
+end $$;
+
+-- 3. Ensure authenticated can update wishes.fulfilled
+grant update(fulfilled) on public.wishes to authenticated;
 
 
 -- 023_guest_wish_reservations.sql

@@ -79,7 +79,7 @@ async function waitForServiceWorkerRegistration(
   timeoutMs = 6000,
 ): Promise<ServiceWorkerRegistration> {
   if (!("serviceWorker" in navigator)) {
-    throw new Error("Цей браузер не підтримує Service Worker для push.");
+    throw new Error("Цей браузер не підтримує сповіщення.");
   }
   const existing = await navigator.serviceWorker.getRegistration();
   if (existing?.active) return existing;
@@ -97,7 +97,7 @@ async function waitForServiceWorkerRegistration(
     if (timer !== undefined) window.clearTimeout(timer);
   }
   throw new Error(
-    "Service Worker ще не готовий. Перезавантажте застосунок і спробуйте ще раз.",
+    "Служба сповіщень ще не готова. Перезавантажте застосунок і спробуйте ще раз.",
   );
 }
 
@@ -308,13 +308,13 @@ function describeServerPushFailure(
   switch (reason) {
     case "missing_vault_config":
     case "invalid_vapid_config":
-      return "На сервері Supabase не налаштовані VAPID-секрети у Vault (або не виконано міграцію 022).";
+      return "На сервері не налаштовано ключі сповіщень. Зверніться до адміністратора простору.";
     case "no_subscriptions":
       return "Для цього пристрою ще не збережено push-підписку. Натисніть «Підключити цей пристрій».";
     case "subscription_expired":
       return "Push-підписка цього пристрою застаріла й була скинута. Натисніть «Підключити цей пристрій» ще раз.";
     case "vapid_rejected":
-      return "Push-сервіс (Apple/Google) відхилив VAPID-ключ (401/403). Перевірте збіг VAPID-ключів у Vault і public-config.json.";
+      return "Сервіс сповіщень відхилив ключ безпеки. Потрібно перевірити ключі сповіщень на сервері й у застосунку.";
     case "unsupported_endpoint":
       return "Адреса push-сервісу цього браузера не підтримується сервером.";
     default: {
@@ -376,7 +376,7 @@ export async function sendTestServerPush(
       return {
         kind: "unavailable",
         message:
-          "Серверна функція push-dispatch ще не оновлена в Supabase (потрібен повторний деплой).",
+          "Служба надсилання сповіщень на сервері ще не оновлена. Спробуйте пізніше.",
       };
     }
 
@@ -417,7 +417,7 @@ export async function sendTestServerPush(
     return {
       kind: "unavailable",
       message:
-        "Не вдалося звернутися до push-dispatch (можливо, функція ще не оновлена в Supabase).",
+        "Не вдалося звернутися до служби сповіщень. Спробуйте пізніше.",
     };
   }
 }

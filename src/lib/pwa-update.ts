@@ -261,6 +261,8 @@ export async function forceAppUpdate(options?: {
       if (reg && !(await hasActivePushSubscription(reg))) {
         await reg.unregister?.().catch(() => {});
       }
+    } else if (!hasSwUpdate && !controllerChanged) {
+      await purgeStaticAssetCaches();
     }
 
     if (options?.updateServiceWorker && hasSwUpdate) {
@@ -271,7 +273,6 @@ export async function forceAppUpdate(options?: {
       }
     }
 
-    await purgeStaticAssetCaches();
     navigateCacheBusted();
     return "reloading";
   } catch {

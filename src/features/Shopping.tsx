@@ -201,8 +201,23 @@ export default function Shopping() {
             empty={
               <EmptyState
                 title={done.length ? "Усе куплено ✨" : "Список порожній"}
-                description="Додайте товар або інгредієнти з рецепта."
-              />
+                description={
+                  done.length
+                    ? "Можна завершити похід і перенести покупки в історію."
+                    : "Додайте товар або інгредієнти з рецепта."
+                }
+              >
+                {done.length > 0 && active.length === 0 && (
+                  <Button
+                    className="finish-shopping"
+                    busy={pending.includes("archive")}
+                    onClick={() => void archive()}
+                  >
+                    <CheckCheck size={15} />
+                    Завершити
+                  </Button>
+                )}
+              </EmptyState>
             }
           />
         ) : (
@@ -254,6 +269,7 @@ export default function Shopping() {
             key="history"
             title="Історія покупок"
             onClose={() => setHistory(false)}
+            guardChanges={false}
           >
             <div className="history-filters">
               <input

@@ -1,39 +1,34 @@
-export const kyivDate = (date = new Date()) =>
-  new Intl.DateTimeFormat("sv-SE", {
-    timeZone: "Europe/Kyiv",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
+const kyivDateFormatter = new Intl.DateTimeFormat("sv-SE", {
+  timeZone: "Europe/Kyiv",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+const kyivHourFormatter = new Intl.DateTimeFormat("en-GB", {
+  hour: "numeric",
+  hourCycle: "h23",
+  timeZone: "Europe/Kyiv",
+});
+const moneyFormatter = new Intl.NumberFormat("uk-UA", {
+  style: "currency",
+  currency: "UAH",
+  maximumFractionDigits: 0,
+});
+const longDateFormatter = new Intl.DateTimeFormat("uk-UA", {
+  day: "numeric",
+  month: "long",
+  weekday: "long",
+  timeZone: "Europe/Kyiv",
+});
+
+export const kyivDate = (date = new Date()) => kyivDateFormatter.format(date);
 export const kyivHour = (date = new Date()) =>
-  Number(
-    new Intl.DateTimeFormat("en-GB", {
-      hour: "numeric",
-      hourCycle: "h23",
-      timeZone: "Europe/Kyiv",
-    }).format(date),
-  );
-export const money = (value: number) =>
-  new Intl.NumberFormat("uk-UA", {
-    style: "currency",
-    currency: "UAH",
-    maximumFractionDigits: 0,
-  }).format(value);
+  Number(kyivHourFormatter.format(date));
+export const money = (value: number) => moneyFormatter.format(value);
 export const longDate = (date: string) =>
-  new Intl.DateTimeFormat("uk-UA", {
-    day: "numeric",
-    month: "long",
-    weekday: "long",
-    timeZone: "Europe/Kyiv",
-  }).format(new Date(`${date}T12:00:00+02:00`));
+  longDateFormatter.format(new Date(`${date}T12:00:00+02:00`));
 export const greeting = () => {
-  const hour = Number(
-    new Intl.DateTimeFormat("en-GB", {
-      hour: "numeric",
-      hourCycle: "h23",
-      timeZone: "Europe/Kyiv",
-    }).format(new Date()),
-  );
+  const hour = kyivHour();
   return hour < 5
     ? "Тихої ночі"
     : hour < 12
@@ -50,13 +45,25 @@ export const safeUrl = (value: string) => {
     return null;
   }
 };
-export function downloadJson(data: unknown) {
-  const url = URL.createObjectURL(
-    new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
-  );
+export async function downloadJson(data: unknown) {
+  const json = JSON.stringify(data, null, 2);
+  const fileName = `ours-${kyivDate()}.json`;
+  const blob = new Blob([json], { type: "application/json" });
+  if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+    try {
+      const file = new File([blob], fileName, { type: "application/json" });
+      if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: fileName });
+        return;
+      }
+    } catch (error) {
+      if ((error as { name?: string })?.name === "AbortError") return;
+    }
+  }
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `ours-${kyivDate()}.json`;
+  a.download = fileName;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
@@ -70,6 +77,12 @@ export function errorMessage(error: unknown): string {
   if (/Invalid login/i.test(message)) return "Перевірте пошту та пароль.";
   if (/Email not confirmed/i.test(message))
     return "Підтвердіть пошту за посиланням у листі.";
+  if (/User already registered|already been registered/i.test(message))
+    return "Акаунт із цією поштою вже існує. Спробуйте увійти.";
+  if (/Password should be/i.test(message))
+    return "Пароль має містити щонайменше 10 символів.";
+  if (/rate limit|too many requests|for security purposes/i.test(message))
+    return "Забагато спроб. Зачекайте хвилину й спробуйте знову.";
   if (/already.*member|already.*space/i.test(message))
     return "Ви вже маєте спільний простір.";
   return navigator.onLine

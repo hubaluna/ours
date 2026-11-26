@@ -32,6 +32,13 @@ export const expectedTables = [
   "budget_merchant_rules",
   "budget_settings",
   "budget_ingest_tokens",
+  "budget_recurring_payments",
+  "calendar_feed_tokens",
+  "push_preferences",
+  "push_subscriptions",
+  "pending_push_digest",
+  "daily_reminder_log",
+  "private_wish_images",
   "guest_wish_reservations",
   "guest_shared_wishlists",
 ];
@@ -228,10 +235,17 @@ export async function setup({
     throw new Error(
       "Storage/Realtime verification failed; public config was not written.",
     );
+  let existingPublicConfig = {};
+  try {
+    existingPublicConfig = JSON.parse(await read("src/lib/public-config.json"));
+  } catch {
+    // fresh config file
+  }
   await write(
     "src/lib/public-config.json",
     JSON.stringify(
       {
+        ...existingPublicConfig,
         supabaseUrl: `https://${projectRef}.supabase.co`,
         supabasePublishableKey: key,
       },

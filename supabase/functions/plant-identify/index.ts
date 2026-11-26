@@ -1,12 +1,24 @@
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
 
-const origin = "https://hubaluna.github.io";
-const cors = {
-  "Access-Control-Allow-Origin": origin,
-  "Access-Control-Allow-Headers":
-    "authorization, apikey, x-client-info, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+const allowedOrigins = (
+  Deno.env.get("ALLOWED_ORIGINS") || "https://hubaluna.github.io"
+)
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+function corsFor(request: Request) {
+  const reqOrigin = request.headers.get("Origin") ?? "";
+  const origin = allowedOrigins.includes(reqOrigin)
+    ? reqOrigin
+    : (allowedOrigins[0] ?? "https://hubaluna.github.io");
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Headers":
+      "authorization, apikey, x-client-info, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
 
 type PlantNetResult = {
   score?: number;
@@ -75,6 +87,7 @@ function careFor(result: PlantNetResult) {
 }
 
 Deno.serve(async (request) => {
+  const cors = corsFor(request);
   if (request.method === "OPTIONS")
     return new Response(null, { headers: cors });
   if (request.method !== "POST")
@@ -174,7 +187,11 @@ Deno.serve(async (request) => {
       },
       { headers: cors },
     );
-  } catch {
+  } catch (err) {
+    console.error(
+      "[plant-identify] failed:",
+      err instanceof Error ? err.message : "unknown",
+    );
     return new Response("Recognition failed", { status: 502, headers: cors });
   }
 });
