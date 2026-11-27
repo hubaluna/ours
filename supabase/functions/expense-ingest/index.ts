@@ -8,6 +8,7 @@ import {
   type BudgetKind,
   type MerchantRuleLike,
 } from "../_shared/budget-categorizer.ts";
+import { classifyMerchantWithGemini } from "../_shared/gemini.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -451,6 +452,26 @@ export async function handleRequest(request: Request): Promise<Response> {
       if (match.category_key) {
         matchedCategoryKey = match.category_key;
         matchedBy = match.matched_by;
+      } else {
+        const standardCats =
+          kind === "income"
+            ? SKARBO_INCOME_CATEGORIES
+            : SKARBO_EXPENSE_CATEGORIES;
+        const allCategoryOptions = [
+          ...standardCats.map((c) => ({ id: c.id, name: c.name })),
+          ...customCategories.map((c) => ({ id: c.id, name: c.name })),
+        ];
+        const aiMatch = await classifyMerchantWithGemini({
+          merchant,
+          amount,
+          note,
+          kind,
+          categories: allCategoryOptions,
+        });
+        if (aiMatch) {
+          matchedCategoryKey = aiMatch.categoryId;
+          matchedBy = "gemini";
+        }
       }
     }
 

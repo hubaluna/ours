@@ -17,6 +17,11 @@ import {
 } from "../_shared/movie-search.ts";
 import { fetchPublicPage } from "../_shared/fetch-page.ts";
 import { createPreviewHandler } from "../_shared/preview-handler.ts";
+import {
+  hasGeminiKey,
+  parseRecipeTextWithGemini,
+  refineMovieWithGemini,
+} from "../_shared/gemini.ts";
 const origins = (
   Deno.env.get("ALLOWED_ORIGINS") || "https://hubaluna.github.io"
 )
@@ -62,6 +67,60 @@ Deno.serve(
         );
       };
       const read = (target: string) => fetchPublicPage(target, resolve, signal);
+      const enhanceMovieWithAi = async (
+        current: typeof metadata,
+        rawUrl: string,
+      ) => {
+        if (!hasGeminiKey()) return current;
+        if (current.metadata_url && current.description && current.year) {
+          return current;
+        }
+        const ai = await refineMovieWithGemini({
+          url: rawUrl,
+          title: current.title,
+          description: current.description,
+          provider: current.provider,
+          signal,
+        });
+        if (!ai?.title) return current;
+        const enriched = await enrichMovie(
+          {
+            ...current,
+            title: ai.title,
+            year: current.year ?? ai.year,
+            description: current.description || ai.synopsis_uk,
+          },
+          read,
+          ai.title,
+        );
+        return {
+          ...enriched,
+          year: enriched.year ?? ai.year,
+          description: enriched.description || ai.synopsis_uk || current.description,
+        };
+      };
+      const enhanceRecipeWithAi = async (
+        current: typeof metadata,
+        rawText?: string,
+      ) => {
+        if (!hasGeminiKey() || current.ingredients.length > 0) return current;
+        const sourceText = (rawText || current.description || current.title).trim();
+        if (sourceText.length < 15) return current;
+        const ai = await parseRecipeTextWithGemini({
+          title: current.title,
+          text: sourceText,
+          signal,
+        });
+        if (!ai || !ai.ingredients.length) return current;
+        return {
+          ...current,
+          title: ai.title || current.title,
+          ingredients: ai.ingredients,
+          description: ai.instructions.length
+            ? ai.instructions.join("\n")
+            : current.description,
+        };
+      };
       const host = new URL(url).hostname;
       let metadata = parseMetadata("<html></html>", url, kind);
       if (kind === "movie" && query?.trim())
@@ -71,7 +130,10 @@ Deno.serve(
           const page = await read(url);
           const target = resolveTikTokUrl(page.url, page.html) || page.url;
           metadata = parseMetadata(page.html, target, kind);
-          return tiktokRecipeCaption(tiktokMetadata(page.html, target, metadata));
+          const parsed = tiktokRecipeCaption(
+            tiktokMetadata(page.html, target, metadata),
+          );
+          return enhanceRecipeWithAi(parsed);
         } catch (error) {
           const target = resolveTikTokUrl(
             (error as { sourceUrl?: string }).sourceUrl || url,
@@ -85,7 +147,7 @@ Deno.serve(
               ).html,
             );
             const title = String(value.title || "").trim();
-            return tiktokRecipeCaption({
+            const parsed = tiktokRecipeCaption({
               ...metadata,
               source_url: target,
               title: title.slice(0, 160) || metadata.title,
@@ -93,6 +155,7 @@ Deno.serve(
               image_url: publicUrl(value.thumbnail_url || "") || metadata.image_url,
               provider: "TikTok",
             });
+            return enhanceRecipeWithAi(parsed);
           }
           throw error;
         }
@@ -147,13 +210,15 @@ Deno.serve(
         } catch {
           /* Offer a title search if the video provider refuses access. */
         }
-        return enrichMovie(metadata, read);
+        const enriched = await enrichMovie(metadata, read);
+        return enhanceMovieWithAi(enriched, target || url);
       }
       if (kind === "movie") {
         try {
           const page = await read(url);
           metadata = parseMetadata(page.html, page.url, kind);
-          return enrichMovie(metadata, read);
+          const enriched = await enrichMovie(metadata, read);
+          return enhanceMovieWithAi(enriched, page.url || url);
         } catch {
           const guesses = movieTitleFromUrl(url);
           const urlYear = movieYearFromUrl(url);
@@ -203,7 +268,10 @@ Deno.serve(
       }
       const page = await read(url);
       metadata = parseMetadata(page.html, page.url, kind);
-      if (kind === "recipe") metadata = parseArticleRecipe(page.html, metadata);
+      if (kind === "recipe") {
+        metadata = parseArticleRecipe(page.html, metadata);
+        metadata = await enhanceRecipeWithAi(metadata);
+      }
       return metadata;
     },
   }),

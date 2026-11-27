@@ -9,6 +9,7 @@ const files = [
   "_shared/preview-handler.ts",
   "_shared/movie-search.ts",
   "_shared/movie-synopsis.ts",
+  "_shared/gemini.ts",
   "link-preview/index.ts",
 ];
 const imports = new Set();

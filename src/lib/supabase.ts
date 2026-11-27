@@ -15,6 +15,7 @@ const key = isTest
   ? ""
   : (!isPlaceholder(envKey) ? envKey : publicConfig.supabasePublishableKey) ||
     "";
+export const supabaseUrl = url;
 export const supabasePublishableKey = key;
 export const configured = Boolean(
   url && key && !isPlaceholder(url) && !isPlaceholder(key),

@@ -9,6 +9,7 @@ import {
 import { AnimatePresence } from "motion/react";
 import {
   ArrowUpDown,
+  Camera,
   ChevronDown,
   ChevronRight,
   ChevronUp,
@@ -32,6 +33,7 @@ import {
   X,
 } from "lucide-react";
 import { useApp } from "../hooks/AppContext";
+import { parseReceiptPhoto } from "../lib/ai-assist";
 import {
   CUSTOM_CATEGORY_EMOJIS,
   autoCategorizeMerchant,
@@ -94,6 +96,7 @@ export default function Budget({
   const {
     data,
     userId,
+    demo,
     pending,
     notify,
     addBudgetTransaction,
@@ -1224,6 +1227,7 @@ export default function Budget({
           <BudgetTxSheet
             initial={editingTx}
             today={today}
+            demo={demo}
             myShareIncome={myShareIncome}
             expenseCategories={expenseCategories}
             incomeCategories={incomeCategories}
@@ -1443,6 +1447,7 @@ export default function Budget({
 function BudgetTxSheet({
   initial,
   today,
+  demo,
   myShareIncome,
   expenseCategories,
   incomeCategories,
@@ -1457,6 +1462,7 @@ function BudgetTxSheet({
 }: {
   initial: BudgetTransaction | null;
   today: string;
+  demo: boolean;
   myShareIncome: boolean;
   expenseCategories: ReturnType<typeof resolveBudgetCategories>;
   incomeCategories: ReturnType<typeof resolveBudgetCategories>;
@@ -1499,7 +1505,45 @@ function BudgetTxSheet({
     Boolean(initial?.category_key),
   );
   const [moreOpen, setMoreOpen] = useState(false);
+  const [scanningReceipt, setScanningReceipt] = useState(false);
   const amountInputRef = useRef<HTMLInputElement>(null);
+  const receiptInputRef = useRef<HTMLInputElement>(null);
+
+  const handleReceiptFile = async (file: File | undefined) => {
+    if (!file) return;
+    setScanningReceipt(true);
+    try {
+      const res = await parseReceiptPhoto(
+        file,
+        expenseCategories.map((c) => ({ id: c.key, name: c.name })),
+      );
+      if (res.error || !res.data) {
+        notify(res.error || "Не вдалося розпізнати чек.");
+        return;
+      }
+      if (res.data.amount) {
+        setAmountStr(String(res.data.amount).replace(".", ","));
+      }
+      if (res.data.merchant) {
+        setMerchant(res.data.merchant);
+      }
+      if (res.data.occurred_on) {
+        setOccurredOn(res.data.occurred_on);
+      }
+      if (res.data.note) {
+        setNote(res.data.note);
+        setMoreOpen(true);
+      }
+      if (res.data.category_key) {
+        setCategoryKey(res.data.category_key);
+        setManualCategoryPicked(true);
+      }
+      notify("Чек розпізнано — перевірте дані перед збереженням");
+    } finally {
+      setScanningReceipt(false);
+      if (receiptInputRef.current) receiptInputRef.current.value = "";
+    }
+  };
 
   const categories = kind === "income" ? incomeCategories : expenseCategories;
 
@@ -1600,13 +1644,36 @@ function BudgetTxSheet({
         <div className="budget-tx-cat-block">
           <div className="budget-cat-picker-head">
             <span>Категорія</span>
-            <button
-              type="button"
-              className="budget-inline-link"
-              onClick={() => onOpenNewCategory(kind)}
-            >
-              + Власна
-            </button>
+            <div className="budget-inline-actions">
+              {!isEdit && kind === "expense" && !demo && (
+                <>
+                  <input
+                    ref={receiptInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    capture="environment"
+                    hidden
+                    onChange={(e) => void handleReceiptFile(e.target.files?.[0])}
+                  />
+                  <button
+                    type="button"
+                    className="budget-inline-link"
+                    disabled={scanningReceipt}
+                    onClick={() => receiptInputRef.current?.click()}
+                  >
+                    <Camera size={13} />
+                    {scanningReceipt ? "Читаємо чек…" : "Фото чека"}
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                className="budget-inline-link"
+                onClick={() => onOpenNewCategory(kind)}
+              >
+                + Власна
+              </button>
+            </div>
           </div>
           <div className="budget-cat-grid is-compact">
             {categories.map((cat) => (

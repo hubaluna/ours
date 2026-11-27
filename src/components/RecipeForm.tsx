@@ -1,5 +1,7 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
+import { Camera } from "lucide-react";
 import { useApp } from "../hooks/AppContext";
+import { parseRecipePhoto } from "../lib/ai-assist";
 import type { Recipe, RecipeCategory, NewRecipe } from "../lib/types";
 import type { LinkMetadata } from "../../supabase/functions/_shared/metadata";
 import { publicUrl } from "../../supabase/functions/_shared/urls";
@@ -35,11 +37,56 @@ export function RecipeForm({
   onClose: () => void;
   onSaved: (category: RecipeCategory, title: string) => void;
 }) {
-  const { addRecipe, update, remove, pending } = useApp();
+  const { addRecipe, update, remove, pending, demo, notify } = useApp();
   const [error, setError] = useState("");
   const seed = recipe ?? initial;
+  const [title, setTitle] = useState(seed?.title ?? "");
+  const [baseServingsText, setBaseServingsText] = useState(
+    String(recipe?.base_servings ?? 1),
+  );
+  const [totalTimeText, setTotalTimeText] = useState(
+    recipe?.total_time_minutes != null ? String(recipe.total_time_minutes) : "",
+  );
+  const [ingredientsText, setIngredientsText] = useState(
+    seed?.ingredients.join("\n") ?? "",
+  );
+  const [instructionsText, setInstructionsText] = useState(
+    seed?.instructions?.join("\n") ?? "",
+  );
   const [sourceUrl, setSourceUrl] = useState(seed?.source_url ?? "");
   const [imageUrl, setImageUrl] = useState(seed?.image_url ?? "");
+  const [scanningPhoto, setScanningPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const handleRecipePhoto = async (file: File | undefined) => {
+    if (!file) return;
+    setScanningPhoto(true);
+    setError("");
+    try {
+      const res = await parseRecipePhoto(file);
+      if (res.error || !res.data) {
+        notify(res.error || "Не вдалося прочитати рецепт із фото.");
+        return;
+      }
+      if (res.data.title) setTitle(res.data.title);
+      if (res.data.ingredients.length) {
+        setIngredientsText(res.data.ingredients.join("\n"));
+      }
+      if (res.data.instructions.length) {
+        setInstructionsText(res.data.instructions.join("\n"));
+      }
+      if (res.data.base_servings) {
+        setBaseServingsText(String(res.data.base_servings));
+      }
+      if (res.data.total_time_minutes) {
+        setTotalTimeText(String(res.data.total_time_minutes));
+      }
+      notify("Рецепт розпізнано — перевірте перед збереженням");
+    } finally {
+      setScanningPhoto(false);
+      if (photoInputRef.current) photoInputRef.current.value = "";
+    }
+  };
 
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -113,7 +160,8 @@ export function RecipeForm({
             name="title"
             required
             maxLength={160}
-            defaultValue={seed?.title}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
             placeholder="Назва страви"
           />
         </Field>
@@ -139,7 +187,8 @@ export function RecipeForm({
               max={12}
               step={1}
               required
-              defaultValue={recipe?.base_servings ?? 1}
+              value={baseServingsText}
+              onChange={(e) => setBaseServingsText(e.target.value)}
             />
           </Field>
           <Field label="Час приготування, хв">
@@ -149,7 +198,8 @@ export function RecipeForm({
               min={1}
               max={2880}
               step={1}
-              defaultValue={recipe?.total_time_minutes ?? ""}
+              value={totalTimeText}
+              onChange={(e) => setTotalTimeText(e.target.value)}
               placeholder="хв"
             />
           </Field>
@@ -183,7 +233,8 @@ export function RecipeForm({
               rows={2}
               required
               maxLength={20000}
-              defaultValue={seed?.ingredients.join("\n")}
+              value={ingredientsText}
+              onChange={(e) => setIngredientsText(e.target.value)}
               placeholder="200 г рису&#10;Морква — 1 шт."
             />
           </Field>
@@ -199,7 +250,8 @@ export function RecipeForm({
               rows={2}
               required={!isTikTokVideoUrl(sourceUrl)}
               maxLength={30000}
-              defaultValue={seed?.instructions?.join("\n")}
+              value={instructionsText}
+              onChange={(e) => setInstructionsText(e.target.value)}
               placeholder={
                 seed?.instructions?.length
                   ? "Підготуйте продукти…"
@@ -234,6 +286,26 @@ export function RecipeForm({
           >
             Зберегти рецепт
           </Button>
+          {!recipe && !demo && (
+            <>
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                hidden
+                onChange={(e) => void handleRecipePhoto(e.target.files?.[0])}
+              />
+              <Button
+                type="button"
+                className="secondary"
+                busy={scanningPhoto}
+                onClick={() => photoInputRef.current?.click()}
+              >
+                <Camera size={15} />
+                З фото
+              </Button>
+            </>
+          )}
         </div>
       </form>
       {recipe && (

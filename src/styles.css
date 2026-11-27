@@ -10034,6 +10034,32 @@ select option {
 .budget-rule-row.is-editing {
   border-color: var(--accent);
 }
+.budget-inline-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.budget-inline-actions .budget-inline-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.shopping-ai-parse-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent-strong);
+  background: var(--accent-light);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.shopping-ai-parse-btn:disabled {
+  opacity: 0.6;
+}
 .budget-recurring-toggle {
   display: flex;
   align-items: center;

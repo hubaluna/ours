@@ -1,4 +1,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2.119.0";
+import {
+  bytesToBase64,
+  hasGeminiKey,
+  identifyPlantWithGemini,
+} from "../_shared/gemini.ts";
 
 const allowedOrigins = (
   Deno.env.get("ALLOWED_ORIGINS") || "https://hubaluna.github.io"
@@ -116,7 +121,8 @@ Deno.serve(async (request) => {
   if (budget.error || !budget.data)
     return new Response("Too many requests", { status: 429, headers: cors });
   const key = Deno.env.get("PLANTNET_API_KEY");
-  if (!key)
+  const canUseGemini = hasGeminiKey();
+  if (!key && !canUseGemini)
     return new Response("Recognition unavailable", {
       status: 503,
       headers: cors,
@@ -137,56 +143,85 @@ Deno.serve(async (request) => {
         20 * 1024 * 1024
     )
       return new Response("Invalid image", { status: 400, headers: cors });
-    const outbound = new FormData();
-    for (const image of images as File[]) {
-      outbound.append(
-        "images",
-        image,
-        "plant" +
-          (image.type === "image/png"
-            ? ".png"
-            : image.type === "image/webp"
-              ? ".webp"
-              : ".jpg"),
+
+    const tryGeminiFallback = async () => {
+      if (!canUseGemini) return null;
+      const firstImage = images[0] as File;
+      const imageBase64 = bytesToBase64(
+        new Uint8Array(await firstImage.arrayBuffer()),
       );
-      outbound.append("organs", "auto");
-    }
-    const response = await fetch(
-      `https://my-api.plantnet.org/v2/identify/all?api-key=${encodeURIComponent(key)}&lang=uk`,
-      {
-        method: "POST",
-        body: outbound,
-        signal: AbortSignal.timeout(20000),
-      },
-    );
-    if (!response.ok)
-      return new Response("Recognition failed", {
-        status: response.status === 429 ? 429 : 502,
-        headers: cors,
+      const aiPlant = await identifyPlantWithGemini({
+        imageBase64,
+        imageMimeType: firstImage.type,
       });
-    const payload = await response.json();
-    const best: PlantNetResult | undefined = payload.results?.[0];
-    if (!best?.species || (best.score ?? 0) < 0.12)
-      return Response.json({ recognized: false }, { headers: cors });
-    const scientificName = String(
-      best.species.scientificNameWithoutAuthor ||
-        best.species.scientificName ||
-        "",
-    ).slice(0, 120);
-    const commonName = best.species.commonNames?.find((name) =>
-      /[А-Яа-яІіЇїЄєҐґ]/.test(name),
-    );
-    return Response.json(
-      {
-        recognized: true,
-        name: String(commonName || scientificName).slice(0, 100),
-        species: scientificName,
-        confidence: best.score,
-        ...careFor(best),
-        info_url: `https://uk.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(scientificName)}`,
-      },
-      { headers: cors },
-    );
+      if (!aiPlant) return null;
+      return Response.json(
+        {
+          ...aiPlant,
+          info_url: `https://uk.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(aiPlant.species || aiPlant.name)}`,
+        },
+        { headers: cors },
+      );
+    };
+
+    if (key) {
+      const outbound = new FormData();
+      for (const image of images as File[]) {
+        outbound.append(
+          "images",
+          image,
+          "plant" +
+            (image.type === "image/png"
+              ? ".png"
+              : image.type === "image/webp"
+                ? ".webp"
+                : ".jpg"),
+        );
+        outbound.append("organs", "auto");
+      }
+      const response = await fetch(
+        `https://my-api.plantnet.org/v2/identify/all?api-key=${encodeURIComponent(key)}&lang=uk`,
+        {
+          method: "POST",
+          body: outbound,
+          signal: AbortSignal.timeout(20000),
+        },
+      );
+      if (response.ok) {
+        const payload = await response.json();
+        const best: PlantNetResult | undefined = payload.results?.[0];
+        if (best?.species && (best.score ?? 0) >= 0.12) {
+          const scientificName = String(
+            best.species.scientificNameWithoutAuthor ||
+              best.species.scientificName ||
+              "",
+          ).slice(0, 120);
+          const commonName = best.species.commonNames?.find((name) =>
+            /[А-Яа-яІіЇїЄєҐґ]/.test(name),
+          );
+          return Response.json(
+            {
+              recognized: true,
+              name: String(commonName || scientificName).slice(0, 100),
+              species: scientificName,
+              confidence: best.score,
+              ...careFor(best),
+              info_url: `https://uk.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(scientificName)}`,
+            },
+            { headers: cors },
+          );
+        }
+      } else if (!canUseGemini) {
+        return new Response("Recognition failed", {
+          status: response.status === 429 ? 429 : 502,
+          headers: cors,
+        });
+      }
+    }
+
+    const aiResponse = await tryGeminiFallback();
+    if (aiResponse) return aiResponse;
+    return Response.json({ recognized: false }, { headers: cors });
   } catch (err) {
     console.error(
       "[plant-identify] failed:",

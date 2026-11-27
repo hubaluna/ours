@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent } from "react";
-import { Camera, ChevronDown, ChevronUp, Plus, X } from "lucide-react";
+import { Camera, ChevronDown, ChevronUp, Plus, Sparkles, X } from "lucide-react";
 import { useApp } from "../hooks/AppContext";
+import { parseShoppingPhrase } from "../lib/ai-assist";
 import { uploadImage } from "../lib/supabase";
 import {
   categories,
@@ -52,11 +53,13 @@ export function ShoppingForm({
   onClose: () => void;
   item?: ShoppingItem;
 }) {
-  const { addShopping, addShoppingBatch, update, remove, pending, data } = useApp();
+  const { addShopping, addShoppingBatch, update, remove, pending, data, demo, notify } =
+    useApp();
   const [name, setName] = useState(item?.name ?? ""),
     [manualCategory, setManualCategory] = useState<string | null>(null),
     [error, setError] = useState(""),
-    [another, setAnother] = useState(false);
+    [another, setAnother] = useState(false),
+    [aiParsing, setAiParsing] = useState(false);
   const [unit, setUnit] = useState(item?.unit ?? "шт.");
   const input = useRef<HTMLInputElement>(null);
 
@@ -256,6 +259,37 @@ export function ShoppingForm({
             maxLength={320}
           />
         </Field>
+        {!item && !demo && name.trim().length >= 5 && (
+          <button
+            type="button"
+            className="shopping-ai-parse-btn"
+            disabled={aiParsing}
+            onClick={async () => {
+              setAiParsing(true);
+              try {
+                const res = await parseShoppingPhrase(name);
+                if (res.error || !res.items.length) {
+                  notify(res.error || "Не вдалося розібрати фразу.");
+                  return;
+                }
+                const formatted = res.items
+                  .map((it) =>
+                    it.quantity && it.quantity !== 1
+                      ? `${it.name} ${it.quantity} ${it.unit}`
+                      : it.name,
+                  )
+                  .join(", ");
+                setName(formatted);
+                notify(`Розібрано продуктів: ${res.items.length}`);
+              } finally {
+                setAiParsing(false);
+              }
+            }}
+          >
+            <Sparkles size={13} />
+            {aiParsing ? "Розбираємо фразу…" : "Розкласти фразу на продукти"}
+          </button>
+        )}
         {catalogSuggestions.length > 0 && !item && (
           <div
             className="suggestions catalog-suggestions"
